@@ -7,7 +7,7 @@ const screenWidth = 325;
 
 
 const BarGraph = ({data}) => {
-  const barWidth = screenWidth / data.length - 10;
+  const barWidth = screenWidth / data.length - 11;
   const labelOffset = barWidth / 2;
   const maxValue = Math.max(...data.map(item => item.value));
   const scale = 170 / maxValue;
