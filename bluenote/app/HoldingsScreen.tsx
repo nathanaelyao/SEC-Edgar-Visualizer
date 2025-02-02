@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, TextInput, ActivityIndicator, Button } from 'react-native';
 import { XMLParser } from 'fast-xml-parser';
 import { RouteProp, useRoute } from '@react-navigation/native';
+import HTML from 'react-native-html-parser'; // Import the HTML parser
+import cheerio from 'react-native-cheerio'; // Import cheerio
 
 type RootStackParamList = {
   HoldingsScreen: { investorName: string; cik: string };
 };
 const App: React.FC = () => {
+
+  const [xmlUrl, setXmlUrl] = useState<string | null>(null);  // Type the state as either string or null
   const route = useRoute<RouteProp<RootStackParamList, 'HoldingsScreen'>>();
   const { investorName, cik } = route.params;
   const [filings, setFilings] = useState<any[]>([]);
@@ -30,14 +34,17 @@ const App: React.FC = () => {
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 
+      
+
       const data = await response.json();
       console.log("Company Name:", data.name);
       console.log("CIK:", data.cik);
       console.log("Fiscal Year End:", data.fiscalYearEnd);
 
       const recentFilings = data.filings.recent;
-
+      console.log(recentFilings)
       if (recentFilings) {
+
         console.log("Recent Filings Count:", recentFilings.accessionNumber.length);
 
         let first = true;
@@ -45,10 +52,13 @@ const App: React.FC = () => {
           const accessionNumber = recentFilings.accessionNumber[i];
           const filingDate = recentFilings.filingDate[i];
           const formType = recentFilings.form[i];
-
-          if (formType === '13F-HR' && first) {
+          console.log(formType)
+          const primaryDocument =  recentFilings.primaryDocument[i];
+          const filename = primaryDocument.substring(primaryDocument.lastIndexOf('/') + 1);
+          if ( formType == '13F-HR' && first) {
             first = false;
             console.log(`  Accession Number: ${accessionNumber}`);
+            console.log(filename)
             console.log(`  Filing Date: ${filingDate}`);
             console.log(`  Form Type: ${formType}`);
 
@@ -69,21 +79,49 @@ const App: React.FC = () => {
     }
   };
 
-  const getHoldings = async (accessionNumber, cik) => {
+  const getHoldings = async (accessionNumber, cik1) => {
     try {
-      const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
+        const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
+  
+        
       const response = await fetch(
-        `https://www.sec.gov/Archives/edgar/data/${cik}/${accessionNumberNoHyphens}/infotable.xml`
+        `https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`
       );
+ 
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.text();
-      const parser = new XMLParser();
-      const json = parser.parse(data);
-      return json['informationTable']['infoTable'] || []; // Handle cases where infoTable might be missing
+
+      const $ = cheerio.load(data); // This is the key change!
+
+      const foundFiles: string[] = [];
+
+      $('a').each(function () {  // Use Cheerio's each function
+          const href = $(this).attr('href'); // Use Cheerio's attr function
+          if (href && href.endsWith('.xml')) {
+              foundFiles.push(href);
+          }
+      });
+
+      console.log(foundFiles)
+      for (let i = 0; i < foundFiles.length; i++) {
+        if (!foundFiles[i].startsWith("primary")){
+            const response1 = await fetch(
+                `https://www.sec.gov${foundFiles[i]}`
+            );
+            const data1 = await response1.text();
+
+            const parser = new XMLParser();
+            const json = parser.parse(data1);
+            return json['informationTable']['infoTable'] || [];
+        }
+      }
+      return [];
+      
+ // Handle cases where infoTable might be missing
     } catch (error) {
       console.error("Error fetching holdings:", error);
       return []; // Return empty array in case of error
@@ -97,7 +135,7 @@ const App: React.FC = () => {
     const n = typeof number === 'string' ? parseFloat(number) : number; // Convert string to number
     return n.toLocaleString(); // Use toLocaleString for commas
   };
-
+  
   const renderItem = ({ item }) => (
     <View style={styles.item}>
       <View style={styles.row}>
@@ -132,6 +170,7 @@ const App: React.FC = () => {
         ListEmptyComponent={() => !loading && !error && <Text>No filings found.</Text>}
       />
     </View>
+    
   );
 };
 
