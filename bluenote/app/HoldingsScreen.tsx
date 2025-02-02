@@ -6,13 +6,12 @@ import HTML from 'react-native-html-parser'; // Import the HTML parser
 import cheerio from 'react-native-cheerio'; // Import cheerio
 
 type RootStackParamList = {
-  HoldingsScreen: { investorName: string; cik: string };
+  HoldingsScreen: { investorName: string; cik: string, institution: string };
 };
 const App: React.FC = () => {
-
-  const [xmlUrl, setXmlUrl] = useState<string | null>(null);  // Type the state as either string or null
+  const [totalPortfolioValue, setTotalPortfolioValue] = useState(0);
   const route = useRoute<RouteProp<RootStackParamList, 'HoldingsScreen'>>();
-  const { investorName, cik } = route.params;
+  const { investorName, cik, institution } = route.params;
   const [filings, setFilings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +20,6 @@ const App: React.FC = () => {
   }, [cik]);
 
   const fetchFilings = async () => {
-    console.log(cik)
     setLoading(true);
     setError(null);
 
@@ -42,17 +40,14 @@ const App: React.FC = () => {
       console.log("Fiscal Year End:", data.fiscalYearEnd);
 
       const recentFilings = data.filings.recent;
-      console.log(recentFilings)
       if (recentFilings) {
 
-        console.log("Recent Filings Count:", recentFilings.accessionNumber.length);
 
         let first = true;
         for (let i = 0; i < recentFilings.accessionNumber.length; i++) {
           const accessionNumber = recentFilings.accessionNumber[i];
           const filingDate = recentFilings.filingDate[i];
           const formType = recentFilings.form[i];
-          console.log(formType)
           const primaryDocument =  recentFilings.primaryDocument[i];
           const filename = primaryDocument.substring(primaryDocument.lastIndexOf('/') + 1);
           if ( formType == '13F-HR' && first) {
@@ -63,8 +58,16 @@ const App: React.FC = () => {
             console.log(`  Form Type: ${formType}`);
 
             getHoldings(accessionNumber, data.cik).then(holdings => {
-              setFilings(holdings || []);
+              console.log(holdings)
+              const combinedHoldings = combineSameIssuer(holdings)
+              const sortedHoldings = sortHoldingsByValue(combinedHoldings);
+              setFilings(sortedHoldings || []);
+              if (sortedHoldings) {
+                const totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value), 0);
+                setTotalPortfolioValue(totalValue);
+              }
             });
+            
             break; // Stop after finding the first 13F-HR
           }
         }
@@ -78,7 +81,37 @@ const App: React.FC = () => {
       setLoading(false);
     }
   };
+  const sortHoldingsByValue = (holdings: any[]) => {
+    // Sort by value (descending)
+    return [...holdings].sort((a, b) => parseFloat(b.value) - parseFloat(a.value));
+  };
+  const combineSameIssuer = (holdings: any[]) => {
+    const combined = [];
+    const seen = new Set<string>(); // Keep track of seen issuer names
 
+    for (const item of holdings) {
+        if (!item?.nameOfIssuer || !item?.shrsOrPrnAmt?.sshPrnamt || !item?.value) continue; // Skip if data is missing.
+
+        const issuer = item.nameOfIssuer;
+        const shares = parseFloat(item.shrsOrPrnAmt.sshPrnamt);
+        const value = parseFloat(item.value);
+
+        if (seen.has(issuer)) {
+            // Find existing item and add shares and value.
+            const existingItem = combined.find(h => h.nameOfIssuer === issuer);
+            if (existingItem) {
+                existingItem.shrsOrPrnAmt.sshPrnamt = (parseFloat(existingItem.shrsOrPrnAmt.sshPrnamt) + shares).toString(); // Add shares. Convert to string
+                existingItem.value = (parseFloat(existingItem.value) + value).toString(); // Add value. Convert to string
+            }
+        } else {
+            // Deep copy the item to avoid modifying the original holdings
+            const newItem = JSON.parse(JSON.stringify(item));
+            combined.push(newItem);
+            seen.add(issuer);
+        }
+    }
+    return combined;
+};
   const getHoldings = async (accessionNumber, cik1) => {
     try {
         const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
@@ -135,6 +168,13 @@ const App: React.FC = () => {
     const n = typeof number === 'string' ? parseFloat(number) : number; // Convert string to number
     return n.toLocaleString(); // Use toLocaleString for commas
   };
+  const calculatePercentage = (value: number): string => {
+    if (totalPortfolioValue === 0 || isNaN(value)) {
+        return "0.00%"; // Or handle the case as you see fit
+    }
+    const percentage = (value / totalPortfolioValue) * 100;
+    return percentage.toFixed(2) + "%";
+};
   
   const renderItem = ({ item }) => (
     <View style={styles.item}>
@@ -142,14 +182,19 @@ const App: React.FC = () => {
         <Text style={styles.boldText}>{item.nameOfIssuer}</Text>
       </View>
 
+
       <View style={styles.row}>
         <Text style={styles.label}>Shares:</Text>
         <Text>{formatNumberWithCommas(item.shrsOrPrnAmt?.sshPrnamt)}</Text>
       </View>
       <View style={styles.row}>
-        <Text style={styles.label}>Value:</Text>
-        <Text>${formatNumberWithCommas(item.value)}</Text>
-      </View>
+      <Text style={styles.label}>Value:</Text>
+      <Text>${formatNumberWithCommas(item.value)}</Text>
+    </View>
+    <View style={styles.row}>
+      <Text style={styles.label}>% of Portfolio:</Text>
+      <Text>{calculatePercentage(parseFloat(item.value))}</Text> {/* Now wrapped in <Text> */}
+    </View>
     </View>
   );
 
@@ -158,6 +203,10 @@ const App: React.FC = () => {
 
     <View style={styles.header}> {/* New header View */}
         <Text style={styles.investorName}>{investorName}</Text>
+        <Text style={styles.institutionName}>{institution}</Text> {/* Display institution */}
+        <Text style={styles.portfolioValue}>
+          Total Portfolio Value: ${formatNumberWithCommas(totalPortfolioValue)}
+        </Text> {/* Display total portfolio value */}
         {/* <Text style={styles.companyName}>{companyName}</Text> Display company name */}
       </View>
       {loading && <ActivityIndicator size="large" color="#0000ff" />}
@@ -184,10 +233,20 @@ container: {
     marginBottom: 10,     // Add some space below the header
     },
     investorName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 5,   // Space between investor and company name
-    },
+        fontSize: 20,
+        fontWeight: 'bold',
+        marginBottom: 5,
+      },
+      institutionName: {
+        fontSize: 16,
+        color: 'gray',
+        marginBottom: 5, // Add some margin below institution name
+      },
+      portfolioValue: { // Style for total portfolio value
+        fontSize: 16,
+        fontWeight: 'bold',
+      },
+
     companyName: {
     fontSize: 16,
     color: 'gray',  // Make company name slightly less prominent
