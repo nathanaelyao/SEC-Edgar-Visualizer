@@ -175,7 +175,7 @@ const HomeScreen: React.FC = () => {
         // maxHeight={isDropdownOpen ? 300 : 0} // Control list height to open/close
         labelField="label"
         valueField="value"
-        placeholder={!isFocus ? 'Alphabitcal' : '...'}
+        placeholder={!isFocus ? 'Alphabetical' : '...'}
         searchPlaceholder="Search..."
         onFocus={() => setIsFocus(true)}
         onBlur={() => setIsFocus(false)}

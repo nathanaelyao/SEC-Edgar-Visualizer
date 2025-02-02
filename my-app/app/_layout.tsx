@@ -36,6 +36,9 @@ export default function RootLayout() {
         <Stack.Screen 
           name="SearchResults" 
         />
+                <Stack.Screen 
+          name="Holdings" 
+        />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
