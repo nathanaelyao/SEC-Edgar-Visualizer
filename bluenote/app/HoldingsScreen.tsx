@@ -23,7 +23,7 @@ const App: React.FC = () => {
 
 
     try {
-      const apiUrl = `https://data.sec.gov/submissions/CIK0001657335.json`; // Example CIK, replace as needed
+      const apiUrl = `https://data.sec.gov/submissions/CIK${cik}.json`; // Example CIK, replace as needed
       const response = await fetch(apiUrl);
       if (!response.ok) {
         const errorData = await response.json();
@@ -90,28 +90,27 @@ const App: React.FC = () => {
     }
   };
 
-
+  const formatNumberWithCommas = (number: any): string => {
+    if (number === undefined || number === null) {
+      return "N/A";
+    }
+    const n = typeof number === 'string' ? parseFloat(number) : number; // Convert string to number
+    return n.toLocaleString(); // Use toLocaleString for commas
+  };
 
   const renderItem = ({ item }) => (
     <View style={styles.item}>
       <View style={styles.row}>
         <Text style={styles.boldText}>{item.nameOfIssuer}</Text>
       </View>
-      <View style={styles.row}>
-        <Text style={styles.label}>CUSIP:</Text>
-        <Text>{item.cusip}</Text>
-      </View>
+
       <View style={styles.row}>
         <Text style={styles.label}>Shares:</Text>
-        <Text>{item.shrsOrPrnAmt?.sshPrnamt} {item.shrsOrPrnAmt?.sshPrnamtType}</Text> {/* Optional chaining */}
+        <Text>{formatNumberWithCommas(item.shrsOrPrnAmt?.sshPrnamt)}</Text>
       </View>
       <View style={styles.row}>
         <Text style={styles.label}>Value:</Text>
-        <Text>${item.value}</Text>
-      </View>
-      <View style={styles.row}>
-        <Text style={styles.label}>Voting Authority:</Text>
-        <Text>Sole: {item.votingAuthority?.Sole}, Shared: {item.votingAuthority?.Shared}, None: {item.votingAuthority?.None}</Text> {/* Optional chaining */}
+        <Text>${formatNumberWithCommas(item.value)}</Text>
       </View>
     </View>
   );
