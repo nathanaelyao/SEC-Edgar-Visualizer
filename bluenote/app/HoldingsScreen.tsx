@@ -15,6 +15,8 @@ const App: React.FC = () => {
   const [filings, setFilings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previousFilings, setPreviousFilings] = useState<any[]>([]); // State for previous filings
+
   useEffect(() => {
     fetchFilings();
   }, [cik]);
@@ -44,6 +46,7 @@ const App: React.FC = () => {
 
 
         let first = true;
+        let second = true;
         for (let i = 0; i < recentFilings.accessionNumber.length; i++) {
           const accessionNumber = recentFilings.accessionNumber[i];
           const filingDate = recentFilings.filingDate[i];
@@ -68,7 +71,15 @@ const App: React.FC = () => {
               }
             });
             
-            break; // Stop after finding the first 13F-HR
+          }
+          else if (formType == '13F-HR' && second) {  // Fetch the *previous* 13F-HR
+            second = false;
+            console.log(`Second 13F-HR: ${accessionNumber}`);
+            await getHoldings(accessionNumber, data.cik).then(previousHoldings => {
+                console.log(previousHoldings,'prevvvv')
+              setPreviousFilings(combineSameIssuer(previousHoldings)); // Store previous holdings
+            });
+            break; // Stop after finding the second 13F-HR
           }
         }
       } else {
@@ -80,6 +91,26 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+  const calculatePercentageChange = (currentShares: number, issuer: string): string => {
+    if (previousFilings.length === 0) {
+      return "N/A"; // No previous data
+    }
+
+    const previousHolding = previousFilings.find(item => item.nameOfIssuer === issuer);
+
+    if (!previousHolding || !previousHolding.shrsOrPrnAmt?.sshPrnamt) {
+      return "New Position"; // Issuer not found in previous filings or missing share data
+    }
+
+    const previousShares = parseFloat(previousHolding.shrsOrPrnAmt.sshPrnamt);
+
+    if (isNaN(currentShares) || isNaN(previousShares) || previousShares === 0) {
+      return "N/A"; // Handle potential NaN or division by zero errors
+    }
+
+    const percentageChange = ((currentShares - previousShares) / previousShares) * 100;
+    return percentageChange.toFixed(2) + "%";
   };
   const sortHoldingsByValue = (holdings: any[]) => {
     // Sort by value (descending)
@@ -212,6 +243,12 @@ const App: React.FC = () => {
       <Text style={styles.label}>% of Portfolio:</Text>
       <Text>{calculatePercentage(parseFloat(item.value))}</Text> {/* Now wrapped in <Text> */}
     </View>
+    <View style={styles.row}>
+        <Text style={styles.label}>Change in Shares:</Text>
+        <Text>
+          {calculatePercentageChange(parseFloat(item.shrsOrPrnAmt?.sshPrnamt), item.nameOfIssuer)}
+        </Text>
+      </View>
     </View>
   );
 
