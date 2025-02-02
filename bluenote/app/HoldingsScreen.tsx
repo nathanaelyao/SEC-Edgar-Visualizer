@@ -92,25 +92,41 @@ const App: React.FC = () => {
       setLoading(false);
     }
   };
-  const calculatePercentageChange = (currentShares: number, issuer: string): string => {
+  const calculatePercentageChange = (currentShares: number, issuer: string): { change: string; color: string } => {
     if (previousFilings.length === 0) {
-      return "N/A"; // No previous data
+      return { change: "N/A", color: 'black' }; // No previous data
     }
 
     const previousHolding = previousFilings.find(item => item.nameOfIssuer === issuer);
 
     if (!previousHolding || !previousHolding.shrsOrPrnAmt?.sshPrnamt) {
-      return "New Position"; // Issuer not found in previous filings or missing share data
+      return { change: "New Position", color: 'green' }; // Issuer not found in previous filings or missing share data
     }
 
     const previousShares = parseFloat(previousHolding.shrsOrPrnAmt.sshPrnamt);
 
     if (isNaN(currentShares) || isNaN(previousShares) || previousShares === 0) {
-      return "N/A"; // Handle potential NaN or division by zero errors
+      return { change: "N/A", color: 'black' }; // Handle potential NaN or division by zero errors
     }
 
     const percentageChange = ((currentShares - previousShares) / previousShares) * 100;
-    return percentageChange.toFixed(2) + "%";
+    const absPercentageChange = Math.abs(percentageChange); // Get the absolute value
+
+    let changeString = "";
+    let prefix = "";
+
+    if (percentageChange > 0) {
+      prefix = "Add ";
+      changeString = absPercentageChange.toFixed(2) + "%";
+    } else if (percentageChange < 0) {
+      prefix = "Reduce ";
+      changeString = absPercentageChange.toFixed(2) + "%";
+    } else {
+      changeString = percentageChange.toFixed(2) + "%"; // Keep 0 as is
+    }
+
+    const color = percentageChange > 0 ? 'green' : percentageChange < 0 ? 'red' : 'black';
+    return { change: prefix + changeString, color }; // Add the prefix here
   };
   const sortHoldingsByValue = (holdings: any[]) => {
     // Sort by value (descending)
@@ -223,34 +239,38 @@ const App: React.FC = () => {
     const percentage = (value / totalPortfolioValue) * 100;
     return percentage.toFixed(2) + "%";
 };
+const renderItem = ({ item }) => { // Add curly braces
+    const changeData = calculatePercentageChange(parseFloat(item.shrsOrPrnAmt?.sshPrnamt), item.nameOfIssuer);
+    const change = changeData.change;
+    const color = changeData.color;
   
-  const renderItem = ({ item }) => (
-    <View style={styles.item}>
-      <View style={styles.row}>
-        <Text style={styles.boldText}>{item.nameOfIssuer}</Text>
+    return ( // Now the return statement is explicit
+        <View style={styles.item}>
+        <View style={styles.row}>
+          <Text style={styles.boldText}>{item.nameOfIssuer}</Text>
+        </View>
+  
+  
+        <View style={styles.row}>
+          <Text style={styles.label}>Shares:</Text>
+          <Text>{formatNumberWithCommas(item.shrsOrPrnAmt?.sshPrnamt)}</Text>
+        </View>
+        <View style={styles.row}>
+        <Text style={styles.label}>Value:</Text>
+        <Text>${formatNumberWithCommas(item.value)}</Text>
       </View>
+      <View style={styles.row}>
+        <Text style={styles.label}>% of Portfolio:</Text>
+        <Text>{calculatePercentage(parseFloat(item.value))}</Text> {/* Now wrapped in <Text> */}
+      </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Change in Shares:</Text>
+            <Text style={{ color }}>{change}</Text>
+          </View>
+      </View>
+    );
+  };
 
-
-      <View style={styles.row}>
-        <Text style={styles.label}>Shares:</Text>
-        <Text>{formatNumberWithCommas(item.shrsOrPrnAmt?.sshPrnamt)}</Text>
-      </View>
-      <View style={styles.row}>
-      <Text style={styles.label}>Value:</Text>
-      <Text>${formatNumberWithCommas(item.value)}</Text>
-    </View>
-    <View style={styles.row}>
-      <Text style={styles.label}>% of Portfolio:</Text>
-      <Text>{calculatePercentage(parseFloat(item.value))}</Text> {/* Now wrapped in <Text> */}
-    </View>
-    <View style={styles.row}>
-        <Text style={styles.label}>Change in Shares:</Text>
-        <Text>
-          {calculatePercentageChange(parseFloat(item.shrsOrPrnAmt?.sshPrnamt), item.nameOfIssuer)}
-        </Text>
-      </View>
-    </View>
-  );
 
   return (
     <View style={styles.container}>
