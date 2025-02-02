@@ -38,14 +38,13 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
   },
   container: {
+
     flex: 1,
     justifyContent: 'flex-start', // Align to the top
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#fff',
   },
   content: {
     width: '100%',
@@ -53,6 +52,7 @@ const styles = StyleSheet.create({
     marginTop: '45%', // 45% of the screen height
   },
   title: {
+    marginTop: 70,
     fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 20,

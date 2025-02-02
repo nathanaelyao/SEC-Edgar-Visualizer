@@ -209,6 +209,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     marginBottom: 16,
+    backgroundColor: '#fafafa'
 
   },
   label: {
@@ -251,6 +252,7 @@ const styles = StyleSheet.create({
         marginTop: 65,
         flex: 1,
         padding: 16,
+        marginBottom:70
     },
     title: {
         fontSize: 24,
@@ -265,9 +267,10 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         paddingHorizontal: 8,
         borderRadius: 5,
+        backgroundColor:'#fafafa'
     },
     investorItem: {
-        backgroundColor: '#f0f0f0',
+        backgroundColor: '#fafafa',
         padding: 16,
         marginBottom: 8,
         borderRadius: 4,
