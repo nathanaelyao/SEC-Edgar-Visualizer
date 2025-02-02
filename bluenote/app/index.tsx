@@ -1,18 +1,34 @@
 // index.tsx (Home Screen)
-import React from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
-const investors = [
+const investorsData = [ // Store original data
   { name: 'Warren Buffett', institution: "Berkshire Hathaway", cik: '0001067983' },
   { name: 'Bryan Lawrence', institution: "Oakcliff Capital", cik: '0001657335' },
   { name: 'Robert Vinall', institution: "RV Capital", cik: '0001766596' },
-
-  // Add more investors here...
+  // ... more investors
 ];
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredInvestors, setFilteredInvestors] = useState(investorsData); // Initialize with all investors
+
+  useEffect(() => {
+    // Filter investors based on search query
+    const filtered = investorsData.filter(investor => {
+      const lowerCaseQuery = searchQuery.toLowerCase();
+      const lowerCaseName = investor.name.toLowerCase();
+      const lowerCaseInstitution = investor.institution.toLowerCase();
+
+      return (
+        lowerCaseName.includes(lowerCaseQuery) ||
+        lowerCaseInstitution.includes(lowerCaseQuery)
+      );
+    });
+    setFilteredInvestors(filtered);
+  }, [searchQuery]);
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
@@ -33,11 +49,17 @@ const HomeScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Institutional 13Fs</Text>
+      <TextInput
+        style={styles.searchBar}
+        placeholder="Search by name or institution" // Placeholder text
+        placeholderTextColor="gray" // Grayed out placeholder
+        onChangeText={setSearchQuery}
+        value={searchQuery}
+      />
       <FlatList
-        data={investors}
+        data={filteredInvestors} // Use filtered data
         renderItem={renderItem}
         keyExtractor={(item) => item.cik}
-        // Remove getItemLayout to disable optimizations if needed
       />
     </View>
   );
@@ -45,7 +67,7 @@ const HomeScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1, // Make the container take up the full screen
+    flex: 1,
     padding: 16,
   },
   title: {
@@ -53,6 +75,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
     textAlign: 'center',
+  },
+  searchBar: {  // Style for the search bar
+    height: 40,
+    borderColor: 'gray',
+    borderWidth: 1,
+    marginBottom: 16,
+    paddingHorizontal: 8,
+    borderRadius: 5, // Add rounded corners
   },
   investorItem: {
     backgroundColor: '#f0f0f0',
