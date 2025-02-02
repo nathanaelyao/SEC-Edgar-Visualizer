@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, TextInput, ActivityIndicator, Button } from 'react-native';
-
+// import { parseString } from 'react-native-xml2js';
+import { XMLParser } from 'fast-xml-parser';
 const App: React.FC = () => {
   const investorName = 'Warren Buffett'
   const [filings, setFilings] = useState<any[]>([]); // Use 'any' or a more specific type if you know the API response structure
@@ -25,6 +26,7 @@ const App: React.FC = () => {
       }
 
       const data = await response.json();
+      var oHoldings = []
       console.log("Company Name:", data.name);
       console.log("CIK:", data.cik);
       console.log("Fiscal Year End:", data.fiscalYearEnd);
@@ -36,27 +38,40 @@ const App: React.FC = () => {
         console.log("First Filing Date:", recentFilings.filingDate[0]);
       
         // Example: Loop through recent filings
+        // for (let i = 0; i < recentFilings.accessionNumber.length; i++) {
+
+    
+
+      
+
+        var first = true
         for (let i = 0; i < recentFilings.accessionNumber.length; i++) {
           const accessionNumber = recentFilings.accessionNumber[i];
           const filingDate = recentFilings.filingDate[i];
           const formType = recentFilings.form[i];
-
-      
-          console.log(`Filing ${i + 1}:`);
-          console.log(`  Accession Number: ${accessionNumber}`);
-          console.log(`  Filing Date: ${filingDate}`);
-          console.log(`  Form Type: ${formType}`);
-      
+          if (formType == '13F-HR' && first){
+            first = false
+            console.log(`  Accession Number: ${accessionNumber}`);
+            console.log(`  Filing Date: ${filingDate}`);
+            console.log(`  Form Type: ${formType}`);
           // Now that you have the accession number, you can call the holdings data endpoint (as discussed in the previous response)
-          getHoldings(accessionNumber, data.cik).then(holdings => {
+            getHoldings(accessionNumber, data.cik).then(holdings => {
               // Process holdings data here
-              console.log("Holdings: ", holdings)
+
+              setFilings(holdings || []); 
+              console.log('filings',filings)// Adjust based on your actual API response structure
+
+
           })
+          }
+
         }
+        
+    
+        
       } else {
         console.log("No recent filings found.");
       }
-      setFilings(data.filings || []); // Adjust based on your actual API response structure
     } catch (err) {
       setError(err.message);
       console.error("Error fetching filings:", err);
@@ -78,7 +93,10 @@ const App: React.FC = () => {
       }
   
       const data = await response.text();
-      return data;
+      const parser = new XMLParser();
+      const json = parser.parse(data);
+      console.log(json['informationTable']['infoTable'], 'jsssssson')
+      return json['informationTable']['infoTable']
   
     } catch (error) {
       console.error("Error fetching holdings:", error);
@@ -89,11 +107,14 @@ const App: React.FC = () => {
     // You can fetch initial data here if needed
   }, []);
 
-  const renderItem = ({ item }: { item: any }) => ( // Type the 'item' prop
-    <View style={styles.filingItem}>
-      <Text style={styles.filingName}>{item.companyName || "N/A"}</Text> {/* Example: Adapt to your data */}
-      <Text>{item.filingDate || "N/A"}</Text> {/* Example: Adapt to your data */}
-      {/* ... other details from the filing ... */}
+  const renderItem = ({ item }) => (
+    <View style={styles.item}>
+      <Text style={styles.boldText}>{item.nameOfIssuer}</Text>
+      <Text>CUSIP: {item.cusip}</Text>
+      <Text>Shares: {item.shrsOrPrnAmt.sshPrnamt} {item.shrsOrPrnAmt.sshPrnamtType}</Text>
+      <Text>Value: ${item.value}</Text>
+      <Text>Voting Authority: Sole: {item.votingAuthority.Sole}, Shared: {item.votingAuthority.Shared}, None: {item.votingAuthority.None}</Text>
+      {/* Add other fields as needed */}
     </View>
   );
 
