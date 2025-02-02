@@ -248,6 +248,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
     container: {
+        marginTop: 65,
         flex: 1,
         padding: 16,
     },

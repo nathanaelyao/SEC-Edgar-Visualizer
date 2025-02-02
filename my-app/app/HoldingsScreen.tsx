@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, TextInput, ActivityIndicator, Button } from 'react-native';
 import { XMLParser } from 'fast-xml-parser';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import HTML from 'react-native-html-parser'; // Import the HTML parser
 import cheerio from 'react-native-cheerio'; // Import cheerio
 
 type RootStackParamList = {
   HoldingsScreen: { investorName: string; cik: string, institution: string };
 };
-const App: React.FC = () => {
+const HoldingsScreen: React.FC = () => {
   const [totalPortfolioValue, setTotalPortfolioValue] = useState(0);
   const route = useRoute<RouteProp<RootStackParamList, 'HoldingsScreen'>>();
   const { investorName, cik, institution } = route.params;
@@ -66,7 +65,7 @@ const App: React.FC = () => {
             let quarterString = "";
     
             if (month >= 1 && month <= 3) {
-              quarterString = "Q4 " + filingDateObj.getFullYear();
+              quarterString = "Q4 " + (filingDateObj.getFullYear() - 1);
             } else if (month >= 4 && month <= 6) {
               quarterString = "Q1 " + filingDateObj.getFullYear();
             } else if (month >= 7 && month <= 9) {
@@ -372,4 +371,4 @@ container: {
   },
 });
 
-export default App;
+export default HoldingsScreen;
