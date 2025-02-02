@@ -2,13 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import Svg, { G, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 
-const data = [
-  { label: 'Jan', value: 150 },
-  { label: 'Feb', value: 100 },
-  { label: 'Mar', value: 171 },
-  { label: 'Apr', value: 300 },
-  { label: 'May', value: 200 },
-];
+const data = [{"label": 2025, "value": 2.41}, {"label": 2024, "value": 6.11}, {"label": 2023, "value": 6.16}, {"label": 2022, "value": 6.15}, {"label": 2021, "value": 5.67}, {"label": 2020, "value": 0.74}, {"label": 2019, "value": 3.05}, {"label": 2018, "value": 2.94}, {"label": 2017, "value": 2.08}, {"label": 2016, "value": 1.68}] 
 
 const screenWidth = 325;
 const barWidth = screenWidth / data.length - 10;

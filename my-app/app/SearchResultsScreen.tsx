@@ -71,16 +71,19 @@ const SearchResultsScreen: React.FC = () => {
       const eps = epsData ? epsData[epsData.length - 1]?.val : null;
 
       const graphData: Record<string, number>[] = [];
+      let seen = []
       if (epsData) {
-        let length = epsData.length;
         let count = 1;
-        while (length > 0 && count <= 10) {
+        while (count <= epsData.length - 1 && graphData.length < 10) {
           const item = epsData[epsData.length - count];
-          if (!item.frame.includes('Q') && !item.frame.includes('q')){
-            graphData.push({ label: item.frame, value: item.val });
-            count += 1;
+        //   console.log(item)
+          if (item.fy && !seen.includes(item.fy)){
+            console.log('heeere')
+            seen.push(item.fy)
+            graphData.push({ label: item.fy, value: item.val });
+            console.log(graphData, 'dmkdlsfl')
           }
-          length -= 1;
+          count += 1;
 
         }
       }
@@ -124,7 +127,8 @@ const SearchResultsScreen: React.FC = () => {
 
   const renderGraph = () => {
     if (!stockInfo || !stockInfo.graphData || stockInfo.graphData.length === 0) {
-      return <Text>No graph data available.</Text>; 
+        console.log(stockInfo)
+        return <Text>No graph data available.</Text>; 
     }
 
     const data = stockInfo.graphData.slice(0, 10);
