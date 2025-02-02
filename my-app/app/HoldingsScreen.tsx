@@ -347,7 +347,7 @@ container: {
     marginVertical: 10,
   },
   item: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#fafafa',
     padding: 12,
     marginBottom: 8,
     borderRadius: 4,

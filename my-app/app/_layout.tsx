@@ -5,6 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
+import SearchResultsScreen from './SearchResultsScreen'; // Make sure the path is correct
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 
@@ -32,6 +33,9 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
+        <Stack.Screen 
+          name="SearchResults" 
+        />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

@@ -1,13 +1,21 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Button } from 'react-native';
+import { useNavigation } from '@react-navigation/native'; // Import navigation hook
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-
-export default function HomeScreen() {
+const Home: React.FC = () => {
   const [searchText, setSearchText] = useState('');
+  const navigation = useNavigation(); // Initialize navigation
+
+  const handleSearch = () => {
+    if (searchText) { // Check if search text is not empty
+      console.log("Searching for:", searchText);
+      navigation.navigate('SearchResultsScreen', { stockSymbol: searchText }); // Navigate and pass data
+      setSearchText(''); // Clear the search bar after search (optional)
+    } else {
+      // Handle empty search (e.g., show an alert)
+      alert("Please enter a stock symbol.");
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -25,9 +33,7 @@ export default function HomeScreen() {
             value={searchText}
             autoCapitalize="characters"
             returnKeyType="search"
-            onSubmitEditing={() => {
-              console.log("Searching for:", searchText);
-            }}
+            onSubmitEditing={handleSearch} // Call search function on "Enter"
           />
         </View>
       </KeyboardAvoidingView>
@@ -70,3 +76,5 @@ const styles = StyleSheet.create({
     color: '#333',
   },
 });
+
+export default Home
