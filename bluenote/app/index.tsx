@@ -10,8 +10,16 @@ const investorsData = [
     { name: 'Monish Pabrai', institution: "Dalal Street", cik: '0001549575' },
     { name: 'Howard Marks', institution: "Oaktree Capital Management", cik: '0000949509' },
     { name: 'David Tepper', institution: "Appaloosa Management", cik: '0001656456' },
+    { name: 'Daily Journal Corp.', institution: "Daily Journal Corp.", cik: '0000783412' },
+
+    // { name: 'Triple Frond Partners', institution: "Triple Frond Partners", cik: '0001454502' },
+    { name: 'Tweedy Browne Co.', institution: "Tweedy Browne Value Fund", cik: '0000732905' },
+    { name: 'Norbert Lou', institution: "Punch Card Management", cik: '0001631664' },
+    { name: 'Chuck Akre', institution: "Akre Capital Management", cik: '0001112520' },
+
     // ... more investors
 ];
+
 
 const HomeScreen: React.FC = () => {
     const navigation = useNavigation();
