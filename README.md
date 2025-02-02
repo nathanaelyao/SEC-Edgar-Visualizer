@@ -1,6 +1,6 @@
 # SEC-Edgar-Visualizer
 
-React Native Application to visualize data on companies and 13F filings from institutional investors.
+React Native Application using SEC EDGAR API to visualize data on companies and 13F filings from institutional investors.
 
 Pictures of App:
 <div style="display: flex;">
