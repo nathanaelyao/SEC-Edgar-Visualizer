@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    padding: 20,
+    padding: 50,
   },
   container: {
     alignItems: 'center',
@@ -136,48 +136,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#007AFF',
   },
-  card: { // Card styles from the example
-    width: 350,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    padding: 20,
-  },
-  container: { // Container styles from the example
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  labels: { // Labels styles from the example
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 5,
-    marginTop: 5,
-    position: 'absolute',
-    width: screenWidth,
-    top: 210,
-  },
-  label: { // Label styles from the example
-    textAlign: 'center',
-    fontSize: 14,
-    fontFamily: 'Arial, sans-serif',
-    position: 'absolute',
-  },
-  valueDisplay: { // Value display from the example
-    position: 'absolute',
-    top: -10,
-    left: 0,
-    width: '100%',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    padding: 5,
-  },
+
+
 
 });
 

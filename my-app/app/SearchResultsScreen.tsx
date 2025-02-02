@@ -81,7 +81,11 @@ const SearchResultsScreen: React.FC = () => {
           if (item.fy && !seen.includes(item.fy)){
             console.log('heeere')
             seen.push(item.fy)
-            graphData.push({ label: item.fy, value: item.val });
+            let val = 0
+            if (item.val > 0){
+                val = item.val
+            }
+            graphData.push({ label: item.fy, value: val });
             console.log(graphData, 'dmkdlsfl')
           }
           count += 1;
@@ -133,17 +137,13 @@ const SearchResultsScreen: React.FC = () => {
     }
 
     const data = stockInfo.graphData.slice(0, 10);
-    const barWidth = screenWidth / data.length;
-    const maxValue = Math.max(...data.map(item => item.value));
-    const scale = maxValue === 0 ? 10 : 170 / maxValue;
-    const graphHeight = 200;
-    const labelOffset = barWidth / 2;
 
-    console.log(data, barWidth, graphHeight,'data')
+
+    console.log(data,'data')
 
     return (
-    <View>
-      <BarGraph data={data} /> {/* Pass the data as a prop */}
+    <View style={styles.card}>
+      <BarGraph data={data.reverse()} /> {/* Pass the data as a prop */}
     </View>
     );
   };
@@ -156,7 +156,7 @@ const SearchResultsScreen: React.FC = () => {
         <View>
           <Text style={styles.title}>{stockInfo.companyName || "Company Name Not Found"}</Text>
           <Text>Ticker: {stockSymbol}</Text>
-          <Text>EPS: {stockInfo.eps || "EPS Not Found"}</Text>
+          <Text style={styles.graphTitle}>Earnings Per Share (EPS) Over Time</Text>
           {renderGraph()}
 
           {selectedValue && <Text>Selected Value: {selectedValue}</Text>}
@@ -166,19 +166,16 @@ const SearchResultsScreen: React.FC = () => {
   );
 };
 const styles = StyleSheet.create({
+    graphTitle: {
+        marginTop:50,
+
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 10, // Space between title and graph
+        textAlign: 'center', // Center the title
+    },
     card: {
-      width: 350,
-      backgroundColor: '#FFFFFF',
-      borderRadius: 8,
-      elevation: 6,
-      shadowColor: '#000',
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      shadowOpacity: 0.25,
-      shadowRadius: 3.84,
-      padding: 20,
+        // marginTop:50,
     },
     container: {
       alignItems: 'center',
@@ -225,6 +222,7 @@ const styles = StyleSheet.create({
     //     padding: 20,
     //   },
       title: {
+        marginTop:50,
         fontSize: 24,
         fontWeight: 'bold',
         marginBottom: 10,
