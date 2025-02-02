@@ -1,19 +1,9 @@
-// SearchResultsScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import  BarChart  from 'react-native-chart-kit';
-interface EPSData {
-    accn: string;
-    end: string;
-    filed: string;
-    form: string;
-    fp: string;
-    frame?: string;
-    fy: number;
-    start: string;
-    val: number;
-  }
+import Svg, { G, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { Animated, Easing } from 'react-native';
+
 type RootStackParamList = {
   SearchResultsScreen: { stockSymbol: string };
 };
@@ -21,22 +11,17 @@ type RootStackParamList = {
 const SearchResultsScreen: React.FC = () => {
   const route = useRoute<RouteProp<RootStackParamList, 'SearchResultsScreen'>>();
   const { stockSymbol } = route.params;
-  const [stockInfo, setStockInfo] = useState<{ companyName123: string | null; cik: string | null } | null>(null);
+  const [stockInfo, setStockInfo] = useState<{ companyName: string | null; cik: string | null; eps: string | null; graphData: Record<string, number>[] | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [companyName123, setCompanyName] = useState<string | null>(null);
-  const [cik, setCik] = useState<string | null>(null);
-  const [eps, setEPS] = useState<string | null>(null);
-  const [latestEPS, setLatestEPS] = useState<string | null>(null);
+  const [selectedValue, setSelectedValue] = useState(null);
+  const [animatedHeights, setAnimatedHeights] = useState<Animated.Value[]>([]);
 
   useEffect(() => {
     const fetchStockData = async () => {
       try {
         const info = await getStockInfo(stockSymbol);
         setStockInfo(info);
-        console.log(companyName123, 'info')
-        console.log(eps, 'info')
-
       } catch (err) {
         setError(err.message);
       } finally {
@@ -48,96 +33,136 @@ const SearchResultsScreen: React.FC = () => {
   }, [stockSymbol]);
 
   const getStockInfo = async (ticker: string) => {
-    console.log(ticker, 'ticker')
     try {
-    //   const response = await fetch(
-    //     `https://www.sec.gov/cgi-bin/browse-edgar?CIK=&owner=exclude&match=1&filenum=&company=&dateb=&datea=&formtype=10-K&count=100&ticker=${ticker}`
-    //   );
-      const response = await fetch(
+      const tickersResponse = await fetch(
         `https://www.sec.gov/files/company_tickers.json`
       );
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!tickersResponse.ok) {
+        throw new Error(`HTTP error! status: ${tickersResponse.status}`);
       }
 
-      const data = await response.json();
-      let cik_str = ""
-      let compName = ""
-      console.log(data)
-      for (const key in data) {
-        if (data[key].ticker == ticker){
-            console.log(data[key].title)
-            compName = data[key].title
-            setCompanyName(compName || "")
+      const tickersData = await tickersResponse.json();
+      let cik_str = "";
+      let compName = "";
 
-            const numberStr = data[key].cik_str.toString();
-            const numZeros = 10 - numberStr.length;
-            cik_str =  "0".repeat(numZeros) + numberStr;
+      for (const key in tickersData) {
+        if (tickersData[key].ticker === ticker) {
+          compName = tickersData[key].title;
+          const numberStr = tickersData[key].cik_str.toString();
+          const numZeros = 10 - numberStr.length;
+          cik_str = "0".repeat(numZeros) + numberStr;
+          break;
         }
-
       }
-      console.log(companyName123, cik_str)
-      const response2 = await fetch(
+
+      if (!cik_str) {
+        throw new Error(`Ticker ${ticker} not found.`);
+      }
+
+      const factsResponse = await fetch(
         `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik_str}.json`
       );
-      const data2 = await response2.json();
-    //   console.log( Object.keys(data2['facts']['us-gaap'].EarningsPerShareBasic.units))
-    //   console.log(data2['facts']['us-gaap'].EarningsPerShareBasic.units)
-      
-    
-      setEPS(data2['facts']['us-gaap'].EarningsPerShareBasic.units)
 
-    //   console.log(eps,'eps')
+      if (!factsResponse.ok) {
+        throw new Error(`HTTP error! status: ${factsResponse.status} for CIK: ${cik_str}`);
+      }
+      const factsData = await factsResponse.json();
+      const epsData = factsData?.facts?.['us-gaap']?.EarningsPerShareBasic?.units?.['USD/shares'];
+      const eps = epsData ? epsData[epsData.length - 1]?.val : null;
 
+      const graphData: Record<string, number>[] = [];
+      if (epsData) {
+        let length = epsData.length;
+        let count = 1;
+        while (length > 0 && count <= 10) {
+          const item = epsData[epsData.length - count];
+          if (!item.frame.includes('Q') && !item.frame.includes('q')){
+            graphData.push({ label: item.frame, value: item.val });
+            count += 1;
+          }
+          length -= 1;
 
+        }
+      }
 
-
-    //   console.log(eps['USD/shares'][eps['USD/shares'].length - 1],'eps')
-    //   const epsData = eps['USD/shares']
-    //   const latestEPSData = epsData[epsData.length - 1]
-
-    //   setLatestEPS(latestEPSData.val)
-
-
-      return { compName, cik_str };
+      return { companyName: compName, cik: cik_str, eps, graphData };
     } catch (error) {
       console.error("Error fetching stock info:", error);
-      return { companyName: null, cik: null };
+      return { companyName: null, cik: null, eps: null, graphData: [] };
     }
   };
 
-  const data123 = {
+  const screenWidth = 325;
+  const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-    datasets: [
-      {
-        data: [20, 45, 28, 80, 99, 43],
-        color: (opacity = 1) => `rgba(134, 65, 244, ${opacity})`, // Purple color
-      },
-      { // Example of a second dataset
-        data: [15, 30, 50, 60, 80, 30],
-        color: (opacity = 1) => `rgba(255, 99, 132, ${opacity})`, // Red color
-      },
-    ],
+  useEffect(() => {
+    if (stockInfo && stockInfo.graphData && stockInfo.graphData.length > 0) {
+      const data = stockInfo.graphData.slice(0, 10);
+      const maxValue = Math.max(...data.map(item => item.value));
+      const scale = maxValue === 0 ? 10 : 170 / maxValue;
+
+      if (animatedHeights.length === 0 || animatedHeights.length !== data.length) {
+        setAnimatedHeights(data.map(() => new Animated.Value(0)));
+      }
+
+      const animations = animatedHeights.map((animatedHeight, index) => (
+        Animated.timing(animatedHeight, {
+          toValue: data[index].value * scale,
+          duration: 1000,
+          easing: Easing.elastic(1),
+          useNativeDriver: false,
+        })
+      ));
+
+      Animated.stagger(100, animations).start();
+    }
+  }, [stockInfo, animatedHeights]);
+
+  const handleBarPress = (value) => {
+    setSelectedValue(value);
   };
 
-  const screenWidth = Dimensions.get('window').width; // Get screen width for responsiveness
-
-  const chartConfig = {
-    backgroundGradientFrom: '#fff', // Background color
-    backgroundGradientFromOpacity: 0,
-    backgroundGradientTo: '#fff',
-    backgroundGradientToOpacity: 0,
-    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`, // Bar and label color
-    strokeWidth: 2, // optional, default 3
-    barPercentage: 0.5, // Adjust bar width (0-1)
-    borderRadius: 5,  // Round bar corners
-    useShadowColorFromDataset: false, // Optional, use dataset color for shadow
-    // ... other chart config options (see react-native-chart-kit docs)
-    propsForDots: {
-        r: "0" //remove dots
+  const renderGraph = () => {
+    if (!stockInfo || !stockInfo.graphData || stockInfo.graphData.length === 0) {
+      return <Text>No graph data available.</Text>; 
     }
 
+    const data = stockInfo.graphData.slice(0, 10);
+    const barWidth = screenWidth / data.length;
+    const maxValue = Math.max(...data.map(item => item.value));
+    const scale = maxValue === 0 ? 10 : 170 / maxValue;
+    const graphHeight = 200;
+
+    console.log(data, barWidth, graphHeight,'data')
+
+    return (
+      <Svg height={graphHeight + 20} width={screenWidth}>
+        <Defs>
+          <LinearGradient id="grad" x1="0" y1="0" x2="0" y2="100%">
+            <Stop offset="0" stopColor="#6a11cb" />
+            <Stop offset="1" stopColor="#2575fc" />
+          </LinearGradient>
+        </Defs>
+        <G>
+          {data.map((item, index) => (
+            <TouchableOpacity key={item.label} onPress={() => handleBarPress(item.value)}>
+              <AnimatedRect
+                x={index * (barWidth + 12)}
+                y={animatedHeights[index]?.interpolate({
+                  inputRange: [0, item.value * scale],
+                  outputRange: [graphHeight, graphHeight - item.value * scale],
+                })}
+                width={barWidth}
+                height={animatedHeights[index]}
+                fill="url(#grad)"
+                rx="4"
+                opacity={selectedValue === item.value ? 1 : 0.7}
+              />
+            </TouchableOpacity>
+          ))}
+        </G>
+      </Svg>
+    );
   };
 
   return (
@@ -146,82 +171,30 @@ const SearchResultsScreen: React.FC = () => {
       {error && <Text style={styles.errorText}>{error}</Text>}
       {stockInfo && (
         <View>
-          <Text style={styles.title}>{companyName123 || "Company Name Not Found"}</Text>
+          <Text style={styles.title}>{stockInfo.companyName || "Company Name Not Found"}</Text>
           <Text>Ticker: {stockSymbol}</Text>
-           {/* Add more information here as needed */}
+          <Text>CIK: {stockInfo.cik || "CIK Not Found"}</Text>
+          {renderGraph()}
+
+          <Text>EPS: {stockInfo.eps || "EPS Not Found"}</Text>
+          {selectedValue && <Text>Selected Value: {selectedValue}</Text>}
         </View>
       )}
-            {/* <BarChart
-        data={data123}
-        width={screenWidth - 20} // Chart width (margin of 10 on each side)
-        height={220}
-        yAxisLabel="$" // Optional y-axis label
-        yAxisSuffix="k" // Optional y-axis suffix
-        chartConfig={chartConfig}
-        verticalLabelRotation={30} // Rotate x-axis labels if needed
-        fromZero // Start y-axis from 0
-        showBarTops = {true} //show number in the bar
-        style={{
-          marginVertical: 8,
-          borderRadius: 16,
-        }}
-      /> */}
     </View>
   );
 };
-const EPSDisplay: React.FC<{ data: EPSData[] }> = ({ data }) => {
 
-    const getLatestEPS = (yearData: EPSData[]): number | null => {
-      if (!yearData || yearData.length === 0) return null;
-      yearData.sort((a, b) => new Date(b.end) - new Date(a.end));
-      return yearData[0].val;
-    };
-  
-    const epsByYear: { [year: number]: EPSData[] } = {};
-    data.forEach(item => {
-      const fy = item.fy;
-      if (!epsByYear[fy]) {
-        epsByYear[fy] = [];
-      }
-      epsByYear[fy].push(item);
-    });
-  
-    const years = Object.keys(epsByYear).map(Number).sort((a, b) => b - a);
-    const lastTenYears = years.slice(0, 10);
-  
-    const tableData = lastTenYears.map(year => ({
-      year,
-      eps: getLatestEPS(epsByYear[year])?.toFixed(2) || "N/A",
-    }));
-  
-    return (
-      <ScrollView horizontal={true}> {/* Enables horizontal scrolling if needed */}
-        <View style={styles.table}>
-          <View style={styles.row}>
-            <Text style={[styles.header, styles.cell]}>Year</Text>
-            <Text style={[styles.header, styles.cell]}>EPS</Text>
-          </View>
-          {tableData.map((item, index) => (
-            <View key={index} style={styles.row}>
-              <Text style={styles.cell}>{item.year}</Text>
-              <Text style={styles.cell}>{item.eps}</Text>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-    );
-  };
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20, // Add some padding
+    padding: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 10, // Add margin bottom
+    marginBottom: 10,
   },
   errorText: {
     color: 'red',

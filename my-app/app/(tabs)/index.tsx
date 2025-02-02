@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Button } from 'react-native';
 import { useNavigation } from '@react-navigation/native'; // Import navigation hook
 
+
 const Home: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const navigation = useNavigation(); // Initialize navigation
@@ -16,13 +17,25 @@ const Home: React.FC = () => {
       alert("Please enter a stock symbol.");
     }
   };
-
+  const barData = [
+    {value: 250, label: 'M'},
+    {value: 500, label: 'T', frontColor: '#177AD5'},
+    {value: 745, label: 'W', frontColor: '#177AD5'},
+    {value: 320, label: 'T'},
+    {value: 600, label: 'F', frontColor: '#177AD5'},
+    {value: 256, label: 'S'},
+    {value: 300, label: 'S'},
+];
   return (
+
+
     <SafeAreaView style={styles.safeArea}>
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
       >
+
         <View style={styles.content}>
           <Text style={styles.title}>Stock Search</Text>
           <TextInput

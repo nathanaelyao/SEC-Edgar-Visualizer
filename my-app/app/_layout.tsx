@@ -38,6 +38,14 @@ export default function RootLayout() {
         />
                 <Stack.Screen 
           name="Holdings" 
+          options={{ 
+            title: 'Portfolio Holdings', // Change the title here
+            // or
+            headerTitle: 'My Investments', // Alternative for header title 
+          }} 
+        />
+                        <Stack.Screen 
+          name="Chart" 
         />
       </Stack>
       <StatusBar style="auto" />
