@@ -139,18 +139,22 @@ const App: React.FC = () => {
           }
       });
 
-      console.log(foundFiles)
       for (let i = 0; i < foundFiles.length; i++) {
         if (!foundFiles[i].startsWith("primary")){
+            console.log(foundFiles[i])
             const response1 = await fetch(
                 `https://www.sec.gov${foundFiles[i]}`
             );
             const data1 = await response1.text();
-
+            console.log(data1)
             const parser = new XMLParser();
-            const json = parser.parse(data1);
-            return json['informationTable']['infoTable'] || [];
-        }
+            const json = removeNamespace(parser.parse(data1));
+            console.log(json)
+            console.log( json['ns1:informationTable']?.['ns1:infoTable'], 'lassst')
+            return json['informationTable']?.infoTable || 
+            json['ns1:informationTable']?.['ns1:infoTable'] ||
+             [];
+                    }
       }
       return [];
       
@@ -160,7 +164,20 @@ const App: React.FC = () => {
       return []; // Return empty array in case of error
     }
   };
-
+  function removeNamespace(data) {
+    if (Array.isArray(data)) {
+      return data.map(item => removeNamespace(item));
+    } else if (typeof data === 'object' && data !== null) {
+      const newData = {};
+      for (const key in data) {
+        const newKey = key.replace('ns1:', '');
+        newData[newKey] = removeNamespace(data[key]);
+      }
+      return newData;
+    } else {
+      return data;
+    }
+  }
   const formatNumberWithCommas = (number: any): string => {
     if (number === undefined || number === null) {
       return "N/A";

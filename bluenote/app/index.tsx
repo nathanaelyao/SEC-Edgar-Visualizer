@@ -7,8 +7,9 @@ const investorsData = [ // Store original data
   { name: 'Warren Buffett', institution: "Berkshire Hathaway", cik: '0001067983' },
   { name: 'Bryan Lawrence', institution: "Oakcliff Capital", cik: '0001657335' },
   { name: 'Robert Vinall', institution: "RV Capital", cik: '0001766596' },
+  { name: 'Li Lu', institution: "Himalaya Capital", cik: '0001709323' },
   // ... more investors
-];
+]; 
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
