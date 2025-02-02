@@ -2,13 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import Svg, { G, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 
-const data = [{"label": 2025, "value": 2.41}, {"label": 2024, "value": 6.11}, {"label": 2023, "value": 6.16}, {"label": 2022, "value": 6.15}, {"label": 2021, "value": 5.67}, {"label": 2020, "value": 0.74}, {"label": 2019, "value": 3.05}, {"label": 2018, "value": 2.94}, {"label": 2017, "value": 2.08}, {"label": 2016, "value": 1.68}] 
 
 const screenWidth = 325;
-const barWidth = screenWidth / data.length - 10;
-const labelOffset = barWidth / 2;
 
-const BarGraph = () => {
+
+const BarGraph = ({data}) => {
+  const barWidth = screenWidth / data.length - 10;
+  const labelOffset = barWidth / 2;
   const maxValue = Math.max(...data.map(item => item.value));
   const scale = 170 / maxValue;
   const animatedHeights = useRef(data.map(() => new Animated.Value(0))).current;
@@ -25,7 +25,7 @@ const BarGraph = () => {
     ));
 
     Animated.stagger(100, animations).start();
-  }, [animatedHeights, scale]);
+  }, [data, animatedHeights, scale]);
 
   const AnimatedRect = Animated.createAnimatedComponent(Rect);
 

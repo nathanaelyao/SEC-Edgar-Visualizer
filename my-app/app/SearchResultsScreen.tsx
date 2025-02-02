@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'rea
 import { RouteProp, useRoute } from '@react-navigation/native';
 import Svg, { G, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Animated, Easing } from 'react-native';
+import BarGraph from './barChart'; // Import the BarGraph component
 
 type RootStackParamList = {
   SearchResultsScreen: { stockSymbol: string };
@@ -136,36 +137,14 @@ const SearchResultsScreen: React.FC = () => {
     const maxValue = Math.max(...data.map(item => item.value));
     const scale = maxValue === 0 ? 10 : 170 / maxValue;
     const graphHeight = 200;
+    const labelOffset = barWidth / 2;
 
     console.log(data, barWidth, graphHeight,'data')
 
     return (
-      <Svg height={graphHeight + 20} width={screenWidth}>
-        <Defs>
-          <LinearGradient id="grad" x1="0" y1="0" x2="0" y2="100%">
-            <Stop offset="0" stopColor="#6a11cb" />
-            <Stop offset="1" stopColor="#2575fc" />
-          </LinearGradient>
-        </Defs>
-        <G>
-          {data.map((item, index) => (
-            <TouchableOpacity key={item.label} onPress={() => handleBarPress(item.value)}>
-              <AnimatedRect
-                x={index * (barWidth + 12)}
-                y={animatedHeights[index]?.interpolate({
-                  inputRange: [0, item.value * scale],
-                  outputRange: [graphHeight, graphHeight - item.value * scale],
-                })}
-                width={barWidth}
-                height={animatedHeights[index]}
-                fill="url(#grad)"
-                rx="4"
-                opacity={selectedValue === item.value ? 1 : 0.7}
-              />
-            </TouchableOpacity>
-          ))}
-        </G>
-      </Svg>
+    <View>
+      <BarGraph data={data} /> {/* Pass the data as a prop */}
+    </View>
     );
   };
 
@@ -177,33 +156,85 @@ const SearchResultsScreen: React.FC = () => {
         <View>
           <Text style={styles.title}>{stockInfo.companyName || "Company Name Not Found"}</Text>
           <Text>Ticker: {stockSymbol}</Text>
-          <Text>CIK: {stockInfo.cik || "CIK Not Found"}</Text>
+          <Text>EPS: {stockInfo.eps || "EPS Not Found"}</Text>
           {renderGraph()}
 
-          <Text>EPS: {stockInfo.eps || "EPS Not Found"}</Text>
           {selectedValue && <Text>Selected Value: {selectedValue}</Text>}
         </View>
       )}
     </View>
   );
 };
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  errorText: {
-    color: 'red',
-    marginTop: 10,
-  },
-});
+    card: {
+      width: 350,
+      backgroundColor: '#FFFFFF',
+      borderRadius: 8,
+      elevation: 6,
+      shadowColor: '#000',
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+      padding: 20,
+    },
+    container: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    labels: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: 5,
+      marginTop: 5,
+      position: 'absolute',
+      width: 100,
+      top: 210,
+    },
+    label: {
+      textAlign: 'center',
+      fontSize: 14,
+      fontFamily: 'Arial, sans-serif',
+      position: 'absolute',
+    },
+    valueDisplay: {
+      position: 'absolute',
+      top: -10,
+      left: 0,
+      width: '100%',
+      alignItems: 'flex-start',
+      justifyContent: 'center',
+      padding: 5,
+    },
+    valueText: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#007AFF',
+    },
+
+
+
+
+
+    // container: {
+    //     flex: 1,
+    //     justifyContent: 'center',
+    //     alignItems: 'center',
+    //     padding: 20,
+    //   },
+      title: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 10,
+      },
+      errorText: {
+        color: 'red',
+        marginTop: 10,
+      },
+  
+  });
+
 
 export default SearchResultsScreen;
