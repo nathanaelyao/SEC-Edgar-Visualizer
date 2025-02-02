@@ -216,7 +216,7 @@ const App: React.FC = () => {
         data={filings}
         renderItem={renderItem}
         keyExtractor={(item, index) => index.toString()}
-        ListEmptyComponent={() => !loading && !error && <Text>No filings found.</Text>}
+        ListEmptyComponent={() => !loading && !error && <Text></Text>}
       />
     </View>
     
