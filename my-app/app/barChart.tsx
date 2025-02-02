@@ -64,7 +64,7 @@ const BarGraph = ({data}) => {
         </Svg>
         {selectedValue && (
         <View style={styles.valueDisplay}>
-            <Text style={styles.valueText}>Revenue: {selectedValue}$</Text>
+            <Text style={styles.valueText}>{selectedValue}$</Text>
         </View>
         )}
         <View style={styles.labels}>
