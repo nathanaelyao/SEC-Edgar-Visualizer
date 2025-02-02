@@ -316,7 +316,9 @@ const renderItem = ({ item }) => { // Add curly braces
 const styles = StyleSheet.create({
 container: {
     flex: 1,
-    padding: 16,
+    padding: 20,
+    justifyContent: 'flex-start', // Align to the top
+
     },
     header: {  // Style for the header
     alignItems: 'center', // Center the text horizontally

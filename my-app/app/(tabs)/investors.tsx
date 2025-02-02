@@ -51,7 +51,7 @@ const HomeScreen: React.FC = () => {
                   const month = filingDateObj.getMonth() + 1;
                   let quarterString = "";
                   if (month >= 1 && month <= 3) {
-                    quarterString = "Q4 " + filingDateObj.getFullYear();
+                    quarterString = "Q4 " + (filingDateObj.getFullYear()-1);
                   } else if (month >= 4 && month <= 6) {
                     quarterString = "Q1 " + filingDateObj.getFullYear();
                   } else if (month >= 7 && month <= 9) {
