@@ -16,6 +16,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previousFilings, setPreviousFilings] = useState<any[]>([]); // State for previous filings
+  const [quarter, setQuarter] = useState<string | null>(null); // New state for the quarter
 
   useEffect(() => {
     fetchFilings();
@@ -59,6 +60,21 @@ const App: React.FC = () => {
             console.log(filename)
             console.log(`  Filing Date: ${filingDate}`);
             console.log(`  Form Type: ${formType}`);
+
+            const filingDateObj = new Date(filingDate);
+            const month = filingDateObj.getMonth() + 1; // Month is 0-indexed
+            let quarterString = "";
+    
+            if (month >= 1 && month <= 3) {
+              quarterString = "Q4 " + filingDateObj.getFullYear();
+            } else if (month >= 4 && month <= 6) {
+              quarterString = "Q1 " + filingDateObj.getFullYear();
+            } else if (month >= 7 && month <= 9) {
+              quarterString = "Q2 " + filingDateObj.getFullYear();
+            } else if (month >= 10 && month <= 12) {
+              quarterString = "Q3 " + filingDateObj.getFullYear();
+            }
+            setQuarter(quarterString); 
 
             getHoldings(accessionNumber, data.cik).then(holdings => {
               console.log(holdings)
@@ -278,6 +294,7 @@ const renderItem = ({ item }) => { // Add curly braces
     <View style={styles.header}> {/* New header View */}
         <Text style={styles.investorName}>{investorName}</Text>
         <Text style={styles.institutionName}>{institution}</Text> {/* Display institution */}
+        {quarter && <Text style={styles.quarterText}>{quarter}</Text>}
         <Text style={styles.portfolioValue}>
           Total Portfolio Value: ${formatNumberWithCommas(totalPortfolioValue)}
         </Text> {/* Display total portfolio value */}
