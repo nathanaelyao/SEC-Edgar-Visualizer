@@ -241,7 +241,8 @@ const SearchResultsScreen: React.FC = () => {
   const renderGraph = () => {
     if (!stockInfo || !stockInfo.graphData || stockInfo.graphData.length === 0) {
         // console.log(stockInfo)
-        return <Text>No graph data available.</Text>; 
+        return <Text style={styles.noDataText}>No Revenue data available. {"\n"}
+            Please choose another option using the dropdown.</Text>; 
     }
 
     const data = stockInfo.graphData.slice(0, 10);
@@ -273,8 +274,8 @@ const SearchResultsScreen: React.FC = () => {
       {stockInfo && (
         <View>
         <Text style={styles.title}>
-        {stockInfo.companyName && stockInfo.companyName.length > 23
-            ? stockInfo.companyName.slice(0, 23) + "\n" + stockInfo.companyName.slice(23)
+        {stockInfo.companyName && stockInfo.companyName.length > 25
+            ? stockInfo.companyName.slice(0, 25) + "\n" + stockInfo.companyName.slice(25)
             : stockInfo.companyName || "Company Name Not Found"}
         </Text>
           <Text>Ticker: {stockSymbol}</Text>
@@ -306,6 +307,13 @@ const SearchResultsScreen: React.FC = () => {
   );
 };
 const styles = StyleSheet.create({
+      noDataText: {
+    color: 'gray',
+    fontSize: 13,      // Adjust font size
+    fontStyle: 'italic', // Make it italic (optional)
+    textAlign: 'center', // Center text (important)
+    paddingHorizontal: 10, // Add some horizontal padding
+  },
     graphTitle: {
         marginTop:30,
 
