@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Button } from 'react-native';
 import { useNavigation } from '@react-navigation/native'; // Import navigation hook
+import { LogBox } from 'react-native';
 
+LogBox.ignoreAllLogs(); // Suppress *all* warnings
+
+// ... your app code
 
 const Home: React.FC = () => {
   const [searchText, setSearchText] = useState('');

@@ -55,6 +55,14 @@ const SearchResultsScreen: React.FC = () => {
       let compName = "";
       let similairTitles = []
       for (const key in tickersData) {
+        let finalTicker = ""
+        let splitTicker = ticker.split(" ")
+        if (splitTicker.length >= 2){
+            finalTicker += splitTicker[0] + ' ' + splitTicker[1]
+        }
+        else{
+            finalTicker = splitTicker[0]
+        }
         if (tickersData[key].ticker.toUpperCase() === ticker.toUpperCase()) {
           compName = tickersData[key].title;
           const numberStr = tickersData[key].cik_str.toString();
@@ -62,7 +70,7 @@ const SearchResultsScreen: React.FC = () => {
           cik_str = "0".repeat(numZeros) + numberStr;
           break;
         }
-        else if (tickersData[key].title.toUpperCase().startsWith(ticker.split(" ")[0].toUpperCase()) ){
+        else if (tickersData[key].title.toUpperCase().startsWith(finalTicker.toUpperCase()) ){
             similairTitles.push(tickersData[key])
         }
       }
