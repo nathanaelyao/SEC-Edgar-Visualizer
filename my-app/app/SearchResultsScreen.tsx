@@ -43,16 +43,36 @@ const SearchResultsScreen: React.FC = () => {
       }
 
       const tickersData = await tickersResponse.json();
+    //   console.log(tickersData)
       let cik_str = "";
       let compName = "";
-
+      let similairTitles = []
       for (const key in tickersData) {
-        if (tickersData[key].ticker === ticker) {
+        if (tickersData[key].ticker.toUpperCase() === ticker.toUpperCase()) {
           compName = tickersData[key].title;
           const numberStr = tickersData[key].cik_str.toString();
           const numZeros = 10 - numberStr.length;
           cik_str = "0".repeat(numZeros) + numberStr;
           break;
+        }
+        else if (tickersData[key].title.toUpperCase().startsWith(ticker.toUpperCase()) ){
+            similairTitles.push(tickersData[key])
+        }
+      }
+      if (!cik_str){
+        if (similairTitles[0]){
+            console.log('here',similairTitles)
+            // if (similairTitles.length == 1){
+            compName = similairTitles[0].title;
+            console.log(compName)
+            const numberStr = similairTitles[0].cik_str.toString();
+            const numZeros = 10 - numberStr.length;
+            cik_str = "0".repeat(numZeros) + numberStr;
+            console.log(similairTitles, 'kfdm')
+            // }
+            // else{
+            //     console.log("oh no")
+            // }
         }
       }
 
@@ -79,14 +99,13 @@ const SearchResultsScreen: React.FC = () => {
           const item = epsData[epsData.length - count];
         //   console.log(item)
           if (item.fy && !seen.includes(item.fy)){
-            console.log('heeere')
+            // console.log('heeere')
             seen.push(item.fy)
             let val = 0
             if (item.val > 0){
                 val = item.val
             }
             graphData.push({ label: item.fy, value: val });
-            console.log(graphData, 'dmkdlsfl')
           }
           count += 1;
 
@@ -100,8 +119,7 @@ const SearchResultsScreen: React.FC = () => {
     }
   };
 
-  const screenWidth = 325;
-  const AnimatedRect = Animated.createAnimatedComponent(Rect);
+
 
   useEffect(() => {
     if (stockInfo && stockInfo.graphData && stockInfo.graphData.length > 0) {
@@ -126,20 +144,18 @@ const SearchResultsScreen: React.FC = () => {
     }
   }, [stockInfo, animatedHeights]);
 
-  const handleBarPress = (value) => {
-    setSelectedValue(value);
-  };
+
 
   const renderGraph = () => {
     if (!stockInfo || !stockInfo.graphData || stockInfo.graphData.length === 0) {
-        console.log(stockInfo)
+        // console.log(stockInfo)
         return <Text>No graph data available.</Text>; 
     }
 
     const data = stockInfo.graphData.slice(0, 10);
 
 
-    console.log(data,'data')
+    // console.log(data,'data')
 
     return (
     <View style={styles.card}>
