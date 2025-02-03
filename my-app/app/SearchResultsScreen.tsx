@@ -138,28 +138,22 @@ const SearchResultsScreen: React.FC = () => {
 
             //   console.log(item)
             if (item.fp && item.fy && item.fp == "FY" ){
-                // console.log('heeere')
                 console.log(item, 'items')
-                // if (seen.includes(item.fy)){
-                //     for (const key in graphData){
-                //         if (item.fy == key.label){
-                //             if (item.val > key.value){
-                //                 graphData = graphData.filter((item) => item.label !== item.fy);
-                //                 graphData.push({ label: item.fy, value: val });
-
-                //             }
-                //         }
-
-                //     }
-                // }
-                // else{
-                // seen.push(item.fy)
+      
                 let val = 0
                 if (item.val > 0){
                     val = item.val
                 }
                 if (item.start && item.end){
-                    if (item.start.split("-")[0] !== item.end.split("-")[0]){
+                    const date1 = new Date(item.start);
+                    const date2 = new Date(item.end);
+                  
+                    // Calculate the difference in months
+                    const diffInMonths =
+                    Math.abs((date2.getFullYear() - date1.getFullYear()) * 12 +
+                      (date2.getMonth() - date1.getMonth())) > 10;
+                  
+                    if (diffInMonths){
                         graphData.push({ label: item.fy, value: val });
     
                     }
@@ -250,7 +244,11 @@ const SearchResultsScreen: React.FC = () => {
       {error && <Text style={styles.errorText}>{error}</Text>}
       {stockInfo && (
         <View>
-          <Text style={styles.title}>{stockInfo.companyName || "Company Name Not Found"}</Text>
+        <Text style={styles.title}>
+        {stockInfo.companyName && stockInfo.companyName.length > 25
+            ? stockInfo.companyName.slice(0, 25) + "\n" + stockInfo.companyName.slice(15)
+            : stockInfo.companyName || "Company Name Not Found"}
+        </Text>
           <Text>Ticker: {stockSymbol}</Text>
           <View style={styles.dropdownContainer}>
             <Dropdown
