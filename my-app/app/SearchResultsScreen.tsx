@@ -17,7 +17,7 @@ const SearchResultsScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedValue, setSelectedValue] = useState(null);
   const [animatedHeights, setAnimatedHeights] = useState<Animated.Value[]>([]);
-  const [filterType, setFilterType] = useState('revenue');
+  const [filterType, setFilterType] = useState('net income');
   const [graphData, setGraphData] = useState<Record<string, number>[] | null>(null);
   const [dropdownOptions, setDropdownOptions] = useState<any[]>([]); // State for dropdown options
 
@@ -27,9 +27,9 @@ const SearchResultsScreen: React.FC = () => {
         const info = await getStockInfo(stockSymbol, filterType);
         setStockInfo(info);
         const availableOptions = [];
-        if (info?.revData) availableOptions.push({ label: 'Revenue', value: 'revenue' });
+        if (info?.incomeData) availableOptions.push({ label: 'Net Income', value: 'net income' });
         if (info?.epsData) availableOptions.push({ label: 'Earnings Per Share (EPS)', value: 'eps' });
-        if (info?.incomeData) availableOptions.push({ label: 'Net Income', value: 'income' });
+        if (info?.revData) availableOptions.push({ label: 'Revenue', value: 'revenue' });
         if (info?.assetsData) availableOptions.push({ label: 'Assets', value: 'assets' });
         if (info?.sharesData) availableOptions.push({ label: 'Shares Outstanding', value: 'shares Outstanding' });
         setDropdownOptions(availableOptions);
@@ -130,7 +130,7 @@ const SearchResultsScreen: React.FC = () => {
 
     }
 
-      else if (filter == "income"){
+      else if (filter == "net income"){
         currentData = incomeData
 
     }
@@ -165,6 +165,8 @@ const SearchResultsScreen: React.FC = () => {
                 if (item.val > 0){
                     val = item.val
                 }
+                val = item.val
+
                 if (item.start && item.end){
                     const date1 = new Date(item.start);
                     const date2 = new Date(item.end);
@@ -241,7 +243,7 @@ const SearchResultsScreen: React.FC = () => {
   const renderGraph = () => {
     if (!stockInfo || !stockInfo.graphData || stockInfo.graphData.length === 0) {
         // console.log(stockInfo)
-        return <Text style={styles.noDataText}>No Revenue data available. {"\n"}
+        return <Text style={styles.noDataText}>No EPS data available. {"\n"}
             Please choose another option using the dropdown.</Text>; 
     }
 
