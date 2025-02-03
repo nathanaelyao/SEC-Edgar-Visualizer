@@ -17,7 +17,7 @@ const SearchResultsScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedValue, setSelectedValue] = useState(null);
   const [animatedHeights, setAnimatedHeights] = useState<Animated.Value[]>([]);
-  const [filterType, setFilterType] = useState('eps');
+  const [filterType, setFilterType] = useState('revenue');
   const [graphData, setGraphData] = useState<Record<string, number>[] | null>(null);
 
   useEffect(() => {
@@ -94,7 +94,6 @@ const SearchResultsScreen: React.FC = () => {
       if (!cik_str) {
         throw new Error(`Ticker ${ticker} not found.`);
       }
-      console.log(cik_str)
       const factsResponse = await fetch(
         `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik_str}.json`
       );
@@ -105,11 +104,19 @@ const SearchResultsScreen: React.FC = () => {
       const factsData = await factsResponse.json();
 
       console.log(filter)
-      const graphData: Record<string, number>[] = [];
+      let graphData: Record<string, number>[] = [];
       let epsData = ""
       if (filter == 'eps'){
          epsData = factsData?.facts?.['us-gaap']?.EarningsPerShareBasic?.units?.['USD/shares'];
-      }else if (filter == 'assets'){
+      }
+      else if (filter == "revenue"){
+        epsData = factsData?.facts?.['us-gaap']?.RevenueFromContractWithCustomerExcludingAssessedTax?.units?.['USD'];
+      }
+      else if (filter == "income"){
+        epsData = factsData?.facts?.['us-gaap']?.NetIncomeLoss?.units?.['USD'];
+        console.log(epsData, 'epsdata')
+      }
+      else if (filter == 'assets'){
         epsData = factsData?.facts?.['us-gaap']?.Assets?.units?.['USD'];
       } else if (filter === 'Free Cash Flow') { // New filter type
         epsData = factsData?.facts?.['us-gaap']?.FreeCashFlow?.units?.['USD']; 
@@ -117,9 +124,9 @@ const SearchResultsScreen: React.FC = () => {
       }
       else if (filter == "shares Outstanding"){
         epsData=factsData?.facts?.['dei']?.EntityCommonStockSharesOutstanding.units.shares
-        console.log(Object.keys(epsData), 'epsdata')
       }
 
+//RevenueFromContractWithCustomerExcludingAssessedTax
       if (epsData){
 
       
@@ -128,15 +135,46 @@ const SearchResultsScreen: React.FC = () => {
             let count = 1;
             while (count <= epsData.length - 1 && graphData.length < 10) {
             const item = epsData[epsData.length - count];
+
             //   console.log(item)
-            if (item.fy && !seen.includes(item.fy)){
+            if (item.fp && item.fy && item.fp == "FY" ){
                 // console.log('heeere')
-                seen.push(item.fy)
+                console.log(item, 'items')
+                // if (seen.includes(item.fy)){
+                //     for (const key in graphData){
+                //         if (item.fy == key.label){
+                //             if (item.val > key.value){
+                //                 graphData = graphData.filter((item) => item.label !== item.fy);
+                //                 graphData.push({ label: item.fy, value: val });
+
+                //             }
+                //         }
+
+                //     }
+                // }
+                // else{
+                // seen.push(item.fy)
                 let val = 0
                 if (item.val > 0){
                     val = item.val
                 }
-                graphData.push({ label: item.fy, value: val });
+                if (item.start && item.end){
+                    if (item.start.split("-")[0] !== item.end.split("-")[0]){
+                        graphData.push({ label: item.fy, value: val });
+    
+                    }
+                }
+                else{
+                    if (!seen.includes(item.fy)){
+                        seen.push(item.fy)
+                        graphData.push({ label: item.fy, value: val });
+                    }
+
+
+                }
+
+                // }
+
             }
             count += 1;
 
@@ -188,7 +226,7 @@ const SearchResultsScreen: React.FC = () => {
 
     const data = stockInfo.graphData.slice(0, 10);
 
-
+    console.log(data, 'data')
     // console.log(data,'data')
 
     return (
@@ -198,11 +236,12 @@ const SearchResultsScreen: React.FC = () => {
     );
   };
   const data = [ // Data for the dropdown
-    { label: 'Earnings Per Share (EPS)', value: 'eps' },
     { label: 'Revenue', value: 'revenue' },
-    { label: 'Assets', value: 'assets' },
+    { label: 'Net Income', value: 'income' },
+    { label: 'Earnings Per Share (EPS)', value: 'eps' },
     { label: 'Free Cash Flow', value: 'Free Cash Flow' }, // Add free cash flow to dropdown
     { label: 'Shares Outstanding', value: 'shares Outstanding' }, // Add free cash flow to dropdown
+    { label: 'Assets', value: 'assets' },
 
   ];
   return (

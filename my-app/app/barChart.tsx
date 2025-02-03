@@ -48,7 +48,7 @@ const BarGraph = ({data}) => {
               <AnimatedRect
                 key={item.label}
                 x={index * (barWidth + 12)}
-                y={animatedHeights[index].interpolate({
+                y={animatedHeights[index]?.interpolate({
                   inputRange: [0, item.value * scale],
                   outputRange: [200, 200 - item.value * scale],
                 })}
