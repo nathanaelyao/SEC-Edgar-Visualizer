@@ -11,4 +11,4 @@ Pictures of App:
 </div>
 
 Demo:
-[![Watch the Demo Video](images/IMG_2085.png)](https://www.youtube.com/shorts/RiA2adxvBvw)
+[Watch the Demo Video](https://www.youtube.com/shorts/RiA2adxvBvw)
