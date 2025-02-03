@@ -11,10 +11,17 @@ const BarGraph = ({data}) => {
   const labelOffset = barWidth / 2;
   const maxValue = Math.max(...data.map(item => item.value));
   const scale = 170 / maxValue;
-  const animatedHeights = useRef(data.map(() => new Animated.Value(0))).current;
+  const animatedHeights = useRef<Animated.Value[]>([]).current; // Initialize as empty array
+  animatedHeights.length = 0; // Clear the array first
+  for (const i in data){
+    animatedHeights.push(new Animated.Value(0));
+  }
+  // console.log(animatedHeights, data)
   const [selectedValue, setSelectedValue] = useState(null);
 
   useEffect(() => {
+
+    // data.forEach(() => animatedHeights.push(new Animated.Value(0)));
     const animations = animatedHeights.map((animatedHeight, index) => (
       Animated.timing(animatedHeight, {
         toValue: data[index]?.value * scale,
