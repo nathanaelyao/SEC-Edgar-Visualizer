@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import Svg, { G, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Animated, Easing } from 'react-native';
 import BarGraph from './barChart'; // Import the BarGraph component
+import { Dropdown } from 'react-native-element-dropdown';
 
 type RootStackParamList = {
   SearchResultsScreen: { stockSymbol: string };
@@ -17,11 +17,18 @@ const SearchResultsScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedValue, setSelectedValue] = useState(null);
   const [animatedHeights, setAnimatedHeights] = useState<Animated.Value[]>([]);
+  const [filterType, setFilterType] = useState('eps');
+  const [graphData, setGraphData] = useState<Record<string, number>[] | null>(null);
 
+  useEffect(() => {
+    if (stockInfo && stockInfo.graphData) {
+      setGraphData(stockInfo.graphData[filterType]);
+    }
+  }, [stockInfo, filterType]);
   useEffect(() => {
     const fetchStockData = async () => {
       try {
-        const info = await getStockInfo(stockSymbol);
+        const info = await getStockInfo(stockSymbol, filterType);
         setStockInfo(info);
       } catch (err) {
         setError(err.message);
@@ -31,9 +38,9 @@ const SearchResultsScreen: React.FC = () => {
     };
 
     fetchStockData();
-  }, [stockSymbol]);
+  }, [stockSymbol, filterType]);
 
-  const getStockInfo = async (ticker: string) => {
+  const getStockInfo = async (ticker: string, filter: string) => {
     try {
       const tickersResponse = await fetch(
         `https://www.sec.gov/files/company_tickers.json`
@@ -79,7 +86,7 @@ const SearchResultsScreen: React.FC = () => {
       if (!cik_str) {
         throw new Error(`Ticker ${ticker} not found.`);
       }
-
+      console.log(cik_str)
       const factsResponse = await fetch(
         `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik_str}.json`
       );
@@ -88,31 +95,46 @@ const SearchResultsScreen: React.FC = () => {
         throw new Error(`HTTP error! status: ${factsResponse.status} for CIK: ${cik_str}`);
       }
       const factsData = await factsResponse.json();
-      const epsData = factsData?.facts?.['us-gaap']?.EarningsPerShareBasic?.units?.['USD/shares'];
-      const eps = epsData ? epsData[epsData.length - 1]?.val : null;
 
+      console.log(filter)
       const graphData: Record<string, number>[] = [];
-      let seen = []
-      if (epsData) {
-        let count = 1;
-        while (count <= epsData.length - 1 && graphData.length < 10) {
-          const item = epsData[epsData.length - count];
-        //   console.log(item)
-          if (item.fy && !seen.includes(item.fy)){
-            // console.log('heeere')
-            seen.push(item.fy)
-            let val = 0
-            if (item.val > 0){
-                val = item.val
-            }
-            graphData.push({ label: item.fy, value: val });
-          }
-          count += 1;
-
-        }
+      let epsData = ""
+      if (filter == 'eps'){
+         epsData = factsData?.facts?.['us-gaap']?.EarningsPerShareBasic?.units?.['USD/shares'];
+      }else if (filter == 'assets'){
+        epsData = factsData?.facts?.['us-gaap']?.Assets?.units?.['USD'];
+      } else if (filter === 'Free Cash Flow') { // New filter type
+        epsData = factsData?.facts?.['us-gaap']?.FreeCashFlow?.units?.['USD']; 
+        // console.log(Object.keys(factsData?.facts?.['us-gaap']), 'data')
       }
+      else if (filter == "shares Outstanding"){
+        epsData=factsData?.facts?.['dei']?.EntityCommonStockSharesOutstanding.units.shares
+        console.log(Object.keys(epsData), 'epsdata')
+      }
+        let seen = []
+        if (epsData) {
+            let count = 1;
+            while (count <= epsData.length - 1 && graphData.length < 10) {
+            const item = epsData[epsData.length - count];
+            //   console.log(item)
+            if (item.fy && !seen.includes(item.fy)){
+                // console.log('heeere')
+                seen.push(item.fy)
+                let val = 0
+                if (item.val > 0){
+                    val = item.val
+                }
+                graphData.push({ label: item.fy, value: val });
+            }
+            count += 1;
 
-      return { companyName: compName, cik: cik_str, eps, graphData };
+            }
+        }
+  
+
+
+
+      return { companyName: compName, cik: cik_str, graphData };
     } catch (error) {
       console.error("Error fetching stock info:", error);
       return { companyName: null, cik: null, eps: null, graphData: [] };
@@ -163,7 +185,14 @@ const SearchResultsScreen: React.FC = () => {
     </View>
     );
   };
+  const data = [ // Data for the dropdown
+    { label: 'Earnings Per Share (EPS)', value: 'eps' },
+    { label: 'Revenue', value: 'revenue' },
+    { label: 'Assets', value: 'assets' },
+    { label: 'Free Cash Flow', value: 'Free Cash Flow' }, // Add free cash flow to dropdown
+    { label: 'Shares Outstanding', value: 'shares Outstanding' }, // Add free cash flow to dropdown
 
+  ];
   return (
     <View style={styles.container}>
       {loading && <ActivityIndicator size="large" color="#0000ff" />}
@@ -172,7 +201,23 @@ const SearchResultsScreen: React.FC = () => {
         <View>
           <Text style={styles.title}>{stockInfo.companyName || "Company Name Not Found"}</Text>
           <Text>Ticker: {stockSymbol}</Text>
-          <Text style={styles.graphTitle}>Earnings Per Share (EPS) Over Time</Text>
+          <View style={styles.dropdownContainer}>
+            <Dropdown
+              style={styles.dropdown}
+              placeholder="Select item"
+              data={data}
+              labelField="label"
+              valueField="value"
+              value={filterType}
+              onChange={item => {
+                setFilterType(item.value);
+              }}
+              renderItem={(item) => (
+                <Text style={styles.dropdownItem}>{item.label}</Text>
+              )}
+            />
+          </View>
+          <Text style={styles.graphTitle}>{filterType.toUpperCase()} Over Time</Text>
           {renderGraph()}
 
           {selectedValue && <Text>Selected Value: {selectedValue}</Text>}
@@ -183,7 +228,7 @@ const SearchResultsScreen: React.FC = () => {
 };
 const styles = StyleSheet.create({
     graphTitle: {
-        marginTop:50,
+        marginTop:30,
 
         fontSize: 18,
         fontWeight: 'bold',
@@ -228,8 +273,30 @@ const styles = StyleSheet.create({
     },
 
 
-
-
+    dropdownContainer: {
+        marginBottom: 20,
+        marginTop: 20,
+        width: 250, // or however wide you want it
+        borderWidth: 1,
+        borderColor: 'gray',
+        borderRadius: 8,
+      },
+      dropdown: {
+        height: 50,
+        backgroundColor: 'white',
+        paddingHorizontal: 8,
+      },
+      dropdownItem: { // Style for the dropdown items
+        padding: 10,
+        fontSize: 16,
+      },
+    //   graphTitle: {
+    //     marginTop: 20, // Adjust as needed
+    //     fontSize: 18,
+    //     fontWeight: 'bold',
+    //     marginBottom: 10,
+    //     textAlign: 'center',
+    //   },
 
     // container: {
     //     flex: 1,
