@@ -2,37 +2,39 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import Svg, { G, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 
-
 const screenWidth = 325;
 
+const BarGraph = ({ data }) => {
+  const animatedHeights = useRef([]);
+  const [selectedValue, setSelectedValue] = useState(null);
 
-const BarGraph = ({data}) => {
+  if (!data || data.length === 0) {
+    return <Text>Loading...</Text>;
+  }
+
   const barWidth = screenWidth / data.length - 11;
   const labelOffset = barWidth / 2;
   const maxValue = Math.max(...data.map(item => item.value));
   const scale = 170 / maxValue;
-  const animatedHeights = useRef<Animated.Value[]>([]).current; // Initialize as empty array
-  animatedHeights.length = 0; // Clear the array first
-  for (const i in data){
-    animatedHeights.push(new Animated.Value(0));
-  }
-  // console.log(animatedHeights, data)
-  const [selectedValue, setSelectedValue] = useState(null);
 
   useEffect(() => {
+    if (animatedHeights.current.length !== data.length) {
+      animatedHeights.current = data.map(() => new Animated.Value(0));
+    }
 
-    // data.forEach(() => animatedHeights.push(new Animated.Value(0)));
-    const animations = animatedHeights.map((animatedHeight, index) => (
-      Animated.timing(animatedHeight, {
-        toValue: data[index]?.value * scale,
+    data.forEach((item, index) => {
+      Animated.timing(animatedHeights.current[index], {
+        toValue: item.value * scale,
         duration: 1000,
         easing: Easing.elastic(1),
-        useNativeDriver: false,
-      })
-    ));
+        useNativeDriver: false, // or true if supported
+      }).start();
+    });
 
-    Animated.stagger(100, animations).start();
-  }, [data, animatedHeights, scale]);
+    return () => {
+      animatedHeights.current.forEach(anim => anim.stopAnimation());
+    };
+  }, [data, scale]);
 
   const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
@@ -55,12 +57,12 @@ const BarGraph = ({data}) => {
               <AnimatedRect
                 key={item.label}
                 x={index * (barWidth + 12)}
-                y={animatedHeights[index]?.interpolate({
+                y={animatedHeights.current[index]?.interpolate({
                   inputRange: [0, item.value * scale],
                   outputRange: [200, 200 - item.value * scale],
                 })}
                 width={barWidth}
-                height={animatedHeights[index]}
+                height={animatedHeights.current[index]}
                 fill="url(#grad)"
                 rx="4"
                 opacity={selectedValue === item.value ? 1 : 0.7}
@@ -70,9 +72,9 @@ const BarGraph = ({data}) => {
           </G>
         </Svg>
         {selectedValue && (
-        <View style={styles.valueDisplay}>
+          <View style={styles.valueDisplay}>
             <Text style={styles.valueText}>{selectedValue.toLocaleString()}</Text>
-        </View>
+          </View>
         )}
         <View style={styles.labels}>
           {data.map((item, index) => (
@@ -143,9 +145,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#007AFF',
   },
-
-
-
 });
 
 export default BarGraph;

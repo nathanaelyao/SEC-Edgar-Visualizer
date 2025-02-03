@@ -227,7 +227,7 @@ const SearchResultsScreen: React.FC = () => {
     }
 
     const data = stockInfo.graphData.slice(0, 10);
-
+    
     console.log(data, 'data')
     // console.log(data,'data')
 
