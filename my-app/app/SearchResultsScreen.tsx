@@ -62,7 +62,7 @@ const SearchResultsScreen: React.FC = () => {
           cik_str = "0".repeat(numZeros) + numberStr;
           break;
         }
-        else if (tickersData[key].title.toUpperCase().startsWith(ticker.toUpperCase()) ){
+        else if (tickersData[key].title.toUpperCase().startsWith(ticker.split(" ")[0].toUpperCase()) ){
             similairTitles.push(tickersData[key])
         }
       }
