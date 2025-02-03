@@ -111,6 +111,10 @@ const SearchResultsScreen: React.FC = () => {
         epsData=factsData?.facts?.['dei']?.EntityCommonStockSharesOutstanding.units.shares
         console.log(Object.keys(epsData), 'epsdata')
       }
+
+      if (epsData){
+
+      
         let seen = []
         if (epsData) {
             let count = 1;
@@ -130,7 +134,7 @@ const SearchResultsScreen: React.FC = () => {
 
             }
         }
-  
+    }
 
 
 
@@ -155,7 +159,7 @@ const SearchResultsScreen: React.FC = () => {
 
       const animations = animatedHeights.map((animatedHeight, index) => (
         Animated.timing(animatedHeight, {
-          toValue: data[index].value * scale,
+          toValue: data[index]?.value * scale,
           duration: 1000,
           easing: Easing.elastic(1),
           useNativeDriver: false,

@@ -17,7 +17,7 @@ const BarGraph = ({data}) => {
   useEffect(() => {
     const animations = animatedHeights.map((animatedHeight, index) => (
       Animated.timing(animatedHeight, {
-        toValue: data[index].value * scale,
+        toValue: data[index]?.value * scale,
         duration: 1000,
         easing: Easing.elastic(1),
         useNativeDriver: false,

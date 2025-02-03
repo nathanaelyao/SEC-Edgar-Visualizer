@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet, TextInput, ActivityIndicator, Button } from 'react-native';
+import { View, Text,TouchableOpacity, FlatList, StyleSheet, TextInput, ActivityIndicator, Button } from 'react-native';
 import { XMLParser } from 'fast-xml-parser';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import cheerio from 'react-native-cheerio'; // Import cheerio
+import { useNavigation } from '@react-navigation/native';
 
 type RootStackParamList = {
   HoldingsScreen: { investorName: string; cik: string, institution: string };
 };
 const HoldingsScreen: React.FC = () => {
+  const navigation = useNavigation();
+
   const [totalPortfolioValue, setTotalPortfolioValue] = useState(0);
   const route = useRoute<RouteProp<RootStackParamList, 'HoldingsScreen'>>();
   const { investorName, cik, institution } = route.params;
@@ -211,8 +214,10 @@ const HoldingsScreen: React.FC = () => {
             console.log(data1)
             const parser = new XMLParser();
             const json = removeNamespace(parser.parse(data1));
-            console.log(json)
+            console.log(json.infoTable)
             console.log( json['ns1:informationTable']?.['ns1:infoTable'], 'lassst')
+            
+            
             return json['informationTable']?.infoTable || 
             json['ns1:informationTable']?.['ns1:infoTable'] ||
              [];
@@ -260,7 +265,24 @@ const renderItem = ({ item }) => { // Add curly braces
     const color = changeData.color;
   
     return ( // Now the return statement is explicit
-        <View style={styles.item}>
+
+    //   <TouchableOpacity
+    //   style={styles.investorItem}
+    //   onPress={() => {
+    //     navigation.navigate('HoldingsScreen', {
+    //       investorName: item.name,
+    //       institution: item.institution,
+    //       cik: item.cik,
+    //     });
+    //   }}
+    // >      navigation.navigate('SearchResultsScreen', { stockSymbol: searchText }); // Navigate and pass data
+
+        <TouchableOpacity style={styles.item}
+        onPress={() => {
+        navigation.navigate('SearchResultsScreen', {
+          stockSymbol: item.nameOfIssuer,
+        });
+      }}>
         <View style={styles.row}>
           <Text style={styles.boldText}>{item.nameOfIssuer}</Text>
         </View>
@@ -282,7 +304,7 @@ const renderItem = ({ item }) => { // Add curly braces
             <Text style={styles.label}>Change in Shares:</Text>
             <Text style={{ color }}>{change}</Text>
           </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
