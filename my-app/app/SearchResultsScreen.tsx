@@ -12,24 +12,27 @@ type RootStackParamList = {
 const SearchResultsScreen: React.FC = () => {
   const route = useRoute<RouteProp<RootStackParamList, 'SearchResultsScreen'>>();
   const { stockSymbol } = route.params;
-  const [stockInfo, setStockInfo] = useState<{ companyName: string | null; cik: string | null; eps: string | null; graphData: Record<string, number>[] | null } | null>(null);
+  const [stockInfo, setStockInfo] = useState<{ companyName: string | null; cik: string | null; eps: string | null; graphData: Record<string, number>[] | null; epsData: string | null;revData: string | null;incomeData: string | null;assetsData: string | null;sharesData: string | null;} | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedValue, setSelectedValue] = useState(null);
   const [animatedHeights, setAnimatedHeights] = useState<Animated.Value[]>([]);
   const [filterType, setFilterType] = useState('revenue');
   const [graphData, setGraphData] = useState<Record<string, number>[] | null>(null);
+  const [dropdownOptions, setDropdownOptions] = useState<any[]>([]); // State for dropdown options
 
-  useEffect(() => {
-    if (stockInfo && stockInfo.graphData) {
-      setGraphData(stockInfo.graphData[filterType]);
-    }
-  }, [stockInfo, filterType]);
   useEffect(() => {
     const fetchStockData = async () => {
       try {
         const info = await getStockInfo(stockSymbol, filterType);
         setStockInfo(info);
+        const availableOptions = [];
+        if (info?.revData) availableOptions.push({ label: 'Revenue', value: 'revenue' });
+        if (info?.epsData) availableOptions.push({ label: 'Earnings Per Share (EPS)', value: 'eps' });
+        if (info?.incomeData) availableOptions.push({ label: 'Net Income', value: 'income' });
+        if (info?.assetsData) availableOptions.push({ label: 'Assets', value: 'assets' });
+        if (info?.sharesData) availableOptions.push({ label: 'Shares Outstanding', value: 'shares Outstanding' });
+        setDropdownOptions(availableOptions);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -103,49 +106,61 @@ const SearchResultsScreen: React.FC = () => {
       }
       const factsData = await factsResponse.json();
 
-      console.log(filter)
       let graphData: Record<string, number>[] = [];
+      let currentData = ""
       let epsData = ""
+      let revData = ""
+      let incomeData = ""
+      let assetsData = ""
+      let sharesData = ""
+
+      sharesData=factsData?.facts?.['dei']?.EntityCommonStockSharesOutstanding.units.shares
+
+      epsData = factsData?.facts?.['us-gaap']?.EarningsPerShareBasic?.units?.['USD/shares'];
+      revData = factsData?.facts?.['us-gaap']?.RevenueFromContractWithCustomerExcludingAssessedTax?.units?.['USD'];
+      assetsData = factsData?.facts?.['us-gaap']?.Assets?.units?.['USD'];
+
+      incomeData = factsData?.facts?.['us-gaap']?.NetIncomeLoss?.units?.['USD'];
+
       if (filter == 'eps'){
-         epsData = factsData?.facts?.['us-gaap']?.EarningsPerShareBasic?.units?.['USD/shares'];
+         currentData = epsData
       }
       else if (filter == "revenue"){
-        epsData = factsData?.facts?.['us-gaap']?.RevenueFromContractWithCustomerExcludingAssessedTax?.units?.['USD'];
-      }
+        currentData = revData
+
+    }
+
       else if (filter == "income"){
-        epsData = factsData?.facts?.['us-gaap']?.NetIncomeLoss?.units?.['USD'];
-        console.log(epsData, 'epsdata')
-      }
+        currentData = incomeData
+
+    }
       else if (filter == 'dividends'){
         epsData = factsData?.facts?.['us-gaap']?.PaymentsOfDividends?.units?.['USD'];
-
-        
       }
       else if (filter == 'assets'){
-        epsData = factsData?.facts?.['us-gaap']?.Assets?.units?.['USD'];
-      } else if (filter === 'Free Cash Flow') { // New filter type
+      currentData = assetsData
+    } else if (filter === 'Free Cash Flow') { // New filter type
         epsData = factsData?.facts?.['us-gaap']?.FreeCashFlow?.units?.['USD']; 
         // console.log(Object.keys(factsData?.facts?.['us-gaap']), 'data')
       }
       else if (filter == "shares Outstanding"){
-        epsData=factsData?.facts?.['dei']?.EntityCommonStockSharesOutstanding.units.shares
-      }
+        currentData = sharesData
+    }
 
 //RevenueFromContractWithCustomerExcludingAssessedTax
-      if (epsData){
+      if (currentData){
 
-      
+        
         let seen = []
-        if (epsData) {
             let count = 1;
-            while (count <= epsData.length - 1 && graphData.length < 10) {
-            const item = epsData[epsData.length - count];
+            while (count <= currentData.length - 1 && graphData.length < 10) {
+            const item = currentData[currentData.length - count];
 
-              console.log(item)
+                console.log(item)
             if (item.fp && item.fy && item.fp == "FY" ){
 
                 console.log(item, 'items')
-      
+        
                 let val = 0
                 if (item.val > 0){
                     val = item.val
@@ -153,17 +168,17 @@ const SearchResultsScreen: React.FC = () => {
                 if (item.start && item.end){
                     const date1 = new Date(item.start);
                     const date2 = new Date(item.end);
-                  
+                    
                     // Calculate the difference in months
                     const diffInMonths =
                     Math.abs((date2.getFullYear() - date1.getFullYear()) * 12 +
-                      (date2.getMonth() - date1.getMonth())) > 10;
-                  
+                        (date2.getMonth() - date1.getMonth())) > 10;
+                    
                     if (diffInMonths && (!seen.includes(item.fy))){
                         seen.push(item.fy)
 
                         graphData.push({ label: item.fy, value: val });
-    
+
                     }
                 }
                 else{
@@ -181,20 +196,23 @@ const SearchResultsScreen: React.FC = () => {
             count += 1;
 
             }
-        }
+        
     }
 
 
 
-      return { companyName: compName, cik: cik_str, graphData };
+      return { companyName: compName, cik: cik_str, graphData, epsData, revData, incomeData, assetsData, sharesData };
     } catch (error) {
       console.error("Error fetching stock info:", error);
       return { companyName: null, cik: null, eps: null, graphData: [] };
     }
   };
 
-
-
+  useEffect(() => {
+    if (stockInfo && stockInfo.graphData && stockInfo.graphData[filterType]) { // Check for current filter data
+      setGraphData(stockInfo.graphData[filterType]);
+    }
+  }, [stockInfo, filterType]);
   useEffect(() => {
     if (stockInfo && stockInfo.graphData && stockInfo.graphData.length > 0) {
       const data = stockInfo.graphData.slice(0, 10);
@@ -227,7 +245,7 @@ const SearchResultsScreen: React.FC = () => {
     }
 
     const data = stockInfo.graphData.slice(0, 10);
-    
+
     console.log(data, 'data')
     // console.log(data,'data')
 
@@ -255,8 +273,8 @@ const SearchResultsScreen: React.FC = () => {
       {stockInfo && (
         <View>
         <Text style={styles.title}>
-        {stockInfo.companyName && stockInfo.companyName.length > 25
-            ? stockInfo.companyName.slice(0, 25) + "\n" + stockInfo.companyName.slice(15)
+        {stockInfo.companyName && stockInfo.companyName.length > 23
+            ? stockInfo.companyName.slice(0, 23) + "\n" + stockInfo.companyName.slice(23)
             : stockInfo.companyName || "Company Name Not Found"}
         </Text>
           <Text>Ticker: {stockSymbol}</Text>
@@ -264,7 +282,7 @@ const SearchResultsScreen: React.FC = () => {
             <Dropdown
               style={styles.dropdown}
               placeholder="Select item"
-              data={data}
+              data={dropdownOptions} // Use the dynamically generated options
               labelField="label"
               valueField="value"
               value={filterType}
@@ -274,7 +292,9 @@ const SearchResultsScreen: React.FC = () => {
               renderItem={(item) => (
                 <Text style={styles.dropdownItem}>{item.label}</Text>
               )}
+              disabled={dropdownOptions.length === 0} // Disable if no options
             />
+            {dropdownOptions.length === 0 && <Text style={styles.noDataText}>No data available for selected ticker.</Text>}
           </View>
           <Text style={styles.graphTitle}>{filterType.toUpperCase()} Over Time</Text>
           {renderGraph()}
