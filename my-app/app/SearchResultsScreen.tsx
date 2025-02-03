@@ -116,6 +116,11 @@ const SearchResultsScreen: React.FC = () => {
         epsData = factsData?.facts?.['us-gaap']?.NetIncomeLoss?.units?.['USD'];
         console.log(epsData, 'epsdata')
       }
+      else if (filter == 'dividends'){
+        epsData = factsData?.facts?.['us-gaap']?.PaymentsOfDividends?.units?.['USD'];
+
+        
+      }
       else if (filter == 'assets'){
         epsData = factsData?.facts?.['us-gaap']?.Assets?.units?.['USD'];
       } else if (filter === 'Free Cash Flow') { // New filter type
@@ -136,8 +141,9 @@ const SearchResultsScreen: React.FC = () => {
             while (count <= epsData.length - 1 && graphData.length < 10) {
             const item = epsData[epsData.length - count];
 
-            //   console.log(item)
+              console.log(item)
             if (item.fp && item.fy && item.fp == "FY" ){
+
                 console.log(item, 'items')
       
                 let val = 0
@@ -153,7 +159,9 @@ const SearchResultsScreen: React.FC = () => {
                     Math.abs((date2.getFullYear() - date1.getFullYear()) * 12 +
                       (date2.getMonth() - date1.getMonth())) > 10;
                   
-                    if (diffInMonths){
+                    if (diffInMonths && (!seen.includes(item.fy))){
+                        seen.push(item.fy)
+
                         graphData.push({ label: item.fy, value: val });
     
                     }
@@ -234,6 +242,8 @@ const SearchResultsScreen: React.FC = () => {
     { label: 'Net Income', value: 'income' },
     { label: 'Earnings Per Share (EPS)', value: 'eps' },
     { label: 'Free Cash Flow', value: 'Free Cash Flow' }, // Add free cash flow to dropdown
+    // { label: 'Dividends Payed', value: 'dividends' }, // Add free cash flow to dropdown
+
     { label: 'Shares Outstanding', value: 'shares Outstanding' }, // Add free cash flow to dropdown
     { label: 'Assets', value: 'assets' },
 
