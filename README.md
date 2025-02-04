@@ -8,7 +8,7 @@ Demo:
 Pictures of App:
 <div style="display: flex;">
   <img src="images/IMG_2085.PNG" alt="Screenshot 1" style="width: 200px; margin-right: 10px;">
-    <img src="images/IMG_2090.PNG" alt="Screenshot 2" style="width: 200px; margin-right: 10px;">
+    <img src="images/IMG_2097.PNG" alt="Screenshot 2" style="width: 200px; margin-right: 10px;">
   <img src="images/IMG_2087.PNG" alt="Screenshot 2" style="width: 200px; margin-right: 10px;">
   <img src="images/IMG_2088.PNG" alt="Screenshot 3" style="width: 200px;">
 </div>
