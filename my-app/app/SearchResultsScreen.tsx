@@ -313,7 +313,7 @@ const formatNumberWithCommas = (number: any): string => {
       assetsData = factsData?.facts?.['us-gaap']?.Assets?.units?.['USD'];
       incomeData = factsData?.facts?.['us-gaap']?.NetIncomeLoss?.units?.['USD'];
       dividendData = factsData?.facts?.['us-gaap']?.PaymentsOfDividends?.units?.['USD'];
-      currentLiabilities = factsData.facts['us-gaap'].LiabilitiesCurrent.units.USD
+      currentLiabilities = factsData?.facts?.['us-gaap']?.LiabilitiesCurrent.units.USD
       if (currentLiabilities && assetsData && incomeData){
         roicData = "placeholder"
 
