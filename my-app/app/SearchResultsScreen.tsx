@@ -6,7 +6,7 @@ import BarGraph from './barChart'; // Import the BarGraph component
 import { Dropdown } from 'react-native-element-dropdown';
 import cheerio from 'react-native-cheerio'; // Import cheerio
 import { XMLParser } from 'fast-xml-parser';
-
+import {investorsData} from './investors'
 type RootStackParamList = {
   SearchResultsScreen: { stockSymbol: string };
 };
@@ -16,19 +16,6 @@ interface Investor {
     cik: string;
   }
 const SearchResultsScreen: React.FC = () => {
-const investorsData = [
-    { name: 'Warren Buffett', institution: "Berkshire Hathaway", cik: '0001067983' },
-    { name: 'Bryan Lawrence', institution: "Oakcliff Capital", cik: '0001657335' },
-    { name: 'Robert Vinall', institution: "RV Capital", cik: '0001766596' },
-    { name: 'Li Lu', institution: "Himalaya Capital", cik: '0001709323' },
-    { name: 'Monish Pabrai', institution: "Dalal Street", cik: '0001549575' },
-    { name: 'Howard Marks', institution: "Oaktree Capital Management", cik: '0000949509' },
-    { name: 'David Tepper', institution: "Appaloosa Management", cik: '0001656456' },
-    { name: 'Daily Journal Corp.', institution: "Daily Journal Corp.", cik: '0000783412' },
-    { name: 'Tweedy Browne Co.', institution: "Tweedy Browne Value Fund", cik: '0000732905' },
-    { name: 'Norbert Lou', institution: "Punch Card Management", cik: '0001631664' },
-    { name: 'Chuck Akre', institution: "Akre Capital Management", cik: '0001112520' },
-    ];
   const route = useRoute<RouteProp<RootStackParamList, 'SearchResultsScreen'>>();
   const { stockSymbol } = route.params;
   const [stockInfo, setStockInfo] = useState<{ companyName: string | null; cik: string | null; eps: string | null; graphData: Record<string, number>[] | null; epsData: string | null;revData: string | null;incomeData: string | null;assetsData: string | null;sharesData: string | null;} | null>(null);
@@ -164,14 +151,7 @@ fetchStockData();
     }
     return combined;
 };
-const calculatePercentage = (value: number): string => {
-    if (totalPortfolioValue === 0 || isNaN(value)) {
-        return "0.00%"; // Or handle the case as you see fit
-    }
-    console.log(value, totalPortfolioValue)
-    const percentage = (value / totalPortfolioValue) * 100;
-    return percentage.toFixed(2) + "%";
-};
+
 const formatNumberWithCommas = (number: any): string => {
     if (number === undefined || number === null) {
       return "N/A";
@@ -179,17 +159,54 @@ const formatNumberWithCommas = (number: any): string => {
     const n = typeof number === 'string' ? parseFloat(number) : number; // Convert string to number
     return n.toLocaleString(); // Use toLocaleString for commas
   };
+  function getRetryDelay(response: Response): number {
+    // Check for Retry-After header (recommended by SEC)
+    const retryAfterHeader = response.headers.get('Retry-After');
+    if (retryAfterHeader) {
+      const retryAfter = parseInt(retryAfterHeader, 10);
+      if (!isNaN(retryAfter)) {
+        return retryAfter * 1000; // Convert to milliseconds
+      }
+    }
+  
+    // Default exponential backoff (if Retry-After is not available)
+    const backoffFactor = 2; // Increase delay by this factor each retry
+    const maxBackoff = 60000; // Maximum backoff (60 seconds)
+  
+    let currentDelay = 1000; // Initial delay (1 second)
+    // You might want to store retry counts somewhere to avoid infinite retries
+    // and implement a maximum number of retries.
+    // For simplicity, this example will retry only once.
+    return Math.min(currentDelay * backoffFactor, maxBackoff);
+  }
   const getInvestorInfo = async(invData:Investor[] ) =>{
+    const delayBetweenRequests = 300; // milliseconds - adjust as needed
+
     try{
         let invesDict: Record<string, number|string>[] = [];
         for(const investor of invData){
+            await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
+
             console.log(`${investor.name} (${investor.institution})`);
             const apiUrl = `https://data.sec.gov/submissions/CIK${investor.cik}.json`; // Example CIK, replace as needed
             const response = await fetch(apiUrl);
             if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-            }
+                const errorData = await response.json();
+                // Handle 429 specifically, retry with exponential backoff
+                if (response.status === 429) {
+                  console.warn("Rate limited! Retrying with backoff...");
+                  const retryDelay = getRetryDelay(response); // See function below
+                  await new Promise(resolve => setTimeout(resolve, retryDelay));
+                  const retryResponse = await fetch(apiUrl); // Retry
+                  if (!retryResponse.ok){
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                  }
+                  const data = await retryResponse.json();
+                  // ... (rest of your code to process the data)
+                } else {
+                  throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+              }
       
             
       
@@ -235,15 +252,32 @@ const formatNumberWithCommas = (number: any): string => {
               }
 
               for (const holding in combinedHoldings){
-
-                if (combinedHoldings[holding].nameOfIssuer.split(' ')[0].toUpperCase() == stockInfo.companyName.split(' ')[0].toUpperCase()){
-                    let percent123 = ""
-                    if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
-                        percent123= "0.00%"; // Or handle the case as you see fit
+                const specialCharsRegex = /[^\w\s]/g; // Matches anything that's NOT a word character or whitespace
+                let name = combinedHoldings[holding].nameOfIssuer
+                name = name.replace(specialCharsRegex, "");
+                let currName = stockInfo.companyName
+                currName = currName.replace(specialCharsRegex, "");
+                if (name.split(' ').length > 1 && currName.split(' ')[0].toUpperCase().length > 1){
+                    if ((name.split(' ')[0].toUpperCase() == currName.split(' ')[0].toUpperCase()) && (name.split(' ')[1].toUpperCase() == currName.split(' ')[1].toUpperCase())){
+                        let percent123 = ""
+                        if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
+                            percent123= "0.00%"; // Or handle the case as you see fit
+                        }
+                        const percentage = (combinedHoldings[holding].value / totalValue) * 100;
+                        percent123 =  percentage.toFixed(2) + "%";
+                        invesDict.push({ name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
                     }
-                    const percentage = (combinedHoldings[holding].value / totalValue) * 100;
-                    percent123 =  percentage.toFixed(2) + "%";
-                    invesDict.push({ name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
+                }
+                else{
+                    if (name.split(' ')[0].toUpperCase() == currName.split(' ')[0].toUpperCase()){
+                        let percent123 = ""
+                        if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
+                            percent123= "0.00%"; // Or handle the case as you see fit
+                        }
+                        const percentage = (combinedHoldings[holding].value / totalValue) * 100;
+                        percent123 =  percentage.toFixed(2) + "%";
+                        invesDict.push({ name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
+                    }
                 }
               }
             //   const sortedHoldings = sortHoldingsByValue(combinedHoldings);

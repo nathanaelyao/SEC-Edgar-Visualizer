@@ -2,20 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Dropdown } from 'react-native-element-dropdown';
+import {investorsData} from '../investors'
 
-const investorsData = [
-  { name: 'Warren Buffett', institution: "Berkshire Hathaway", cik: '0001067983' },
-  { name: 'Bryan Lawrence', institution: "Oakcliff Capital", cik: '0001657335' },
-  { name: 'Robert Vinall', institution: "RV Capital", cik: '0001766596' },
-  { name: 'Li Lu', institution: "Himalaya Capital", cik: '0001709323' },
-  { name: 'Monish Pabrai', institution: "Dalal Street", cik: '0001549575' },
-  { name: 'Howard Marks', institution: "Oaktree Capital Management", cik: '0000949509' },
-  { name: 'David Tepper', institution: "Appaloosa Management", cik: '0001656456' },
-  { name: 'Daily Journal Corp.', institution: "Daily Journal Corp.", cik: '0000783412' },
-  { name: 'Tweedy Browne Co.', institution: "Tweedy Browne Value Fund", cik: '0000732905' },
-  { name: 'Norbert Lou', institution: "Punch Card Management", cik: '0001631664' },
-  { name: 'Chuck Akre', institution: "Akre Capital Management", cik: '0001112520' },
-];
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
