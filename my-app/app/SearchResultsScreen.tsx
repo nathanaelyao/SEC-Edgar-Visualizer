@@ -526,7 +526,7 @@ const formatNumberWithCommas = (number: any): string => {
                   <View key={index} style={styles.investorItem}> {/* Individual investor item */}
                     <Text style={styles.investorName}>{investor.name}</Text>
                     <View style={styles.holdingDetails}>
-                      <Text>Shares: {investor.numShares}</Text>
+                      <Text>Shares: {formatNumberWithCommas(investor.numShares)}</Text>
                       <Text>Value: ${formatNumberWithCommas(investor.value)}</Text>
                       <Text>Percentage of Portfolio: {investor.percent}</Text>
                     </View>
