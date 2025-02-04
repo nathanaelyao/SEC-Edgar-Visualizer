@@ -51,12 +51,15 @@ fetchStockData();
       try {
         const info = await getStockInfo(stockSymbol, filterType);
         setStockInfo(info);
+        console.log('here', info)
 
         const availableOptions = [];
+        if (info?.revData) availableOptions.push({ label: 'Revenue', value: 'revenue' });
         if (info?.incomeData) availableOptions.push({ label: 'Net Income', value: 'net income' });
         if (info?.epsData) availableOptions.push({ label: 'Earnings Per Share (EPS)', value: 'eps' });
-        if (info?.revData) availableOptions.push({ label: 'Revenue', value: 'revenue' });
         if (info?.assetsData) availableOptions.push({ label: 'Assets', value: 'assets' });
+        if (info?.liabilities) availableOptions.push({ label: 'Liabilites', value: 'liabilities' });
+        if (info?.incomeData) availableOptions.push({ label: 'ROIC', value: 'roic' });
         if (info?.sharesData) availableOptions.push({ label: 'Shares Outstanding', value: 'shares Outstanding' });
         setDropdownOptions(availableOptions);
 
@@ -180,14 +183,10 @@ const formatNumberWithCommas = (number: any): string => {
       }
     }
   
-    // Default exponential backoff (if Retry-After is not available)
-    const backoffFactor = 2; // Increase delay by this factor each retry
-    const maxBackoff = 60000; // Maximum backoff (60 seconds)
+    const backoffFactor = 2; 
+    const maxBackoff = 60000; 
   
-    let currentDelay = 1000; // Initial delay (1 second)
-    // You might want to store retry counts somewhere to avoid infinite retries
-    // and implement a maximum number of retries.
-    // For simplicity, this example will retry only once.
+    let currentDelay = 1000; 
     return Math.min(currentDelay * backoffFactor, maxBackoff);
   }
   const getInvestorInfo = async(invData:Investor[] ) =>{
@@ -218,99 +217,93 @@ const formatNumberWithCommas = (number: any): string => {
                   throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
                 }
               }
-      
-            
+    
       
             const data = await response.json();
-
-
-            
             const recentFilings = data.filings.recent;
-    if (recentFilings) {
-
-
-        let first = true;
-        let second = true;
-        for (let i = 0; i < recentFilings.accessionNumber.length; i++) {
-          const accessionNumber = recentFilings.accessionNumber[i];
-          const filingDate = recentFilings.filingDate[i];
-          const formType = recentFilings.form[i];
-          const primaryDocument =  recentFilings.primaryDocument[i];
-          const filename = primaryDocument.substring(primaryDocument.lastIndexOf('/') + 1);
-          if ( formType == '13F-HR' && first) {
-            first = false;
-    
-
-            const filingDateObj = new Date(filingDate);
-            const month = filingDateObj.getMonth() + 1; // Month is 0-indexed
-            let quarterString = "";
+            if (recentFilings) {
+                let first = true;
+                let second = true;
+                for (let i = 0; i < recentFilings.accessionNumber.length; i++) {
+                const accessionNumber = recentFilings.accessionNumber[i];
+                const filingDate = recentFilings.filingDate[i];
+                const formType = recentFilings.form[i];
+                const primaryDocument =  recentFilings.primaryDocument[i];
+                const filename = primaryDocument.substring(primaryDocument.lastIndexOf('/') + 1);
+                if ( formType == '13F-HR' && first) {
+                    first = false;
             
-            if (month >= 1 && month <= 3) {
-              quarterString = "Q4 " + (filingDateObj.getFullYear() - 1);
-            } else if (month >= 4 && month <= 6) {
-              quarterString = "Q1 " + filingDateObj.getFullYear();
-            } else if (month >= 7 && month <= 9) {
-              quarterString = "Q2 " + filingDateObj.getFullYear();
-            } else if (month >= 10 && month <= 12) {
-              quarterString = "Q3 " + filingDateObj.getFullYear();
+
+                    const filingDateObj = new Date(filingDate);
+                    const month = filingDateObj.getMonth() + 1; // Month is 0-indexed
+                    let quarterString = "";
+                    
+                    if (month >= 1 && month <= 3) {
+                    quarterString = "Q4 " + (filingDateObj.getFullYear() - 1);
+                    } else if (month >= 4 && month <= 6) {
+                    quarterString = "Q1 " + filingDateObj.getFullYear();
+                    } else if (month >= 7 && month <= 9) {
+                    quarterString = "Q2 " + filingDateObj.getFullYear();
+                    } else if (month >= 10 && month <= 12) {
+                    quarterString = "Q3 " + filingDateObj.getFullYear();
+                    }
+                    setQuarter(quarterString); 
+                    getHoldings(accessionNumber, data.cik).then(holdings => {
+                    const combinedHoldings = combineSameIssuer(holdings)
+                    let totalValue = 0
+                    if(combinedHoldings){
+                        totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value || 0), 0); // Handle potential missing values
+                    }
+
+                    for (const holding in combinedHoldings){
+                        const specialCharsRegex = /[^\w\s]/g; // Matches anything that's NOT a word character or whitespace
+                        let name = combinedHoldings[holding].nameOfIssuer
+                        name = name.replace(specialCharsRegex, "");
+                        let currName = stockInfo.companyName
+                        currName = currName.replace(specialCharsRegex, "");
+                        if (name.split(' ').length > 1 && currName.split(' ')[0].toUpperCase().length > 1){
+                            if ((name.split(' ')[0].toUpperCase() == currName.split(' ')[0].toUpperCase()) && (name.split(' ')[1].toUpperCase() == currName.split(' ')[1].toUpperCase())){
+                                let percent123 = ""
+                                if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
+                                    percent123= "0.00%"; // Or handle the case as you see fit
+                                }
+                                const percentage = (combinedHoldings[holding].value / totalValue) * 100;
+                                percent123 =  percentage.toFixed(2) + "%";
+                                invesDict.push({ cik: investor.cik, institution: investor.institution,name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
+                            }
+                        }
+                        else{
+                            if (name.split(' ')[0].toUpperCase() == currName.split(' ')[0].toUpperCase()){
+                                let percent123 = ""
+                                if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
+                                    percent123= "0.00%"; // Or handle the case as you see fit
+                                }
+                                const percentage = (combinedHoldings[holding].value / totalValue) * 100;
+                                percent123 =  percentage.toFixed(2) + "%";
+                                invesDict.push({ name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
+                            }
+                        }
+                    }
+                    //   const sortedHoldings = sortHoldingsByValue(combinedHoldings);
+                    setFilings(combinedHoldings || []);
+            
+                    });
+                    
+                }
+                // else if (formType == '13F-HR' && second) {  // Fetch the *previous* 13F-HR
+                //     second = false;
+                //     console.log(`Second 13F-HR: ${accessionNumber}`);
+                //     await getHoldings(accessionNumber, data.cik).then(previousHoldings => {
+                //         // console.log(previousHoldings,'prevvvv')
+                //     setPreviousFilings(combineSameIssuer(previousHoldings)); // Store previous holdings
+                //     });
+                //     break; // Stop after finding the second 13F-HR
+                // }
+                }
+            } else {
+                console.log("No recent filings found.");
             }
-            setQuarter(quarterString); 
-            getHoldings(accessionNumber, data.cik).then(holdings => {
-              const combinedHoldings = combineSameIssuer(holdings)
-              let totalValue = 0
-              if(combinedHoldings){
-                totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value || 0), 0); // Handle potential missing values
-              }
-
-              for (const holding in combinedHoldings){
-                const specialCharsRegex = /[^\w\s]/g; // Matches anything that's NOT a word character or whitespace
-                let name = combinedHoldings[holding].nameOfIssuer
-                name = name.replace(specialCharsRegex, "");
-                let currName = stockInfo.companyName
-                currName = currName.replace(specialCharsRegex, "");
-                if (name.split(' ').length > 1 && currName.split(' ')[0].toUpperCase().length > 1){
-                    if ((name.split(' ')[0].toUpperCase() == currName.split(' ')[0].toUpperCase()) && (name.split(' ')[1].toUpperCase() == currName.split(' ')[1].toUpperCase())){
-                        let percent123 = ""
-                        if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
-                            percent123= "0.00%"; // Or handle the case as you see fit
-                        }
-                        const percentage = (combinedHoldings[holding].value / totalValue) * 100;
-                        percent123 =  percentage.toFixed(2) + "%";
-                        invesDict.push({ cik: investor.cik, institution: investor.institution,name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
-                    }
-                }
-                else{
-                    if (name.split(' ')[0].toUpperCase() == currName.split(' ')[0].toUpperCase()){
-                        let percent123 = ""
-                        if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
-                            percent123= "0.00%"; // Or handle the case as you see fit
-                        }
-                        const percentage = (combinedHoldings[holding].value / totalValue) * 100;
-                        percent123 =  percentage.toFixed(2) + "%";
-                        invesDict.push({ name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
-                    }
-                }
-              }
-            //   const sortedHoldings = sortHoldingsByValue(combinedHoldings);
-              setFilings(combinedHoldings || []);
-       
-            });
-            
-          }
-          else if (formType == '13F-HR' && second) {  // Fetch the *previous* 13F-HR
-            second = false;
-            console.log(`Second 13F-HR: ${accessionNumber}`);
-            await getHoldings(accessionNumber, data.cik).then(previousHoldings => {
-                // console.log(previousHoldings,'prevvvv')
-              setPreviousFilings(combineSameIssuer(previousHoldings)); // Store previous holdings
-            });
-            break; // Stop after finding the second 13F-HR
-          }
-        }
-      } else {
-        console.log("No recent filings found.");
-      }
-          };
+        };
         console.log(invesDict, 'dict')
         setInvestorInfo(invesDict)
         return invesDict
@@ -320,9 +313,6 @@ const formatNumberWithCommas = (number: any): string => {
       }
 
   }
-
-
-
 
   const getStockInfo = async (ticker: string, filter: string) => {
     try {
@@ -334,7 +324,6 @@ const formatNumberWithCommas = (number: any): string => {
       }
 
       const tickersData = await tickersResponse.json();
-    //   console.log(tickersData)
       let cik_str = "";
       let compName = "";
       let similairTitles = []
@@ -360,15 +349,11 @@ const formatNumberWithCommas = (number: any): string => {
       }
       if (!cik_str){
         if (similairTitles[0]){
-            // if (similairTitles.length == 1){
             compName = similairTitles[0].title;
             const numberStr = similairTitles[0].cik_str.toString();
             const numZeros = 10 - numberStr.length;
             cik_str = "0".repeat(numZeros) + numberStr;
-            // }
-            // else{
-            //     console.log("oh no")
-            // }
+
         }
       }
 
@@ -384,107 +369,156 @@ const formatNumberWithCommas = (number: any): string => {
       }
       const factsData = await factsResponse.json();
 
-      let graphData: Record<string, number>[] = [];
       let currentData = ""
       let epsData = ""
       let revData = ""
       let incomeData = ""
       let assetsData = ""
       let sharesData = ""
-
+      let dividendData = ""
+      let currentLiabilities = ""
+      let roicData = ""
+      let skip = false
       sharesData=factsData?.facts?.['dei']?.EntityCommonStockSharesOutstanding.units.shares
-
       epsData = factsData?.facts?.['us-gaap']?.EarningsPerShareBasic?.units?.['USD/shares'];
       revData = factsData?.facts?.['us-gaap']?.RevenueFromContractWithCustomerExcludingAssessedTax?.units?.['USD'];
       assetsData = factsData?.facts?.['us-gaap']?.Assets?.units?.['USD'];
-
       incomeData = factsData?.facts?.['us-gaap']?.NetIncomeLoss?.units?.['USD'];
+      dividendData = factsData?.facts?.['us-gaap']?.PaymentsOfDividends?.units?.['USD'];
+      currentLiabilities = factsData.facts['us-gaap'].LiabilitiesCurrent.units.USD
+      if (currentLiabilities && assetsData && incomeData){
+        roicData = "placeholder"
+
+    }
 
       if (filter == 'eps'){
          currentData = epsData
       }
+      else if (filter == 'liabilities'){
+        currentData = currentLiabilities
+        console.log(currentLiabilities)
+      }
       else if (filter == "revenue"){
         currentData = revData
-
-    }
-
+      }
       else if (filter == "net income"){
         currentData = incomeData
-
-    }
+     }
       else if (filter == 'dividends'){
-        epsData = factsData?.facts?.['us-gaap']?.PaymentsOfDividends?.units?.['USD'];
-      }
+        currentData = dividendData
+    }
       else if (filter == 'assets'){
       currentData = assetsData
     } else if (filter === 'Free Cash Flow') { // New filter type
         epsData = factsData?.facts?.['us-gaap']?.FreeCashFlow?.units?.['USD']; 
-        // console.log(Object.keys(factsData?.facts?.['us-gaap']), 'data')
       }
       else if (filter == "shares Outstanding"){
         currentData = sharesData
+     } 
+     else if (filter == "roic"){
+        if (currentLiabilities && assetsData && incomeData){
+            const liabilities = getInfo(currentLiabilities)
+            const assets = getInfo(assetsData)
+            const income = getInfo(incomeData)
+            let investedCapital = getIntersectionAndSumByLabel(assets, liabilities, '-')
+            
+            roicData = getIntersectionAndSumByLabel(income, investedCapital, '/')
+            graphData = roicData
+            skip = true
+        }
     }
 
-//RevenueFromContractWithCustomerExcludingAssessedTax
-      if (currentData){
-
-        
-        let seen = []
-            let count = 1;
-            while (count <= currentData.length - 1 && graphData.length < 10) {
-            const item = currentData[currentData.length - count];
-
-            if (item.fp && item.fy && item.fp == "FY" ){
-
-        
-                let val = 0
-                if (item.val > 0){
-                    val = item.val
-                }
-
-                if (item.start && item.end){
-                    const date1 = new Date(item.start);
-                    const date2 = new Date(item.end);
-                    
-                    // Calculate the difference in months
-                    const diffInMonths =
-                    Math.abs((date2.getFullYear() - date1.getFullYear()) * 12 +
-                        (date2.getMonth() - date1.getMonth())) > 10;
-                    
-                    if (diffInMonths && (!seen.includes(item.fy))){
-                        seen.push(item.fy)
-
-                        graphData.push({ label: item.fy, value: val });
-
-                    }
-                }
-                else{
-                    if (!seen.includes(item.fy)){
-                        seen.push(item.fy)
-                        graphData.push({ label: item.fy, value: val });
-                    }
-
-
-                }
-
-                // }
-
-            }
-            count += 1;
-
-            }
-        
-    }
+      if (!skip){
+        graphData = getInfo(currentData)
+      }
 
 
 
-      return { companyName: compName, cik: cik_str, graphData, epsData, revData, incomeData, assetsData, sharesData };
+
+
+      return { roicData: roicData, liabilities: currentLiabilities, companyName: compName, cik: cik_str, graphData, epsData, revData, incomeData, assetsData, sharesData };
     } catch (error) {
       console.error("Error fetching stock info:", error);
       return { companyName: null, cik: null, eps: null, graphData: [] };
     }
   };
+  function getIntersectionAndSumByLabel(arr1: any[], arr2: any[], operator: string): any[] {
+    const intersection: any[] = [];
+    const labelMap = new Map<any, number>(); // Store labels and their sums
+  
+    arr1.forEach(item => {
+      labelMap.set(item.label, item.value);
+    });
+  
+    arr2.forEach(item => {
+      if (labelMap.has(item.label)) {
+        if (operator == '-'){
+            labelMap.set(item.label, labelMap.get(item.label) - item.value); // Add values
+        }
+        else if (operator == '/'){
+            labelMap.set(item.label, ((labelMap.get(item.label) / item.value) * 100) ); // Divide values
+        }
+      } 
+  
+    });
+  
+    labelMap.forEach((value, label) => {
+      intersection.push({ label, value });
+    });
+  
+    return intersection;
+  }
+  const getInfo = (currentData: Record<string, number>[]): Record<string, number>[] => {
+    let graphData: Record<string, number>[] = [];
 
+    if (currentData){
+        let seen = []
+        let count = 1;
+        while (count <= currentData.length - 1 && graphData.length < 10) {
+        const item = currentData[currentData.length - count];
+
+        if (item.fp && item.fy && item.fp == "FY" ){
+
+    
+            let val = 0
+            if (item.val > 0){
+                val = item.val
+            }
+
+            if (item.start && item.end){
+                const date1 = new Date(item.start);
+                const date2 = new Date(item.end);
+                
+                // Calculate the difference in months
+                const diffInMonths =
+                Math.abs((date2.getFullYear() - date1.getFullYear()) * 12 +
+                    (date2.getMonth() - date1.getMonth())) > 10;
+                
+                if (diffInMonths && (!seen.includes(item.fy))){
+                    seen.push(item.fy)
+
+                    graphData.push({ label: item.fy, value: val });
+
+                }
+            }
+            else{
+                if (!seen.includes(item.fy)){
+                    seen.push(item.fy)
+                    graphData.push({ label: item.fy, value: val });
+                }
+
+
+            }
+
+            // }
+
+        }
+        count += 1;
+
+        }
+    }
+    return graphData
+  };
   useEffect(() => {
     if (stockInfo && stockInfo.graphData && stockInfo.graphData[filterType]) { // Check for current filter data
       setGraphData(stockInfo.graphData[filterType]);
@@ -565,7 +599,7 @@ const formatNumberWithCommas = (number: any): string => {
             />
             {dropdownOptions.length === 0 && <Text style={styles.noDataText}>No data available for selected ticker.</Text>}
           </View>
-          <Text style={styles.graphTitle}>{filterType.toUpperCase()} Over Time</Text>
+          {filterType && <Text style={styles.graphTitle}>{filterType.toUpperCase()} Over Time</Text>}
           {renderGraph()}
 
           {selectedValue && <Text>Selected Value: {selectedValue}</Text>}
