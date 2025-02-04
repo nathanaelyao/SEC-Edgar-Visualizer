@@ -50,7 +50,7 @@ useEffect(() => {
       firstRender.current = false; // Set to false after the first render
       const timer = setTimeout(() => {
         setDataLoaded(true); // Set dataLoaded to true after 1 second
-      }, 1000);
+      }, 500);
 
       return () => clearTimeout(timer); // Clear the timer if the component unmounts
     }
