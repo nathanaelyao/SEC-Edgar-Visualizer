@@ -557,6 +557,7 @@ const formatNumberWithCommas = (number: any): string => {
                   
                   > {/* Individual investor item */}
                     <Text style={styles.investorName}>{investor.name}</Text>
+                    <Text style={styles.institutionName}>{investor.institution}</Text>
                     <View style={styles.holdingDetails}>
                       <Text>Shares: {formatNumberWithCommas(investor.numShares)}</Text>
                       <Text>Value: ${formatNumberWithCommas(investor.value)}</Text>
@@ -590,7 +591,7 @@ const styles = StyleSheet.create({
         marginBottom:20
       },
       cardTitle: { // Style for the card title
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: 'bold',
         marginBottom: 8,
       },
@@ -600,7 +601,6 @@ const styles = StyleSheet.create({
         marginTop: 20,         // Add some top margin
       },
       loadingText: {
-
         marginLeft: 10,      // Space between indicator and text
         fontSize: 16,        // Adjust text size
       },
@@ -613,8 +613,14 @@ const styles = StyleSheet.create({
         borderBottomColor: '#eee',
         paddingBottom: 8,
       },
-      investorName: { // Style for the investor name
+      investorName: {
+        fontSize: 16,
         fontWeight: 'bold',
+      },
+      institutionName: {
+        fontSize: 13,
+        color: 'gray',
+        marginBottom: 2, // Add some margin below institution name
       },
       holdingDetails: {
         marginLeft: 16, // Indent the details
