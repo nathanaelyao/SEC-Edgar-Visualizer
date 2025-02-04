@@ -1,5 +1,5 @@
 import React, { useState, useEffect,useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView} from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Button} from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { Animated, Easing } from 'react-native';
 import BarGraph from './barChart'; // Import the BarGraph component
@@ -8,7 +8,9 @@ import cheerio from 'react-native-cheerio'; // Import cheerio
 import { XMLParser } from 'fast-xml-parser';
 import {investorsData} from './investors'
 import { useNavigation } from '@react-navigation/native';
-
+import * as SQLite from 'expo-sqlite';
+const DB_NAME = 'stock_data.db';
+const TABLE_NAME = 'investor_info123';
 type RootStackParamList = {
   SearchResultsScreen: { stockSymbol: string };
 };
@@ -35,22 +37,80 @@ const SearchResultsScreen: React.FC = () => {
   const [filterType, setFilterType] = useState<string | null>(null); // Initially null
   const [dataLoaded, setDataLoaded] = useState(false); // New state variable
   const firstRender = useRef(true);
+  const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
+  const [data, setData] = useState([]);
+  const [hasRun, setHasRun] = useState(false);
+  const intervalId = useRef(null);
+  const someConditionToCheck = () => {
+    const fetchData = async () => {
+        const dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
+        setDb(dbInstance);
+        const rows = await dbInstance.getAllAsync(`SELECT * FROM ${TABLE_NAME}`);
+        setFilings(JSON.parse(rows[0].investor_holdings) || []); 
+        // console.log(JSON.parse(rows[0].investor_holdings), rows.length>0, 'rws')
+        if (rows.length>0){
+            console.log('here')
+            return true
+        }
+        return false
+     }
+    const success = fetchData();
+    return success
+  };
+  useEffect(() => {
+    if (!hasRun) {
+      intervalId.current = setInterval(() => {
+        // Your code to run here
+        console.log("Code running...");
+
+        // Check if the condition to stop the interval is met (e.g., successful execution)
+        const success = someConditionToCheck(); // Replace with your actual condition
+
+        if (success) {
+          clearInterval(intervalId.current);
+          setHasRun(true);
+          console.log("Code finished successfully. Interval stopped.");
+        } else {
+          console.log("Code did not complete successfully yet.  Will retry.");
+        }
+
+      },50); 
+    }
+
+    return () => {
+      clearInterval(intervalId.current); // Clear interval on unmount or if hasRun becomes true
+      if (hasRun) {
+        console.log("Component unmounted or hasRun is now true. Interval cleared.");
+      } else {
+        console.log("Component unmounted before successful run, interval cleared.");
+      }
+    };
+  }, [hasRun]);
+
+
   useEffect(() => {
     const fetchStockData = async () => {
 
-    const invData = await getInvestorInfo(investorsData)
+        const invData = await getInvestorInfo(investorsData)
 
-    setInvestorInfo(invData)
-};
+        setInvestorInfo(invData)
+    };
 
-fetchStockData();
-}, [stockInfo?.companyName]);
+    fetchStockData();
+    }, [stockInfo?.companyName, filings]);
+
 useEffect(() => {
+    // const fetchStockTable = async () => {
+    //     const dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
+    //     setDb(dbInstance);
+    // }
+    // fetchStockTable();
+
     if (firstRender.current) {
       firstRender.current = false; // Set to false after the first render
       const timer = setTimeout(() => {
         setDataLoaded(true); // Set dataLoaded to true after 1 second
-      }, 500);
+      }, 100);
 
       return () => clearTimeout(timer); // Clear the timer if the component unmounts
     }
@@ -61,7 +121,7 @@ useEffect(() => {
       try {
         const info = await getStockInfo(stockSymbol, filterType);
         setStockInfo(info);
-        console.log(info.sharesData, 'info')
+        // console.log(info.sharesData, 'info')
 
         const availableOptions = [];
         if (info?.revData) availableOptions.push({ label: 'Revenue', value: 'revenue' });
@@ -101,80 +161,6 @@ useEffect(() => {
       return data;
     }
   }
-  const getHoldings = async (accessionNumber, cik1) => {
-    try {
-        const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
-  
-        
-      const response = await fetch(
-        `https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`
-      );
- 
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.text();
-      const $ = cheerio.load(data); 
-
-      const foundFiles: string[] = [];
-
-      $('a').each(function () {  // Use Cheerio's each function
-          const href = $(this).attr('href'); // Use Cheerio's attr function
-          if (href && href.endsWith('.xml')) {
-              foundFiles.push(href);
-          }
-      });
-
-      for (let i = 0; i < foundFiles.length; i++) {
-        if (!foundFiles[i].startsWith("primary")){
-            const response1 = await fetch(
-                `https://www.sec.gov${foundFiles[i]}`
-            );
-            const data1 = await response1.text();
-            const parser = new XMLParser();
-            const json = removeNamespace(parser.parse(data1));  
-            return json['informationTable']?.infoTable || 
-            json['ns1:informationTable']?.['ns1:infoTable'] ||
-             [];
-                    }
-      }
-      return [];
-      
- // Handle cases where infoTable might be missing
-    } catch (error) {
-      console.error("Error fetching holdings:", error);
-      return []; // Return empty array in case of error
-    }
-  };
-
-  const combineSameIssuer = (holdings: any[]) => {
-    let combined = [];
-    const seen = new Set<string>(); // Keep track of seen issuer names
-
-    for (const item of holdings) {
-        if (!item?.nameOfIssuer || !item?.shrsOrPrnAmt?.sshPrnamt || !item?.value) continue; // Skip if data is missing.
-
-        const issuer = item.nameOfIssuer;
-        const shares = parseFloat(item.shrsOrPrnAmt.sshPrnamt);
-        const value = parseFloat(item.value);
-        if (seen.has(issuer)) {
-            // Find existing item and add shares and value.
-            const existingItem = combined.find(h => h.nameOfIssuer === issuer);
-            if (existingItem) {
-                existingItem.shrsOrPrnAmt.sshPrnamt = (parseFloat(existingItem.shrsOrPrnAmt.sshPrnamt) + shares).toString(); // Add shares. Convert to string
-                existingItem.value = (parseFloat(existingItem.value) + value).toString(); // Add value. Convert to string
-            }
-        } else {
-            // Deep copy the item to avoid modifying the original holdings
-            const newItem = JSON.parse(JSON.stringify(item));
-            combined.push(newItem);
-            seen.add(issuer);
-        }
-    }
-    return combined;
-};
 
 const formatNumberWithCommas = (number: any): string => {
     if (number === undefined || number === null) {
@@ -200,113 +186,60 @@ const formatNumberWithCommas = (number: any): string => {
     return Math.min(currentDelay * backoffFactor, maxBackoff);
   }
   const getInvestorInfo = async(invData:Investor[] ) =>{
-    const delayBetweenRequests = 300; // milliseconds - adjust as needed
-
+    // const delayBetweenRequests = 300; // milliseconds - adjust as needed
+    // console.log(filings,'ehehehhe')
+    let combinedHoldings = null
     try{
         let invesDict: Record<string, number|string>[] = [];
         for(const investor of invData){
-            await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
-
-            console.log(`${investor.name} (${investor.institution})`);
-            const apiUrl = `https://data.sec.gov/submissions/CIK${investor.cik}.json`; // Example CIK, replace as needed
-            const response = await fetch(apiUrl);
-            if (!response.ok) {
-                const errorData = await response.json();
-                // Handle 429 specifically, retry with exponential backoff
-                if (response.status === 429) {
-                  console.warn("Rate limited! Retrying with backoff...");
-                  const retryDelay = getRetryDelay(response); // See function below
-                  await new Promise(resolve => setTimeout(resolve, retryDelay));
-                  const retryResponse = await fetch(apiUrl); // Retry
-                  if (!retryResponse.ok){
-                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-                  }
-                  const data = await retryResponse.json();
-                  // ... (rest of your code to process the data)
-                } else {
-                  throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+            // await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
+            for (const dict of filings) {
+               if (investor.name == dict.name){
+                combinedHoldings = dict.holdings
+                let totalValue = 0
+                if(combinedHoldings){
+                    totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value || 0), 0); // Handle potential missing values
                 }
-              }
-    
-      
-            const data = await response.json();
-            const recentFilings = data.filings.recent;
-            if (recentFilings) {
-                let first = true;
-                let second = true;
-                for (let i = 0; i < recentFilings.accessionNumber.length; i++) {
-                const accessionNumber = recentFilings.accessionNumber[i];
-                const filingDate = recentFilings.filingDate[i];
-                const formType = recentFilings.form[i];
-                const primaryDocument =  recentFilings.primaryDocument[i];
-                const filename = primaryDocument.substring(primaryDocument.lastIndexOf('/') + 1);
-                if ( formType == '13F-HR' && first) {
-                    first = false;
-            
-
-                    const filingDateObj = new Date(filingDate);
-                    const month = filingDateObj.getMonth() + 1; // Month is 0-indexed
-                    let quarterString = "";
-                    
-                    if (month >= 1 && month <= 3) {
-                    quarterString = "Q4 " + (filingDateObj.getFullYear() - 1);
-                    } else if (month >= 4 && month <= 6) {
-                    quarterString = "Q1 " + filingDateObj.getFullYear();
-                    } else if (month >= 7 && month <= 9) {
-                    quarterString = "Q2 " + filingDateObj.getFullYear();
-                    } else if (month >= 10 && month <= 12) {
-                    quarterString = "Q3 " + filingDateObj.getFullYear();
-                    }
-                    setQuarter(quarterString); 
-                    getHoldings(accessionNumber, data.cik).then(holdings => {
-                    const combinedHoldings = combineSameIssuer(holdings)
-                    let totalValue = 0
-                    if(combinedHoldings){
-                        totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value || 0), 0); // Handle potential missing values
-                    }
-
-                    for (const holding in combinedHoldings){
-                        const specialCharsRegex = /[^\w\s]/g; // Matches anything that's NOT a word character or whitespace
-                        let name = combinedHoldings[holding].nameOfIssuer
-                        name = name.replace(specialCharsRegex, "");
-                        let currName = stockInfo.companyName
-                        currName = currName.replace(specialCharsRegex, "");
-                        if (name.split(' ').length > 1 && currName.split(' ')[0].toUpperCase().length > 1){
-                            if ((name.split(' ')[0].toUpperCase() == currName.split(' ')[0].toUpperCase()) && (name.split(' ')[1].toUpperCase() == currName.split(' ')[1].toUpperCase())){
-                                let percent123 = ""
-                                if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
-                                    percent123= "0.00%"; // Or handle the case as you see fit
-                                }
-                                const percentage = (combinedHoldings[holding].value / totalValue) * 100;
-                                percent123 =  percentage.toFixed(2) + "%";
-                                invesDict.push({ cik: investor.cik, institution: investor.institution,name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
+                for (const holding in combinedHoldings){
+                    const specialCharsRegex = /[^\w\s]/g; // Matches anything that's NOT a word character or whitespace
+                    let name = combinedHoldings[holding].nameOfIssuer
+                    name = name.replace(specialCharsRegex, "");
+                    let currName = stockInfo.companyName
+                    currName = currName.replace(specialCharsRegex, "");
+                    if (name.split(' ').length > 1 && currName.split(' ')[0].toUpperCase().length > 1){
+                        if ((name.split(' ')[0].toUpperCase() == currName.split(' ')[0].toUpperCase()) && (name.split(' ')[1].toUpperCase() == currName.split(' ')[1].toUpperCase())){
+                            let percent123 = ""
+                            if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
+                                percent123= "0.00%"; // Or handle the case as you see fit
                             }
-                        }
-                        else{
-                            if (name.split(' ')[0].toUpperCase() == currName.split(' ')[0].toUpperCase()){
-                                let percent123 = ""
-                                if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
-                                    percent123= "0.00%"; // Or handle the case as you see fit
-                                }
-                                const percentage = (combinedHoldings[holding].value / totalValue) * 100;
-                                percent123 =  percentage.toFixed(2) + "%";
-                                invesDict.push({ name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
-                            }
+                            const percentage = (combinedHoldings[holding].value / totalValue) * 100;
+                            percent123 =  percentage.toFixed(2) + "%";
+                            invesDict.push({ cik: investor.cik, institution: investor.institution,name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
                         }
                     }
-                    //   const sortedHoldings = sortHoldingsByValue(combinedHoldings);
-                    setFilings(combinedHoldings || []);
-            
-                    });
-                    
+                    else{
+                        if (name.split(' ')[0].toUpperCase() == currName.split(' ')[0].toUpperCase()){
+                            let percent123 = ""
+                            if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
+                                percent123= "0.00%"; // Or handle the case as you see fit
+                            }
+                            const percentage = (combinedHoldings[holding].value / totalValue) * 100;
+                            percent123 =  percentage.toFixed(2) + "%";
+                            invesDict.push({ name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
+                        }
+                    }
                 }
-     
-                }
-            } else {
-                console.log("No recent filings found.");
+               }
+
             }
+
+            
+     
+
+ 
+         
         };
-        // console.log(invesDict, 'dict')
+        console.log(invesDict, 'dict')
         setInvestorInfo(invesDict)
         return invesDict
     }
@@ -434,10 +367,6 @@ const formatNumberWithCommas = (number: any): string => {
         graphData = getInfo(currentData)
       }
 
-
-
-
-
       return { roicData: roicData, liabilities: currentLiabilities, companyName: compName, cik: cik_str, graphData, epsData, revData, incomeData, assetsData, sharesData };
     } catch (error) {
       console.error("Error fetching stock info:", error);
@@ -509,7 +438,6 @@ const formatNumberWithCommas = (number: any): string => {
                     graphData.push({ label: item.fy, value: val });
                 }
 
-
             }
 
             // }
@@ -575,6 +503,7 @@ const formatNumberWithCommas = (number: any): string => {
     <View style={styles.container}>
       {loading && <ActivityIndicator size="large" color="#0000ff" />}
       {error && <Text style={styles.errorText}>{error}</Text>}
+
       {stockInfo && (
         <View>
         <Text style={styles.title}>
