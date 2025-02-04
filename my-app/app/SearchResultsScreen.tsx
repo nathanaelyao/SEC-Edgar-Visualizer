@@ -28,10 +28,12 @@ const SearchResultsScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedValue, setSelectedValue] = useState(null);
   const [animatedHeights, setAnimatedHeights] = useState<Animated.Value[]>([]);
-  const [filterType, setFilterType] = useState('net income');
+//   const [filterType, setFilterType] = useState('net income');
   const [investorInfo, setInvestorInfo] = useState<Record<string, number|string>[] | null>(null);
   const [dropdownOptions, setDropdownOptions] = useState<any[]>([]); // State for dropdown options
   const [filings, setFilings] = useState<any[]>([]);
+  const [filterType, setFilterType] = useState<string | null>(null); // Initially null
+
   useEffect(() => {
     const fetchStockData = async () => {
 
@@ -57,6 +59,11 @@ fetchStockData();
         if (info?.assetsData) availableOptions.push({ label: 'Assets', value: 'assets' });
         if (info?.sharesData) availableOptions.push({ label: 'Shares Outstanding', value: 'shares Outstanding' });
         setDropdownOptions(availableOptions);
+
+        // Set default filter type *after* data is fetched and options are available
+        if (!filterType && availableOptions.length > 0) {
+          setFilterType(availableOptions[0].value); // Set to the first option
+        }
  
       } catch (err) {
         setError(err.message);
@@ -541,13 +548,13 @@ const formatNumberWithCommas = (number: any): string => {
         </Text>
           <Text>Ticker: {stockSymbol}</Text>
           <View style={styles.dropdownContainer}>
-            <Dropdown
+          <Dropdown
               style={styles.dropdown}
               placeholder="Select item"
               data={dropdownOptions} // Use the dynamically generated options
               labelField="label"
               valueField="value"
-              value={filterType}
+              value={filterType}  // Now controlled by state
               onChange={item => {
                 setFilterType(item.value);
               }}
