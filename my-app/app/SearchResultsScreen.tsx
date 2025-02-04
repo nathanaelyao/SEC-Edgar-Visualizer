@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView} from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { Animated, Easing } from 'react-native';
 import BarGraph from './barChart'; // Import the BarGraph component
@@ -492,7 +492,8 @@ const formatNumberWithCommas = (number: any): string => {
 
   ];
   return (
-    
+    <ScrollView contentContainerStyle={styles.scrollViewContent}> {/* Wrap with ScrollView */}
+
     <View style={styles.container}>
       {loading && <ActivityIndicator size="large" color="#0000ff" />}
       {error && <Text style={styles.errorText}>{error}</Text>}
@@ -549,6 +550,8 @@ const formatNumberWithCommas = (number: any): string => {
         </View>
       )}
     </View>
+    </ScrollView>
+
   );
 };
 const styles = StyleSheet.create({
@@ -563,6 +566,7 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
         shadowRadius: 4,
+        marginBottom:20
       },
       cardTitle: { // Style for the card title
         fontSize: 18,
