@@ -4,8 +4,6 @@ import { RouteProp, useRoute } from '@react-navigation/native';
 import { Animated, Easing } from 'react-native';
 import BarGraph from './barChart'; // Import the BarGraph component
 import { Dropdown } from 'react-native-element-dropdown';
-import cheerio from 'react-native-cheerio'; // Import cheerio
-import { XMLParser } from 'fast-xml-parser';
 import {investorsData} from './investors'
 import { useNavigation } from '@react-navigation/native';
 import * as SQLite from 'expo-sqlite';
@@ -100,17 +98,11 @@ const SearchResultsScreen: React.FC = () => {
     }, [stockInfo?.companyName, filings]);
 
 useEffect(() => {
-    // const fetchStockTable = async () => {
-    //     const dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
-    //     setDb(dbInstance);
-    // }
-    // fetchStockTable();
-
     if (firstRender.current) {
       firstRender.current = false; // Set to false after the first render
       const timer = setTimeout(() => {
-        setDataLoaded(true); // Set dataLoaded to true after 1 second
-      }, 100);
+        setDataLoaded(true); 
+      }, 50);
 
       return () => clearTimeout(timer); // Clear the timer if the component unmounts
     }
