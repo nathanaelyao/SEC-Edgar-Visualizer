@@ -388,7 +388,6 @@ const formatNumberWithCommas = (number: any): string => {
                 if (item.val > 0){
                     val = item.val
                 }
-                val = item.val
 
                 if (item.start && item.end){
                     const date1 = new Date(item.start);
@@ -480,17 +479,7 @@ const formatNumberWithCommas = (number: any): string => {
     </View>
     );
   };
-  const data = [ // Data for the dropdown
-    { label: 'Revenue', value: 'revenue' },
-    { label: 'Net Income', value: 'income' },
-    { label: 'Earnings Per Share (EPS)', value: 'eps' },
-    { label: 'Free Cash Flow', value: 'Free Cash Flow' }, // Add free cash flow to dropdown
-    // { label: 'Dividends Payed', value: 'dividends' }, // Add free cash flow to dropdown
 
-    { label: 'Shares Outstanding', value: 'shares Outstanding' }, // Add free cash flow to dropdown
-    { label: 'Assets', value: 'assets' },
-
-  ];
   return (
     <ScrollView contentContainerStyle={styles.scrollViewContent}> {/* Wrap with ScrollView */}
 
@@ -528,9 +517,10 @@ const formatNumberWithCommas = (number: any): string => {
 
           {selectedValue && <Text>Selected Value: {selectedValue}</Text>}
                     {/* Investor Info Card */}
-                    <View style={styles.investorInfoCard}>
+        {investorInfo && investorInfo.length > 0 && (
+
+        <View style={styles.investorInfoCard}>
             <Text style={styles.cardTitle}>Investor Holdings</Text> {/* Card Title */}
-            {investorInfo && investorInfo.length > 0 ? (
               <View>
                 {investorInfo.map((investor, index) => (
                   <View key={index} style={styles.investorItem}> {/* Individual investor item */}
@@ -543,10 +533,9 @@ const formatNumberWithCommas = (number: any): string => {
                   </View>
                 ))}
               </View>
-            ) : (
-              <Text style={styles.noDataText}>No investor information available.</Text>
-            )}
+
           </View>
+        )}
         </View>
       )}
     </View>
