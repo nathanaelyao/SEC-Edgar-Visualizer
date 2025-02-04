@@ -290,15 +290,7 @@ const formatNumberWithCommas = (number: any): string => {
                     });
                     
                 }
-                // else if (formType == '13F-HR' && second) {  // Fetch the *previous* 13F-HR
-                //     second = false;
-                //     console.log(`Second 13F-HR: ${accessionNumber}`);
-                //     await getHoldings(accessionNumber, data.cik).then(previousHoldings => {
-                //         // console.log(previousHoldings,'prevvvv')
-                //     setPreviousFilings(combineSameIssuer(previousHoldings)); // Store previous holdings
-                //     });
-                //     break; // Stop after finding the second 13F-HR
-                // }
+     
                 }
             } else {
                 console.log("No recent filings found.");
@@ -552,7 +544,7 @@ const formatNumberWithCommas = (number: any): string => {
   const renderGraph = () => {
     if (!stockInfo || !stockInfo.graphData || stockInfo.graphData.length === 0) {
         // console.log(stockInfo)
-        return <Text style={styles.noDataText}>No EPS data available. {"\n"}
+        return <Text style={styles.noDataText}>No data available. {"\n"}
             Please choose another option using the dropdown.</Text>; 
     }
 
