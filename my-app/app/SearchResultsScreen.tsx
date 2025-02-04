@@ -531,8 +531,8 @@ const formatNumberWithCommas = (number: any): string => {
         
         {!investorInfo && (
           <View style={styles.loadingContainer}> {/* Container for alignment */}
-            <ActivityIndicator size="small" color="#0000ff" />
-            <Text style={styles.loadingText}>Loading 13F Info</Text>
+            {/* <ActivityIndicator size="small" color="#0000ff" /> */}
+            <Text style={styles.loadingText}>No 13F Info Found</Text>
           </View>
         )}
         {investorInfo && investorInfo.length > 0 && (
@@ -600,6 +600,7 @@ const styles = StyleSheet.create({
         marginTop: 20,         // Add some top margin
       },
       loadingText: {
+
         marginLeft: 10,      // Space between indicator and text
         fontSize: 16,        // Adjust text size
       },
