@@ -51,7 +51,7 @@ fetchStockData();
       try {
         const info = await getStockInfo(stockSymbol, filterType);
         setStockInfo(info);
-        console.log('here', info)
+        console.log(info.sharesData, 'info')
 
         const availableOptions = [];
         if (info?.revData) availableOptions.push({ label: 'Revenue', value: 'revenue' });
@@ -296,7 +296,7 @@ const formatNumberWithCommas = (number: any): string => {
                 console.log("No recent filings found.");
             }
         };
-        console.log(invesDict, 'dict')
+        // console.log(invesDict, 'dict')
         setInvestorInfo(invesDict)
         return invesDict
     }
@@ -388,7 +388,6 @@ const formatNumberWithCommas = (number: any): string => {
       }
       else if (filter == 'liabilities'){
         currentData = currentLiabilities
-        console.log(currentLiabilities)
       }
       else if (filter == "revenue"){
         currentData = revData
