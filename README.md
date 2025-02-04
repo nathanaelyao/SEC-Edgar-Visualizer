@@ -3,7 +3,7 @@
 React Native Application using SEC EDGAR API to visualize data on companies and 13F filings from institutional investors.
 
 Demo:
-[Watch the Demo Video](https://www.youtube.com/shorts/iSam10TiD70)
+[Watch the Demo Video](https://www.youtube.com/watch?v=GVMJH5Qp0dU)
 
 Pictures of App:
 <div style="display: flex;">

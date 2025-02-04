@@ -58,7 +58,7 @@ fetchStockData();
         if (info?.incomeData) availableOptions.push({ label: 'Net Income', value: 'net income' });
         if (info?.epsData) availableOptions.push({ label: 'Earnings Per Share (EPS)', value: 'eps' });
         if (info?.assetsData) availableOptions.push({ label: 'Assets', value: 'assets' });
-        if (info?.liabilities) availableOptions.push({ label: 'Liabilites', value: 'liabilities' });
+        if (info?.liabilities) availableOptions.push({ label: 'Liabilities', value: 'liabilities' });
         if (info?.incomeData) availableOptions.push({ label: 'ROIC', value: 'roic' });
         if (info?.sharesData) availableOptions.push({ label: 'Shares Outstanding', value: 'shares Outstanding' });
         setDropdownOptions(availableOptions);
