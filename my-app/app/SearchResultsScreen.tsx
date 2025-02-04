@@ -52,7 +52,8 @@ const investorsData = [
 };
 
 fetchStockData();
-}, [stockInfo]);
+}, [stockInfo?.companyName]);
+
 
   useEffect(() => {
     const fetchStockData = async () => {
@@ -258,6 +259,7 @@ const formatNumberWithCommas = (number: any): string => {
       }
           };
         console.log(invesDict, 'dict')
+        setInvestorInfo(invesDict)
         return invesDict
     }
     catch (error) {
