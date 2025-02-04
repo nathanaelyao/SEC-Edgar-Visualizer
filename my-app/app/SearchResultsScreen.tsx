@@ -608,7 +608,13 @@ const formatNumberWithCommas = (number: any): string => {
         <View style={styles.investorInfoCard}>
             <Text style={styles.cardTitle}>Investor Holdings</Text> {/* Card Title */}
               <View>
-                {investorInfo.map((investor, index) => (
+                {investorInfo.sort((a, b) => {
+        const percentA = parseFloat(a.percent); // Parse percentage string to number
+        const percentB = parseFloat(b.percent); // Parse percentage string to number
+        return percentB - percentA; // Descending order: largest percentage first
+      }).
+                
+                map((investor, index) => (
                   <TouchableOpacity key={index} style={styles.investorItem}
                   onPress={() => {
                     navigation.navigate('HoldingsScreen', {
