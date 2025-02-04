@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect,useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView} from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { Animated, Easing } from 'react-native';
@@ -33,7 +33,8 @@ const SearchResultsScreen: React.FC = () => {
   const [dropdownOptions, setDropdownOptions] = useState<any[]>([]); // State for dropdown options
   const [filings, setFilings] = useState<any[]>([]);
   const [filterType, setFilterType] = useState<string | null>(null); // Initially null
-
+  const [dataLoaded, setDataLoaded] = useState(false); // New state variable
+  const firstRender = useRef(true);
   useEffect(() => {
     const fetchStockData = async () => {
 
@@ -44,7 +45,16 @@ const SearchResultsScreen: React.FC = () => {
 
 fetchStockData();
 }, [stockInfo?.companyName]);
+useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false; // Set to false after the first render
+      const timer = setTimeout(() => {
+        setDataLoaded(true); // Set dataLoaded to true after 1 second
+      }, 1000);
 
+      return () => clearTimeout(timer); // Clear the timer if the component unmounts
+    }
+  }, []);
 
   useEffect(() => {
     const fetchStockData = async () => {
@@ -76,7 +86,7 @@ fetchStockData();
     };
 
     fetchStockData();
-  }, [stockSymbol, filterType]);
+  }, [stockSymbol, filterType, dataLoaded]);
   function removeNamespace(data) {
     if (Array.isArray(data)) {
       return data.map(item => removeNamespace(item));
@@ -329,6 +339,7 @@ const formatNumberWithCommas = (number: any): string => {
             finalTicker = splitTicker[0]
         }
         if (tickersData[key].ticker.toUpperCase() === ticker.toUpperCase()) {
+
           compName = tickersData[key].title;
           const numberStr = tickersData[key].cik_str.toString();
           const numZeros = 10 - numberStr.length;
@@ -442,7 +453,7 @@ const formatNumberWithCommas = (number: any): string => {
     });
   
     arr2.forEach(item => {
-      if (labelMap.has(item.label)) {
+      if (labelMap.has(item.label) && labelMap.get(item.label) > 0) {
         if (operator == '-'){
             labelMap.set(item.label, labelMap.get(item.label) - item.value); // Add values
         }
@@ -471,8 +482,8 @@ const formatNumberWithCommas = (number: any): string => {
         if (item.fp && item.fy && item.fp == "FY" ){
 
     
-            let val = 0
-            if (item.val > 0){
+            let val = 1
+            if (item.val > 1){
                 val = item.val
             }
 
