@@ -264,18 +264,8 @@ const renderItem = ({ item }) => { // Add curly braces
     const change = changeData.change;
     const color = changeData.color;
   
-    return ( // Now the return statement is explicit
+    return ( 
 
-    //   <TouchableOpacity
-    //   style={styles.investorItem}
-    //   onPress={() => {
-    //     navigation.navigate('HoldingsScreen', {
-    //       investorName: item.name,
-    //       institution: item.institution,
-    //       cik: item.cik,
-    //     });
-    //   }}
-    // >      navigation.navigate('SearchResultsScreen', { stockSymbol: searchText }); // Navigate and pass data
 
         <TouchableOpacity style={styles.item}
         onPress={() => {

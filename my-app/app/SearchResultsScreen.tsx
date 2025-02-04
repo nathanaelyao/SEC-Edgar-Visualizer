@@ -172,6 +172,13 @@ const calculatePercentage = (value: number): string => {
     const percentage = (value / totalPortfolioValue) * 100;
     return percentage.toFixed(2) + "%";
 };
+const formatNumberWithCommas = (number: any): string => {
+    if (number === undefined || number === null) {
+      return "N/A";
+    }
+    const n = typeof number === 'string' ? parseFloat(number) : number; // Convert string to number
+    return n.toLocaleString(); // Use toLocaleString for commas
+  };
   const getInvestorInfo = async(invData:Investor[] ) =>{
     try{
         let invesDict: Record<string, number|string>[] = [];
@@ -527,8 +534,8 @@ const calculatePercentage = (value: number): string => {
                     <Text style={styles.investorName}>{investor.name}</Text>
                     <View style={styles.holdingDetails}>
                       <Text>Shares: {investor.numShares}</Text>
-                      <Text>Value: {investor.value}</Text>
-                      <Text>Percentage: {investor.percent}</Text>
+                      <Text>Value: ${formatNumberWithCommas(investor.value)}</Text>
+                      <Text>Percentage of Portfolio: {investor.percent}</Text>
                     </View>
                   </View>
                 ))}
@@ -545,7 +552,7 @@ const calculatePercentage = (value: number): string => {
 const styles = StyleSheet.create({
     investorInfoCard: {
         marginTop: 20,
-        width: '100%', // Card takes full width of its container
+        width: 350,
         backgroundColor: 'white',
         borderRadius: 8,
         padding: 16,
