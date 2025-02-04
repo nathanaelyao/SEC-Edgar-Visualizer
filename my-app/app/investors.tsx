@@ -23,7 +23,5 @@ export const investorsData = [
     { name: 'AKO Capital', institution: "AKO Capital LLC", cik: '0001376879' },
     { name: 'Bruce Berkowitz', institution: "Fairholme Capital Management", cik: '0001056831' },
     { name: 'Bill Ackman', institution: "Pershing Square Capital Management", cik: '0001336528' },
-
-
-
+    { name: 'Seth Klarman', institution: "Baupost Group", cik: '0001061768' },
   ];
