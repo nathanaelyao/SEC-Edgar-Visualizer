@@ -29,8 +29,6 @@ const investorsData = [
     { name: 'Norbert Lou', institution: "Punch Card Management", cik: '0001631664' },
     { name: 'Chuck Akre', institution: "Akre Capital Management", cik: '0001112520' },
     ];
-    const [totalPortfolioValue, setTotalPortfolioValue] = useState(0);
-
   const route = useRoute<RouteProp<RootStackParamList, 'SearchResultsScreen'>>();
   const { stockSymbol } = route.params;
   const [stockInfo, setStockInfo] = useState<{ companyName: string | null; cik: string | null; eps: string | null; graphData: Record<string, number>[] | null; epsData: string | null;revData: string | null;incomeData: string | null;assetsData: string | null;sharesData: string | null;} | null>(null);
@@ -170,6 +168,7 @@ const calculatePercentage = (value: number): string => {
     if (totalPortfolioValue === 0 || isNaN(value)) {
         return "0.00%"; // Or handle the case as you see fit
     }
+    console.log(value, totalPortfolioValue)
     const percentage = (value / totalPortfolioValue) * 100;
     return percentage.toFixed(2) + "%";
 };
@@ -230,12 +229,21 @@ const formatNumberWithCommas = (number: any): string => {
             setQuarter(quarterString); 
             getHoldings(accessionNumber, data.cik).then(holdings => {
               const combinedHoldings = combineSameIssuer(holdings)
+              let totalValue = 0
+              if(combinedHoldings){
+                totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value || 0), 0); // Handle potential missing values
+              }
+
               for (const holding in combinedHoldings){
 
                 if (combinedHoldings[holding].nameOfIssuer.split(' ')[0].toUpperCase() == stockInfo.companyName.split(' ')[0].toUpperCase()){
-                    const totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value), 0);
-                    setTotalPortfolioValue(totalValue);
-                    invesDict.push({ name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: calculatePercentage(parseFloat(combinedHoldings[holding].value))});
+                    let percent123 = ""
+                    if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
+                        percent123= "0.00%"; // Or handle the case as you see fit
+                    }
+                    const percentage = (combinedHoldings[holding].value / totalValue) * 100;
+                    percent123 =  percentage.toFixed(2) + "%";
+                    invesDict.push({ name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
                 }
               }
             //   const sortedHoldings = sortHoldingsByValue(combinedHoldings);
