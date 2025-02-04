@@ -7,6 +7,8 @@ import { Dropdown } from 'react-native-element-dropdown';
 import cheerio from 'react-native-cheerio'; // Import cheerio
 import { XMLParser } from 'fast-xml-parser';
 import {investorsData} from './investors'
+import { useNavigation } from '@react-navigation/native';
+
 type RootStackParamList = {
   SearchResultsScreen: { stockSymbol: string };
 };
@@ -16,6 +18,7 @@ interface Investor {
     cik: string;
   }
 const SearchResultsScreen: React.FC = () => {
+  const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'SearchResultsScreen'>>();
   const { stockSymbol } = route.params;
   const [stockInfo, setStockInfo] = useState<{ companyName: string | null; cik: string | null; eps: string | null; graphData: Record<string, number>[] | null; epsData: string | null;revData: string | null;incomeData: string | null;assetsData: string | null;sharesData: string | null;} | null>(null);
@@ -33,6 +36,7 @@ const SearchResultsScreen: React.FC = () => {
     const fetchStockData = async () => {
 
     const invData = await getInvestorInfo(investorsData)
+
     setInvestorInfo(invData)
 };
 
@@ -265,7 +269,7 @@ const formatNumberWithCommas = (number: any): string => {
                         }
                         const percentage = (combinedHoldings[holding].value / totalValue) * 100;
                         percent123 =  percentage.toFixed(2) + "%";
-                        invesDict.push({ name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
+                        invesDict.push({ cik: investor.cik, institution: investor.institution,name: investor.name, numShares: combinedHoldings[holding].shrsOrPrnAmt?.sshPrnamt, value:combinedHoldings[holding].value, percent: percent123});
                     }
                 }
                 else{
@@ -573,14 +577,22 @@ const formatNumberWithCommas = (number: any): string => {
             <Text style={styles.cardTitle}>Investor Holdings</Text> {/* Card Title */}
               <View>
                 {investorInfo.map((investor, index) => (
-                  <View key={index} style={styles.investorItem}> {/* Individual investor item */}
+                  <TouchableOpacity key={index} style={styles.investorItem}
+                  onPress={() => {
+                    navigation.navigate('HoldingsScreen', {
+                        investorName: investor.name,
+                        institution: investor.institution,
+                        cik: investor.cik,                    });
+                  }}
+                  
+                  > {/* Individual investor item */}
                     <Text style={styles.investorName}>{investor.name}</Text>
                     <View style={styles.holdingDetails}>
                       <Text>Shares: {formatNumberWithCommas(investor.numShares)}</Text>
                       <Text>Value: ${formatNumberWithCommas(investor.value)}</Text>
                       <Text>Percentage of Portfolio: {investor.percent}</Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
 
