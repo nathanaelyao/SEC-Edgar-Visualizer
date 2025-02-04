@@ -525,6 +525,14 @@ const formatNumberWithCommas = (number: any): string => {
 
           {selectedValue && <Text>Selected Value: {selectedValue}</Text>}
                     {/* Investor Info Card */}
+        
+        
+        {!investorInfo && (
+          <View style={styles.loadingContainer}> {/* Container for alignment */}
+            <ActivityIndicator size="small" color="#0000ff" />
+            <Text style={styles.loadingText}>Loading 13F Info</Text>
+          </View>
+        )}
         {investorInfo && investorInfo.length > 0 && (
 
         <View style={styles.investorInfoCard}>
@@ -569,6 +577,18 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         marginBottom: 8,
+      },
+      loadingContainer: {
+        flexDirection: 'row', // Align items horizontally
+        alignItems: 'center',  // Vertically center items
+        marginTop: 20,         // Add some top margin
+      },
+      loadingText: {
+        marginLeft: 10,      // Space between indicator and text
+        fontSize: 16,        // Adjust text size
+      },
+      invLoading: { // Style for the card title
+        marginTop: 20,
       },
       investorItem: { // Style for each investor item
         marginBottom: 8,
