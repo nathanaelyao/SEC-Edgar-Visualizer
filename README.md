@@ -9,7 +9,7 @@ Tools and technology Used:
 - Cheerio: Library used for parsing HTML content from the SEC website.
 
 Demo:
-[Watch the Demo Video](https://www.youtube.com/shorts/cHj9I8wBk9Q)
+[Watch the Demo Video](https://www.youtube.com/watch?v=cHj9I8wBk9Q)
 
 Pictures of App:
 <div style="display: flex;">
