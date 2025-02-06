@@ -1,5 +1,5 @@
 import React, { useState, useEffect,useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Button} from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView} from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { Animated, Easing } from 'react-native';
 import BarGraph from './barChart'; // Import the BarGraph component
@@ -8,7 +8,7 @@ import {investorsData} from './investors'
 import { useNavigation } from '@react-navigation/native';
 import * as SQLite from 'expo-sqlite';
 const DB_NAME = 'stock_data.db';
-const TABLE_NAME = 'investor_info123';
+const TABLE_NAME = 'investor_info_new1234';
 type RootStackParamList = {
   SearchResultsScreen: { stockSymbol: string };
 };
@@ -22,13 +22,10 @@ const SearchResultsScreen: React.FC = () => {
   const route = useRoute<RouteProp<RootStackParamList, 'SearchResultsScreen'>>();
   const { stockSymbol } = route.params;
   const [stockInfo, setStockInfo] = useState<{ companyName: string | null; cik: string | null; eps: string | null; graphData: Record<string, number>[] | null; epsData: string | null;revData: string | null;incomeData: string | null;assetsData: string | null;sharesData: string | null;} | null>(null);
-  const [quarter, setQuarter] = useState<string | null>(null); // New state for the quarter
-  const [previousFilings, setPreviousFilings] = useState<any[]>([]); // State for previous filings
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedValue, setSelectedValue] = useState(null);
   const [animatedHeights, setAnimatedHeights] = useState<Animated.Value[]>([]);
-//   const [filterType, setFilterType] = useState('net income');
   const [investorInfo, setInvestorInfo] = useState<Record<string, number|string>[] | null>(null);
   const [dropdownOptions, setDropdownOptions] = useState<any[]>([]); // State for dropdown options
   const [filings, setFilings] = useState<any[]>([]);
@@ -139,20 +136,7 @@ useEffect(() => {
 
     fetchStockData();
   }, [stockSymbol, filterType, dataLoaded]);
-  function removeNamespace(data) {
-    if (Array.isArray(data)) {
-      return data.map(item => removeNamespace(item));
-    } else if (typeof data === 'object' && data !== null) {
-      const newData = {};
-      for (const key in data) {
-        const newKey = key.replace('ns1:', '');
-        newData[newKey] = removeNamespace(data[key]);
-      }
-      return newData;
-    } else {
-      return data;
-    }
-  }
+
 
 const formatNumberWithCommas = (number: any): string => {
     if (number === undefined || number === null) {
@@ -161,30 +145,13 @@ const formatNumberWithCommas = (number: any): string => {
     const n = typeof number === 'string' ? parseFloat(number) : number; // Convert string to number
     return n.toLocaleString(); // Use toLocaleString for commas
   };
-  function getRetryDelay(response: Response): number {
-    // Check for Retry-After header (recommended by SEC)
-    const retryAfterHeader = response.headers.get('Retry-After');
-    if (retryAfterHeader) {
-      const retryAfter = parseInt(retryAfterHeader, 10);
-      if (!isNaN(retryAfter)) {
-        return retryAfter * 1000; // Convert to milliseconds
-      }
-    }
-  
-    const backoffFactor = 2; 
-    const maxBackoff = 60000; 
-  
-    let currentDelay = 1000; 
-    return Math.min(currentDelay * backoffFactor, maxBackoff);
-  }
+
   const getInvestorInfo = async(invData:Investor[] ) =>{
-    // const delayBetweenRequests = 300; // milliseconds - adjust as needed
-    // console.log(filings,'ehehehhe')
     let combinedHoldings = null
+    console.log(filings, 'filings')
     try{
         let invesDict: Record<string, number|string>[] = [];
         for(const investor of invData){
-            // await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
             for (const dict of filings) {
                if (investor.name == dict.name){
                 combinedHoldings = dict.holdings
@@ -224,11 +191,6 @@ const formatNumberWithCommas = (number: any): string => {
                }
 
             }
-
-            
-     
-
- 
          
         };
         console.log(invesDict, 'dict')
@@ -531,8 +493,8 @@ const formatNumberWithCommas = (number: any): string => {
         
         {!investorInfo && (
           <View style={styles.loadingContainer}> {/* Container for alignment */}
-            {/* <ActivityIndicator size="small" color="#0000ff" /> */}
-            <Text style={styles.loadingText}>No 13F Info Found</Text>
+            <ActivityIndicator size="small" color="#0000ff" />
+            <Text style={styles.loadingText}>Looking for 13F filings</Text>
           </View>
         )}
         {investorInfo && investorInfo.length > 0 && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text,TouchableOpacity, FlatList, StyleSheet, TextInput, ActivityIndicator, Button } from 'react-native';
+import { View, Text,TouchableOpacity, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { XMLParser } from 'fast-xml-parser';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import cheerio from 'react-native-cheerio'; // Import cheerio
