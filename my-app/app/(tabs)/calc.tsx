@@ -47,7 +47,7 @@ const FairValueCalculator = () => {
     const fairValue = calculationResult.value;
     const errorMessage = calculationResult.error;
   
-    const marginOfSafety = typeof fairValue === 'number' ? ((fairValue - stockPrice) / fairValue) * 100 : NaN;
+    const marginOfSafety = typeof fairValue === 'number' ? (1-(stockPrice - fairValue)) : NaN;
   
     const gaugeColor = !isNaN(marginOfSafety) && marginOfSafety > 0 ? 'green' : 'red';
   
