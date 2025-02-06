@@ -1,24 +1,23 @@
 import React, { useState,useEffect,useRef } from 'react';
 import { View, Text, TextInput, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Button } from 'react-native';
-import { useNavigation } from '@react-navigation/native'; // Import navigation hook
+import { useNavigation } from '@react-navigation/native'; 
 import { LogBox } from 'react-native';
 
 
-LogBox.ignoreAllLogs(); // Suppress *all* warnings
+LogBox.ignoreAllLogs(); 
 
 
 const Home: React.FC = () => {
   const [searchText, setSearchText] = useState('');
-  const navigation = useNavigation(); // Initialize navigation
+  const navigation = useNavigation(); 
 
 
   const handleSearch = () => {
-    if (searchText) { // Check if search text is not empty
+    if (searchText) { 
       console.log("Searching for:", searchText);
-      navigation.navigate('SearchResultsScreen', { stockSymbol: searchText }); // Navigate and pass data
-      setSearchText(''); // Clear the search bar after search (optional)
+      navigation.navigate('SearchResultsScreen', { stockSymbol: searchText }); 
+      setSearchText(''); 
     } else {
-      // Handle empty search (e.g., show an alert)
       alert("Please enter a stock symbol.");
     }
   };
@@ -39,7 +38,7 @@ const Home: React.FC = () => {
             value={searchText}
             autoCapitalize="characters"
             returnKeyType="search"
-            onSubmitEditing={handleSearch} // Call search function on "Enter"
+            onSubmitEditing={handleSearch} 
           />
         </View>
       </KeyboardAvoidingView>
@@ -54,14 +53,14 @@ const styles = StyleSheet.create({
   container: {
 
     flex: 1,
-    justifyContent: 'flex-start', // Align to the top
+    justifyContent: 'flex-start', 
     alignItems: 'center',
     padding: 20,
   },
   content: {
     width: '100%',
     maxWidth: 400,
-    marginTop: '45%', // 45% of the screen height
+    marginTop: '45%', 
   },
   title: {
     marginTop: 70,

@@ -32,21 +32,18 @@ export default function RootLayout() {
     <ThemeProvider value={ DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
         <Stack.Screen 
           name="SearchResults" 
         />
                 <Stack.Screen 
           name="Holdings" 
           options={{ 
-            title: 'Portfolio Holdings', // Change the title here
+            title: 'Portfolio Holdings', 
             // or
-            headerTitle: 'My Investments', // Alternative for header title 
+            headerTitle: 'My Investments', 
           }} 
         />
-                        <Stack.Screen 
-          name="Chart" 
-        />
+
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

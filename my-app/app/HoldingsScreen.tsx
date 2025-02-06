@@ -17,8 +17,8 @@ const HoldingsScreen: React.FC = () => {
   const [filings, setFilings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previousFilings, setPreviousFilings] = useState<any[]>([]); // State for previous filings
-  const [quarter, setQuarter] = useState<string | null>(null); // New state for the quarter
+  const [previousFilings, setPreviousFilings] = useState<any[]>([]); 
+  const [quarter, setQuarter] = useState<string | null>(null); 
 
   useEffect(() => {
     fetchFilings();
@@ -30,7 +30,7 @@ const HoldingsScreen: React.FC = () => {
 
 
     try {
-      const apiUrl = `https://data.sec.gov/submissions/CIK${cik}.json`; // Example CIK, replace as needed
+      const apiUrl = `https://data.sec.gov/submissions/CIK${cik}.json`;
       const response = await fetch(apiUrl);
       if (!response.ok) {
         const errorData = await response.json();
@@ -90,14 +90,14 @@ const HoldingsScreen: React.FC = () => {
             });
             
           }
-          else if (formType == '13F-HR' && second) {  // Fetch the *previous* 13F-HR
+          else if (formType == '13F-HR' && second) {  
             second = false;
             console.log(`Second 13F-HR: ${accessionNumber}`);
             await getHoldings(accessionNumber, data.cik).then(previousHoldings => {
                 console.log(previousHoldings,'prevvvv')
-              setPreviousFilings(combineSameIssuer(previousHoldings)); // Store previous holdings
+              setPreviousFilings(combineSameIssuer(previousHoldings)); 
             });
-            break; // Stop after finding the second 13F-HR
+            break; 
           }
         }
       } else {
@@ -112,23 +112,23 @@ const HoldingsScreen: React.FC = () => {
   };
   const calculatePercentageChange = (currentShares: number, issuer: string): { change: string; color: string } => {
     if (previousFilings.length === 0) {
-      return { change: "N/A", color: 'black' }; // No previous data
+      return { change: "N/A", color: 'black' }; 
     }
 
     const previousHolding = previousFilings.find(item => item.nameOfIssuer === issuer);
 
     if (!previousHolding || !previousHolding.shrsOrPrnAmt?.sshPrnamt) {
-      return { change: "New Position", color: 'green' }; // Issuer not found in previous filings or missing share data
+      return { change: "New Position", color: 'green' }; 
     }
 
     const previousShares = parseFloat(previousHolding.shrsOrPrnAmt.sshPrnamt);
 
     if (isNaN(currentShares) || isNaN(previousShares) || previousShares === 0) {
-      return { change: "N/A", color: 'black' }; // Handle potential NaN or division by zero errors
+      return { change: "N/A", color: 'black' }; 
     }
 
     const percentageChange = ((currentShares - previousShares) / previousShares) * 100;
-    const absPercentageChange = Math.abs(percentageChange); // Get the absolute value
+    const absPercentageChange = Math.abs(percentageChange); 
 
     let changeString = "";
     let prefix = "";
@@ -140,36 +140,33 @@ const HoldingsScreen: React.FC = () => {
       prefix = "Reduce ";
       changeString = absPercentageChange.toFixed(2) + "%";
     } else {
-      changeString = percentageChange.toFixed(2) + "%"; // Keep 0 as is
+      changeString = percentageChange.toFixed(2) + "%"; 
     }
 
     const color = percentageChange > 0 ? 'green' : percentageChange < 0 ? 'red' : 'black';
-    return { change: prefix + changeString, color }; // Add the prefix here
+    return { change: prefix + changeString, color }; 
   };
   const sortHoldingsByValue = (holdings: any[]) => {
-    // Sort by value (descending)
     return [...holdings].sort((a, b) => parseFloat(b.value) - parseFloat(a.value));
   };
   const combineSameIssuer = (holdings: any[]) => {
     const combined = [];
-    const seen = new Set<string>(); // Keep track of seen issuer names
+    const seen = new Set<string>(); 
 
     for (const item of holdings) {
-        if (!item?.nameOfIssuer || !item?.shrsOrPrnAmt?.sshPrnamt || !item?.value) continue; // Skip if data is missing.
+        if (!item?.nameOfIssuer || !item?.shrsOrPrnAmt?.sshPrnamt || !item?.value) continue; 
 
         const issuer = item.nameOfIssuer;
         const shares = parseFloat(item.shrsOrPrnAmt.sshPrnamt);
         const value = parseFloat(item.value);
 
         if (seen.has(issuer)) {
-            // Find existing item and add shares and value.
             const existingItem = combined.find(h => h.nameOfIssuer === issuer);
             if (existingItem) {
                 existingItem.shrsOrPrnAmt.sshPrnamt = (parseFloat(existingItem.shrsOrPrnAmt.sshPrnamt) + shares).toString(); // Add shares. Convert to string
                 existingItem.value = (parseFloat(existingItem.value) + value).toString(); // Add value. Convert to string
             }
         } else {
-            // Deep copy the item to avoid modifying the original holdings
             const newItem = JSON.parse(JSON.stringify(item));
             combined.push(newItem);
             seen.add(issuer);
@@ -193,12 +190,12 @@ const HoldingsScreen: React.FC = () => {
 
       const data = await response.text();
 
-      const $ = cheerio.load(data); // This is the key change!
+      const $ = cheerio.load(data); 
 
       const foundFiles: string[] = [];
 
-      $('a').each(function () {  // Use Cheerio's each function
-          const href = $(this).attr('href'); // Use Cheerio's attr function
+      $('a').each(function () {  
+          const href = $(this).attr('href'); 
           if (href && href.endsWith('.xml')) {
               foundFiles.push(href);
           }
@@ -225,10 +222,9 @@ const HoldingsScreen: React.FC = () => {
       }
       return [];
       
- // Handle cases where infoTable might be missing
     } catch (error) {
       console.error("Error fetching holdings:", error);
-      return []; // Return empty array in case of error
+      return []; 
     }
   };
   function removeNamespace(data) {
@@ -249,17 +245,17 @@ const HoldingsScreen: React.FC = () => {
     if (number === undefined || number === null) {
       return "N/A";
     }
-    const n = typeof number === 'string' ? parseFloat(number) : number; // Convert string to number
-    return n.toLocaleString(); // Use toLocaleString for commas
+    const n = typeof number === 'string' ? parseFloat(number) : number;
+    return n.toLocaleString(); 
   };
   const calculatePercentage = (value: number): string => {
     if (totalPortfolioValue === 0 || isNaN(value)) {
-        return "0.00%"; // Or handle the case as you see fit
+        return "0.00%"; 
     }
     const percentage = (value / totalPortfolioValue) * 100;
     return percentage.toFixed(2) + "%";
 };
-const renderItem = ({ item }) => { // Add curly braces
+const renderItem = ({ item }) => {
     const changeData = calculatePercentageChange(parseFloat(item.shrsOrPrnAmt?.sshPrnamt), item.nameOfIssuer);
     const change = changeData.change;
     const color = changeData.color;
@@ -288,7 +284,7 @@ const renderItem = ({ item }) => { // Add curly braces
       </View>
       <View style={styles.row}>
         <Text style={styles.label}>% of Portfolio:</Text>
-        <Text>{calculatePercentage(parseFloat(item.value))}</Text> {/* Now wrapped in <Text> */}
+        <Text>{calculatePercentage(parseFloat(item.value))}</Text> 
       </View>
           <View style={styles.row}>
             <Text style={styles.label}>Change in Shares:</Text>
@@ -302,14 +298,13 @@ const renderItem = ({ item }) => { // Add curly braces
   return (
     <View style={styles.container}>
 
-    <View style={styles.header}> {/* New header View */}
+    <View style={styles.header}> 
         <Text style={styles.investorName}>{investorName}</Text>
-        <Text style={styles.institutionName}>{institution}</Text> {/* Display institution */}
+        <Text style={styles.institutionName}>{institution}</Text> 
         {quarter && <Text style={styles.quarterText}>{quarter}</Text>}
         <Text style={styles.portfolioValue}>
           Total Portfolio Value: ${formatNumberWithCommas(totalPortfolioValue)}
-        </Text> {/* Display total portfolio value */}
-        {/* <Text style={styles.companyName}>{companyName}</Text> Display company name */}
+        </Text> 
       </View>
       {loading && <ActivityIndicator size="large" color="#0000ff" />}
       {error && <Text style={styles.errorText}>{error}</Text>}
@@ -329,12 +324,12 @@ const styles = StyleSheet.create({
 container: {
     flex: 1,
     padding: 20,
-    justifyContent: 'flex-start', // Align to the top
+    justifyContent: 'flex-start', 
 
     },
-    header: {  // Style for the header
-    alignItems: 'center', // Center the text horizontally
-    marginBottom: 10,     // Add some space below the header
+    header: { 
+    alignItems: 'center', 
+    marginBottom: 10, 
     },
     investorName: {
         fontSize: 20,
@@ -344,16 +339,16 @@ container: {
       institutionName: {
         fontSize: 16,
         color: 'gray',
-        marginBottom: 5, // Add some margin below institution name
+        marginBottom: 5, 
       },
-      portfolioValue: { // Style for total portfolio value
+      portfolioValue: { 
         fontSize: 16,
         fontWeight: 'bold',
       },
 
     companyName: {
     fontSize: 16,
-    color: 'gray',  // Make company name slightly less prominent
+    color: 'gray', 
     },
   button: {
     marginVertical: 10,

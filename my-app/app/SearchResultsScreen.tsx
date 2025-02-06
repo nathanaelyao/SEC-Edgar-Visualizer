@@ -2,7 +2,7 @@ import React, { useState, useEffect,useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView} from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { Animated, Easing } from 'react-native';
-import BarGraph from './barChart'; // Import the BarGraph component
+import BarGraph from './barChart'; 
 import { Dropdown } from 'react-native-element-dropdown';
 import {investorsData} from './investors'
 import { useNavigation } from '@react-navigation/native';
@@ -27,10 +27,10 @@ const SearchResultsScreen: React.FC = () => {
   const [selectedValue, setSelectedValue] = useState(null);
   const [animatedHeights, setAnimatedHeights] = useState<Animated.Value[]>([]);
   const [investorInfo, setInvestorInfo] = useState<Record<string, number|string>[] | null>(null);
-  const [dropdownOptions, setDropdownOptions] = useState<any[]>([]); // State for dropdown options
+  const [dropdownOptions, setDropdownOptions] = useState<any[]>([]);
   const [filings, setFilings] = useState<any[]>([]);
-  const [filterType, setFilterType] = useState<string | null>(null); // Initially null
-  const [dataLoaded, setDataLoaded] = useState(false); // New state variable
+  const [filterType, setFilterType] = useState<string | null>(null); 
+  const [dataLoaded, setDataLoaded] = useState(false); 
   const firstRender = useRef(true);
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [data, setData] = useState([]);
@@ -42,7 +42,6 @@ const SearchResultsScreen: React.FC = () => {
         setDb(dbInstance);
         const rows = await dbInstance.getAllAsync(`SELECT * FROM ${TABLE_NAME}`);
         setFilings(JSON.parse(rows[0].investor_holdings) || []); 
-        // console.log(JSON.parse(rows[0].investor_holdings), rows.length>0, 'rws')
         if (rows.length>0){
             console.log('here')
             return true
@@ -55,11 +54,7 @@ const SearchResultsScreen: React.FC = () => {
   useEffect(() => {
     if (!hasRun) {
       intervalId.current = setInterval(() => {
-        // Your code to run here
-        console.log("Code running...");
-
-        // Check if the condition to stop the interval is met (e.g., successful execution)
-        const success = someConditionToCheck(); // Replace with your actual condition
+        const success = someConditionToCheck(); 
 
         if (success) {
           clearInterval(intervalId.current);
@@ -96,12 +91,12 @@ const SearchResultsScreen: React.FC = () => {
 
 useEffect(() => {
     if (firstRender.current) {
-      firstRender.current = false; // Set to false after the first render
+      firstRender.current = false; 
       const timer = setTimeout(() => {
         setDataLoaded(true); 
       }, 50);
 
-      return () => clearTimeout(timer); // Clear the timer if the component unmounts
+      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -110,8 +105,6 @@ useEffect(() => {
       try {
         const info = await getStockInfo(stockSymbol, filterType);
         setStockInfo(info);
-        // console.log(info.sharesData, 'info')
-
         const availableOptions = [];
         if (info?.revData) availableOptions.push({ label: 'Revenue', value: 'revenue' });
         if (info?.incomeData) availableOptions.push({ label: 'Net Income', value: 'net income' });
@@ -122,9 +115,8 @@ useEffect(() => {
         if (info?.sharesData) availableOptions.push({ label: 'Shares Outstanding', value: 'shares Outstanding' });
         setDropdownOptions(availableOptions);
 
-        // Set default filter type *after* data is fetched and options are available
         if (!filterType && availableOptions.length > 0) {
-          setFilterType(availableOptions[0].value); // Set to the first option
+          setFilterType(availableOptions[0].value); 
         }
  
       } catch (err) {
@@ -142,8 +134,8 @@ const formatNumberWithCommas = (number: any): string => {
     if (number === undefined || number === null) {
       return "N/A";
     }
-    const n = typeof number === 'string' ? parseFloat(number) : number; // Convert string to number
-    return n.toLocaleString(); // Use toLocaleString for commas
+    const n = typeof number === 'string' ? parseFloat(number) : number; 
+    return n.toLocaleString(); 
   };
 
   const getInvestorInfo = async(invData:Investor[] ) =>{
@@ -157,10 +149,10 @@ const formatNumberWithCommas = (number: any): string => {
                 combinedHoldings = dict.holdings
                 let totalValue = 0
                 if(combinedHoldings){
-                    totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value || 0), 0); // Handle potential missing values
+                    totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value || 0), 0); 
                 }
                 for (const holding in combinedHoldings){
-                    const specialCharsRegex = /[^\w\s]/g; // Matches anything that's NOT a word character or whitespace
+                    const specialCharsRegex = /[^\w\s]/g;
                     let name = combinedHoldings[holding].nameOfIssuer
                     name = name.replace(specialCharsRegex, "");
                     let currName = stockInfo.companyName
@@ -169,7 +161,7 @@ const formatNumberWithCommas = (number: any): string => {
                         if ((name.split(' ')[0].toUpperCase() == currName.split(' ')[0].toUpperCase()) && (name.split(' ')[1].toUpperCase() == currName.split(' ')[1].toUpperCase())){
                             let percent123 = ""
                             if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
-                                percent123= "0.00%"; // Or handle the case as you see fit
+                                percent123= "0.00%"; 
                             }
                             const percentage = (combinedHoldings[holding].value / totalValue) * 100;
                             percent123 =  percentage.toFixed(2) + "%";
@@ -180,7 +172,7 @@ const formatNumberWithCommas = (number: any): string => {
                         if (name.split(' ')[0].toUpperCase() == currName.split(' ')[0].toUpperCase()){
                             let percent123 = ""
                             if (totalValue === 0 || isNaN(combinedHoldings[holding].value)) {
-                                percent123= "0.00%"; // Or handle the case as you see fit
+                                percent123= "0.00%"; 
                             }
                             const percentage = (combinedHoldings[holding].value / totalValue) * 100;
                             percent123 =  percentage.toFixed(2) + "%";
@@ -278,9 +270,7 @@ const formatNumberWithCommas = (number: any): string => {
       currentLiabilities = factsData?.facts?.['us-gaap']?.LiabilitiesCurrent.units.USD
       if (currentLiabilities && assetsData && incomeData){
         roicData = "placeholder"
-
-    }
-
+      }
       if (filter == 'eps'){
          currentData = epsData
       }
@@ -295,27 +285,28 @@ const formatNumberWithCommas = (number: any): string => {
      }
       else if (filter == 'dividends'){
         currentData = dividendData
-    }
+      }
       else if (filter == 'assets'){
-      currentData = assetsData
-    } else if (filter === 'Free Cash Flow') { // New filter type
+        currentData = assetsData
+      }
+      else if (filter === 'Free Cash Flow') { 
         epsData = factsData?.facts?.['us-gaap']?.FreeCashFlow?.units?.['USD']; 
       }
       else if (filter == "shares Outstanding"){
         currentData = sharesData
-     } 
-     else if (filter == "roic"){
-        if (currentLiabilities && assetsData && incomeData){
-            const liabilities = getInfo(currentLiabilities)
-            const assets = getInfo(assetsData)
-            const income = getInfo(incomeData)
-            let investedCapital = getIntersectionAndSumByLabel(assets, liabilities, '-')
-            
-            roicData = getIntersectionAndSumByLabel(income, investedCapital, '/')
-            graphData = roicData
-            skip = true
-        }
-    }
+      } 
+      else if (filter == "roic"){
+          if (currentLiabilities && assetsData && incomeData){
+              const liabilities = getInfo(currentLiabilities)
+              const assets = getInfo(assetsData)
+              const income = getInfo(incomeData)
+              let investedCapital = getIntersectionAndSumByLabel(assets, liabilities, '-')
+              
+              roicData = getIntersectionAndSumByLabel(income, investedCapital, '/')
+              graphData = roicData
+              skip = true
+          }
+        } 
 
       if (!skip){
         graphData = getInfo(currentData)
@@ -329,7 +320,7 @@ const formatNumberWithCommas = (number: any): string => {
   };
   function getIntersectionAndSumByLabel(arr1: any[], arr2: any[], operator: string): any[] {
     const intersection: any[] = [];
-    const labelMap = new Map<any, number>(); // Store labels and their sums
+    const labelMap = new Map<any, number>(); 
   
     arr1.forEach(item => {
       labelMap.set(item.label, item.value);
@@ -338,10 +329,10 @@ const formatNumberWithCommas = (number: any): string => {
     arr2.forEach(item => {
       if (labelMap.has(item.label) && labelMap.get(item.label) > 0) {
         if (operator == '-'){
-            labelMap.set(item.label, labelMap.get(item.label) - item.value); // Add values
+            labelMap.set(item.label, labelMap.get(item.label) - item.value); 
         }
         else if (operator == '/'){
-            labelMap.set(item.label, ((labelMap.get(item.label) / item.value) * 100) ); // Divide values
+            labelMap.set(item.label, ((labelMap.get(item.label) / item.value) * 100) ); 
         }
       } 
   
@@ -374,7 +365,6 @@ const formatNumberWithCommas = (number: any): string => {
                 const date1 = new Date(item.start);
                 const date2 = new Date(item.end);
                 
-                // Calculate the difference in months
                 const diffInMonths =
                 Math.abs((date2.getFullYear() - date1.getFullYear()) * 12 +
                     (date2.getMonth() - date1.getMonth())) > 10;
@@ -404,7 +394,7 @@ const formatNumberWithCommas = (number: any): string => {
     return graphData
   };
   useEffect(() => {
-    if (stockInfo && stockInfo.graphData && stockInfo.graphData[filterType]) { // Check for current filter data
+    if (stockInfo && stockInfo.graphData && stockInfo.graphData[filterType]) { 
       setGraphData(stockInfo.graphData[filterType]);
     }
   }, [stockInfo, filterType]);
@@ -435,14 +425,10 @@ const formatNumberWithCommas = (number: any): string => {
 
   const renderGraph = () => {
     if (!stockInfo || !stockInfo.graphData || stockInfo.graphData.length === 0) {
-        // console.log(stockInfo)
         return <Text style={styles.noDataText}>No data available. {"\n"}
             Please choose another option using the dropdown.</Text>; 
     }
-
     const data = stockInfo.graphData.slice(0, 10);
-
-    // console.log(data,'data')
 
     return (
     <View style={styles.card}>
@@ -470,17 +456,17 @@ const formatNumberWithCommas = (number: any): string => {
           <Dropdown
               style={styles.dropdown}
               placeholder="Select item"
-              data={dropdownOptions} // Use the dynamically generated options
+              data={dropdownOptions}
               labelField="label"
               valueField="value"
-              value={filterType}  // Now controlled by state
+              value={filterType}  
               onChange={item => {
                 setFilterType(item.value);
               }}
               renderItem={(item) => (
                 <Text style={styles.dropdownItem}>{item.label}</Text>
               )}
-              disabled={dropdownOptions.length === 0} // Disable if no options
+              disabled={dropdownOptions.length === 0} 
             />
             {dropdownOptions.length === 0 && <Text style={styles.noDataText}>No data available for selected ticker.</Text>}
           </View>
@@ -488,11 +474,10 @@ const formatNumberWithCommas = (number: any): string => {
           {renderGraph()}
 
           {selectedValue && <Text>Selected Value: {selectedValue}</Text>}
-                    {/* Investor Info Card */}
         
         
         {!investorInfo && (
-          <View style={styles.loadingContainer}> {/* Container for alignment */}
+          <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color="#0000ff" />
             <Text style={styles.loadingText}>Looking for 13F filings</Text>
           </View>
@@ -503,9 +488,9 @@ const formatNumberWithCommas = (number: any): string => {
             <Text style={styles.cardTitle}>Investor Holdings</Text> {/* Card Title */}
               <View>
                 {investorInfo.sort((a, b) => {
-        const percentA = parseFloat(a.percent); // Parse percentage string to number
-        const percentB = parseFloat(b.percent); // Parse percentage string to number
-        return percentB - percentA; // Descending order: largest percentage first
+        const percentA = parseFloat(a.percent); 
+        const percentB = parseFloat(b.percent);
+        return percentB - percentA; 
       }).
                 
                 map((investor, index) => (
@@ -552,24 +537,24 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         marginBottom:20
       },
-      cardTitle: { // Style for the card title
+      cardTitle: { 
         fontSize: 20,
         fontWeight: 'bold',
         marginBottom: 8,
       },
       loadingContainer: {
-        flexDirection: 'row', // Align items horizontally
-        alignItems: 'center',  // Vertically center items
-        marginTop: 20,         // Add some top margin
+        flexDirection: 'row', 
+        alignItems: 'center',  
+        marginTop: 20,        
       },
       loadingText: {
-        marginLeft: 10,      // Space between indicator and text
-        fontSize: 16,        // Adjust text size
+        marginLeft: 10,     
+        fontSize: 16,     
       },
-      invLoading: { // Style for the card title
+      invLoading: { 
         marginTop: 20,
       },
-      investorItem: { // Style for each investor item
+      investorItem: { 
         marginBottom: 8,
         borderBottomWidth: 1,
         borderBottomColor: '#eee',
@@ -582,30 +567,28 @@ const styles = StyleSheet.create({
       institutionName: {
         fontSize: 13,
         color: 'gray',
-        marginBottom: 2, // Add some margin below institution name
+        marginBottom: 2, 
       },
       holdingDetails: {
-        marginLeft: 16, // Indent the details
+        marginLeft: 16, 
       },
 
       noDataText: {
     color: 'gray',
-    fontSize: 13,      // Adjust font size
-    fontStyle: 'italic', // Make it italic (optional)
-    textAlign: 'center', // Center text (important)
-    paddingHorizontal: 10, // Add some horizontal padding
+    fontSize: 13,    
+    fontStyle: 'italic', 
+    textAlign: 'center',
+    paddingHorizontal: 10,
   },
     graphTitle: {
         marginTop:30,
 
         fontSize: 18,
         fontWeight: 'bold',
-        marginBottom: 10, // Space between title and graph
-        textAlign: 'center', // Center the title
+        marginBottom: 10,
+        textAlign: 'center', 
     },
-    card: {
-        // marginTop:50,
-    },
+
     container: {
       alignItems: 'center',
       justifyContent: 'center',
@@ -644,7 +627,7 @@ const styles = StyleSheet.create({
     dropdownContainer: {
         marginBottom: 20,
         marginTop: 20,
-        width: 250, // or however wide you want it
+        width: 250, 
         borderWidth: 1,
         borderColor: 'gray',
         borderRadius: 8,
@@ -654,24 +637,10 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         paddingHorizontal: 8,
       },
-      dropdownItem: { // Style for the dropdown items
+      dropdownItem: { 
         padding: 10,
         fontSize: 16,
       },
-    //   graphTitle: {
-    //     marginTop: 20, // Adjust as needed
-    //     fontSize: 18,
-    //     fontWeight: 'bold',
-    //     marginBottom: 10,
-    //     textAlign: 'center',
-    //   },
-
-    // container: {
-    //     flex: 1,
-    //     justifyContent: 'center',
-    //     alignItems: 'center',
-    //     padding: 20,
-    //   },
       title: {
         marginTop:50,
         fontSize: 24,

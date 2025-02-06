@@ -27,7 +27,7 @@ const BarGraph = ({ data }) => {
         toValue: item.value * scale,
         duration: 1000,
         easing: Easing.elastic(1),
-        useNativeDriver: false, // or true if supported
+        useNativeDriver: false, 
       }).start();
     });
 

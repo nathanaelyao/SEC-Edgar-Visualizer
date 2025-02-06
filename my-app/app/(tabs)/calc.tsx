@@ -11,36 +11,33 @@ const FairValueCalculator = () => {
     const [terminalGrowthRate, setTerminalGrowthRate] = useState(2);
   
     const calculateFairValue = () => {
-      // Error handling: Discount rate must be greater than terminal growth rate
       if (discountRate <= terminalGrowthRate) {
         return "Discount Rate must be greater than Terminal Growth Rate";
       }
   
       let growthStageCashFlows = [];
-      let currentCashFlow = parseFloat(eps); // Important: Parse EPS as a float
+      let currentCashFlow = parseFloat(eps);
   
       for (let i = 0; i < growthStageYears; i++) {
         currentCashFlow *= (1 + growthRate / 100);
         growthStageCashFlows.push(currentCashFlow);
       }
   
-      // Terminal Value (Gordon Growth Model)
       const terminalValue = (growthStageCashFlows[growthStageCashFlows.length - 1] * (1 + terminalGrowthRate / 100)) / (discountRate / 100 - terminalGrowthRate / 100);
   
-      // Present Value of Growth Stage Cash Flows
       let presentValueGrowth = 0;
       for (let i = 0; i < growthStageCashFlows.length; i++) {
         presentValueGrowth += growthStageCashFlows[i] / Math.pow(1 + discountRate / 100, i + 1);
       }
       if (discountRate <= terminalGrowthRate) {
-        return { error: "Discount Rate must be greater than Terminal Growth Rate" }; // Return an object with an error property
+        return { error: "Discount Rate must be greater than Terminal Growth Rate" }; 
       }
       // Present Value of Terminal Value
       const presentValueTerminal = terminalValue / Math.pow(1 + discountRate / 100, growthStageYears);
   
       const fairValue = presentValueGrowth + presentValueTerminal;
   
-      return { value: fairValue }; // Return an object with a value property
+      return { value: fairValue }; 
     };
   
     const calculationResult = calculateFairValue();
@@ -52,8 +49,8 @@ const FairValueCalculator = () => {
     const gaugeColor = !isNaN(marginOfSafety) && marginOfSafety > 0 ? 'green' : 'red';
   
     return (
-      <View style={styles.container}> {/* Main container */}
-        <ScrollView contentContainerStyle={styles.scrollViewContent}> {/* Scroll View with content style */}
+      <View style={styles.container}> 
+        <ScrollView contentContainerStyle={styles.scrollViewContent}> 
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerText}>Fair Value Calculator</Text>
@@ -108,7 +105,6 @@ const FairValueCalculator = () => {
     );
   };
 
-// Input Component
 const Input = ({ label, value, onChangeText, keyboardType = 'numeric' }) => (
   <View style={styles.inputContainer}>
     <Text style={styles.inputLabel}>{label}</Text>
@@ -166,7 +162,7 @@ const styles = StyleSheet.create({
     borderColor: 'white',
   },
   gaugeText: {
-    position: 'absolute',  // Keep absolute positioning
+    position: 'absolute',  
     top: '50%',
     left: '50%',
     transform: [{ translateX: -25 }, { translateY: -10 }],
@@ -176,11 +172,11 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 20,
-    borderWidth: 1, // Add border to sections
-    borderColor: '#ccc', // Light border color
-    borderRadius: 5, // Rounded corners for sections
-    padding: 15, // Add padding to sections
-    backgroundColor: 'white', // White background for sections
+    borderWidth: 1, 
+    borderColor: '#ccc', 
+    borderRadius: 5, 
+    padding: 15, 
+    backgroundColor: 'white', 
   },
   sectionTitle: {
     fontSize: 18,

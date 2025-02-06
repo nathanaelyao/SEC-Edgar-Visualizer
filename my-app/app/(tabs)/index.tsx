@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Dropdown } from 'react-native-element-dropdown';
 import {investorsData} from '../investors'
 import * as SQLite from 'expo-sqlite';
-import cheerio from 'react-native-cheerio'; // Import cheerio
+import cheerio from 'react-native-cheerio'; 
 import { XMLParser } from 'fast-xml-parser';
 
 const DB_NAME = 'stock_data.db';
@@ -28,7 +28,6 @@ const HomeScreen: React.FC = () => {
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [data, setData] = useState([]);
   const [investorInfo, setInvestorInfo] = useState<Record<string, number|string>[] | null>(null);
-  const [previousFilings, setPreviousFilings] = useState<any[]>([]); // State for previous filings
   
   const getHoldings = async (accessionNumber, cik1) => {
     try {
@@ -49,8 +48,8 @@ const HomeScreen: React.FC = () => {
 
       const foundFiles: string[] = [];
 
-      $('a').each(function () {  // Use Cheerio's each function
-          const href = $(this).attr('href'); // Use Cheerio's attr function
+      $('a').each(function () {  
+          const href = $(this).attr('href'); 
           if (href && href.endsWith('.xml')) {
               foundFiles.push(href);
           }
@@ -74,7 +73,7 @@ const HomeScreen: React.FC = () => {
  // Handle cases where infoTable might be missing
     } catch (error) {
       console.error("Error fetching holdings:", error);
-      return []; // Return empty array in case of error
+      return []; 
     }
   };
 
@@ -95,7 +94,7 @@ const HomeScreen: React.FC = () => {
 
   const combineSameIssuer = (holdings: any[]) => {
     let combined = [];
-    const seen = new Set<string>(); // Keep track of seen issuer names
+    const seen = new Set<string>(); 
 
     for (const item of holdings) {
         if (!item?.nameOfIssuer || !item?.shrsOrPrnAmt?.sshPrnamt || !item?.value) continue; // Skip if data is missing.
@@ -104,14 +103,12 @@ const HomeScreen: React.FC = () => {
         const shares = parseFloat(item.shrsOrPrnAmt.sshPrnamt);
         const value = parseFloat(item.value);
         if (seen.has(issuer)) {
-            // Find existing item and add shares and value.
             const existingItem = combined.find(h => h.nameOfIssuer === issuer);
             if (existingItem) {
                 existingItem.shrsOrPrnAmt.sshPrnamt = (parseFloat(existingItem.shrsOrPrnAmt.sshPrnamt) + shares).toString(); // Add shares. Convert to string
                 existingItem.value = (parseFloat(existingItem.value) + value).toString(); // Add value. Convert to string
             }
         } else {
-            // Deep copy the item to avoid modifying the original holdings
             const newItem = JSON.parse(JSON.stringify(item));
             combined.push(newItem);
             seen.add(issuer);
@@ -120,14 +117,14 @@ const HomeScreen: React.FC = () => {
     return combined;
 };
   const getInvestorInfo = async(invData:Investor[] ) =>{
-    const delayBetweenRequests = 300; // milliseconds - adjust as needed
+    const delayBetweenRequests = 300; 
     let allHoldings = []
     try{
         for(const investor of invData){
             await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
 
             console.log(`${investor.name} (${investor.institution})`);
-            const apiUrl = `https://data.sec.gov/submissions/CIK${investor.cik}.json`; // Example CIK, replace as needed
+            const apiUrl = `https://data.sec.gov/submissions/CIK${investor.cik}.json`; 
             const response = await fetch(apiUrl);      
             const data = await response.json();
             const recentFilings = data.filings.recent;
@@ -143,7 +140,7 @@ const HomeScreen: React.FC = () => {
                     let totalValue = 0
                     if(combinedHoldings){
                        
-                      totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value || 0), 0); // Handle potential missing values
+                      totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value || 0), 0); 
                       allHoldings.push({"name":investor.name, "holdings": combinedHoldings})
 
                     }            
@@ -177,7 +174,7 @@ const HomeScreen: React.FC = () => {
         setInvestorInfo(invData)
     };
     if (firstRender.current) {
-      firstRender.current = false; // Set to false after the first render
+      firstRender.current = false; 
       fetchStockData();
     }
     }, [db]);
@@ -210,7 +207,6 @@ const HomeScreen: React.FC = () => {
       try {
         const dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
         setDb(dbInstance);
-//            id INTEGER PRIMARY KEY AUTOINCREMENT,
 
         await dbInstance.execAsync(`
           PRAGMA journal_mode = WAL;
@@ -221,18 +217,13 @@ const HomeScreen: React.FC = () => {
 
         console.log("Database and table created/opened successfully!");
 
-        // Example: Insert some initial data (optional)
-        // await dbInstance.execAsync(`
-        //   INSERT OR REPLACE INTO ${TABLE_NAME} (tic ker, company_name) VALUES ('AAPL', 'Apple Inc.');
-        // `);
-
       } catch (error) {
         console.error("Error initializing database:", error);
       }
     };
 
     initializeDatabase();
-  }, []); // Empty dependency array ensures this runs only once
+  }, []); 
   useEffect(() => {
     const fetchFilingDates = async () => {
       const dates = {};
@@ -334,7 +325,6 @@ const HomeScreen: React.FC = () => {
     setValue(item.value);
     setIsFocus(false);
     setSortType(item.value);
-    // setIsDropdownOpen(false); // Close the dropdown list, but keep the component visible
 
   };
 
@@ -377,15 +367,14 @@ const HomeScreen: React.FC = () => {
         selectedTextStyle={styles.selectedTextStyle}
         inputSearchStyle={styles.inputSearchStyle}
         iconStyle={styles.iconStyle}
-        // maxHeight={isDropdownOpen ? 300 : 0} // Control list height to open/close
         labelField="label"
         valueField="value"
         placeholder={!isFocus ? 'Alphabetical' : '...'}
         searchPlaceholder="Search..."
         onFocus={() => setIsFocus(true)}
         onBlur={() => setIsFocus(false)}
-        value={value} // Bind the value to the component's state
-        onChange={handleSortChange} // Use the new handler
+        value={value} 
+        onChange={handleSortChange} 
         renderItem={item => (
           <TouchableOpacity onPress={() => handleSortChange(item)} style={styles.item}>
             <Text style={styles.itemText}>{item.label}</Text>
@@ -441,16 +430,16 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
   },
-  clickedItemText: { // Style for the clicked item display
+  clickedItemText: { 
     marginTop: 16,
     fontSize: 16,
     fontWeight: 'bold',
   },
-  item: { // Style for each dropdown item
+  item: { 
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
-  itemText: { // Style for the item text
+  itemText: {
     fontSize: 16,
   },
     container: {
