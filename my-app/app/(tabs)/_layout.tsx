@@ -27,26 +27,20 @@ export default function TabLayout() {
         }),
       }}>
       <Tabs.Screen
-        name="index"
+        name="investors"
         options={{
-          title: 'Stock Search',
+          title: '13F Filings',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="investors"
+        name="index"
         options={{
-          title: '13F Filings',
+          title: 'Stock Search',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
         }}
       />
-        <Tabs.Screen
-        name="Chart"
-        options={{
-          title: 'Chart',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
+
     </Tabs>
   );
 }
