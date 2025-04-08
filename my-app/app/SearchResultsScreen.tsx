@@ -303,7 +303,7 @@ const SearchResultsScreen: React.FC = () => {
           skip = true;
         }
       } else {
-        currentData = epsData; // Default to EPS if no filter
+        currentData = revData; // Default to rev if no filter
       }
 
       let graphData: GraphDataItem[] = [];
