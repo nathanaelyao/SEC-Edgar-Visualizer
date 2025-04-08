@@ -33,9 +33,10 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen 
-          name="SearchResults" 
+          name="SearchResultsScreen" 
+          options={{ headerShown: false }}
         />
-                <Stack.Screen 
+        <Stack.Screen 
           name="Holdings" 
           options={{ 
             title: 'Portfolio Holdings', 

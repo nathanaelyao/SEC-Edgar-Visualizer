@@ -38,6 +38,7 @@ export default function TabLayout() {
         name="search"
         options={{
           title: 'Stock Search',
+          headerShown: false,
           tabBarIcon: ({ color }) => <MaterialIcons name="search" size={28} color={color} />,
         }}
       />
@@ -45,6 +46,7 @@ export default function TabLayout() {
         name="calc"
         options={{
           title: 'DCF Calculator',
+          headerShown: false,
           tabBarIcon: ({ color }) => <MaterialIcons name="calculate" size={28} color={color} />,
         }}
       />

@@ -557,7 +557,7 @@ const styles = StyleSheet.create({
         marginLeft: 16, 
       },
 
-      noDataText: {
+  noDataText: {
     color: 'gray',
     fontSize: 13,    
     fontStyle: 'italic', 
@@ -574,6 +574,8 @@ const styles = StyleSheet.create({
     },
 
     container: {
+      marginTop: 60,
+
       alignItems: 'center',
       justifyContent: 'center',
     },
