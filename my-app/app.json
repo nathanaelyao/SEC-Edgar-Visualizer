@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "my-app",
+    "name": "Stock Trends and 13F Filings",
     "slug": "my-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/real.png",
+    "icon": "./assets/images/icon_real.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,11 +16,8 @@
       }
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/real.png",
-        "backgroundColor": "#ffffff"
-      },
-      "package": "com.nathanaelyao.myapp"
+      "icon": "./assets/images/icon_real.png",
+      "package": "com.nathanaelyao.myapp2"
     },
     "web": {
       "bundler": "metro",
