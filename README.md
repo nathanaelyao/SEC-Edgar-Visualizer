@@ -11,8 +11,8 @@ Tools and technology Used:
 Demo:
 [Watch the Demo Video](https://www.youtube.com/watch?v=cHj9I8wBk9Q)
 
-Google Play Listing
-[Link to listing](https://play.google.com/store/apps/details?id=com.nathanaelyao.myapp2)
+App Store:
+[Google Play Listing](https://play.google.com/store/apps/details?id=com.nathanaelyao.myapp2)
 
 Pictures of App:
 <div style="display: flex;">
