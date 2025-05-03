@@ -67,7 +67,10 @@ const SearchResultsScreen: React.FC = () => {
   const firstRender = useRef(true);
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [graphData, setGraphData] = useState<GraphDataItem[]>([]);
-
+  const headers = {
+    'User-Agent': 'SEC_APP (nathanael.yao123@gmail.com)',
+    // 'Content-Type': 'application/json'
+  };
   const getInvestorHoldings = (): Promise<any[]> => {
     return new Promise(async (resolve, reject) => {
       try {
@@ -219,7 +222,7 @@ const SearchResultsScreen: React.FC = () => {
   const getStockInfo = async (ticker: string, filter: string | null): Promise<StockInfo> => {
     try {
       const tickersResponse = await fetch(
-        `https://www.sec.gov/files/company_tickers.json`
+        `https://www.sec.gov/files/company_tickers.json`, {headers}
       );
       if (!tickersResponse.ok) {
         throw new Error(`HTTP error! status: ${tickersResponse.status}`);
@@ -260,7 +263,7 @@ const SearchResultsScreen: React.FC = () => {
         throw new Error(`Ticker ${ticker} not found.`);
       }
       const factsResponse = await fetch(
-        `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik_str}.json`
+        `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik_str}.json`, {headers}
       );
 
       if (!factsResponse.ok) {

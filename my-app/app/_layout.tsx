@@ -39,9 +39,10 @@ export default function RootLayout() {
         <Stack.Screen 
           name="Holdings" 
           options={{ 
-            title: 'Portfolio Holdings', 
+            // title: 'Portfolio Holdings', 
+            headerShown: false
             // or
-            headerTitle: 'My Investments', 
+            // headerTitle: 'My Investments', 
           }} 
         />
 

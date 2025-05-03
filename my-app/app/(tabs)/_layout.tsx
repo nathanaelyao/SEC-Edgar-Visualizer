@@ -31,6 +31,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: '13F Filings',
+          headerShown: false,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />

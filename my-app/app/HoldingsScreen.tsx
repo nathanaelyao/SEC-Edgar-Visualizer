@@ -19,7 +19,10 @@ const HoldingsScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [previousFilings, setPreviousFilings] = useState<any[]>([]); 
   const [quarter, setQuarter] = useState<string | null>(null); 
-
+  const headers = {
+    'User-Agent': 'SEC_APP (nathanael.yao123@gmail.com)',
+    // 'Content-Type': 'application/json'
+  };
   useEffect(() => {
     fetchFilings();
   }, [cik]);
@@ -31,7 +34,8 @@ const HoldingsScreen: React.FC = () => {
 
     try {
       const apiUrl = `https://data.sec.gov/submissions/CIK${cik}.json`;
-      const response = await fetch(apiUrl);
+      const response = await fetch(apiUrl, { headers });
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
@@ -180,10 +184,11 @@ const HoldingsScreen: React.FC = () => {
   
         
       const response = await fetch(
-        `https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`
+        `https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`,
+        { headers }
       );
  
-
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -205,7 +210,7 @@ const HoldingsScreen: React.FC = () => {
         if (!foundFiles[i].startsWith("primary")){
             console.log(foundFiles[i])
             const response1 = await fetch(
-                `https://www.sec.gov${foundFiles[i]}`
+                `https://www.sec.gov${foundFiles[i]}`, { headers }
             );
             const data1 = await response1.text();
             console.log(data1)
@@ -213,7 +218,6 @@ const HoldingsScreen: React.FC = () => {
             const json = removeNamespace(parser.parse(data1));
             console.log(json.infoTable)
             console.log( json['ns1:informationTable']?.['ns1:infoTable'], 'lassst')
-            
             
             return json['informationTable']?.infoTable || 
             json['ns1:informationTable']?.['ns1:infoTable'] ||

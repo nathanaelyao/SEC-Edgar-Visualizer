@@ -28,15 +28,21 @@ const HomeScreen: React.FC = () => {
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [data, setData] = useState([]);
   const [investorInfo, setInvestorInfo] = useState<Record<string, number|string>[] | null>(null);
-  
+  const headers = {
+    'User-Agent': 'SEC_APP (nathanael.yao123@gmail.com)',
+    // 'Content-Type': 'application/json'
+  };
+
   const getHoldings = async (accessionNumber, cik1) => {
     try {
         const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
-  
-        
       const response = await fetch(
-        `https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`
+        `https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`,
+        { headers }
       );
+      // const response = await fetch(
+      //   `https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`
+      // );
  
 
       if (!response.ok) {
@@ -120,44 +126,38 @@ const HomeScreen: React.FC = () => {
     const delayBetweenRequests = 300; 
     let allHoldings = []
     try{
-        for(const investor of invData){
-            await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
-
-            console.log(`${investor.name} (${investor.institution})`);
-            const apiUrl = `https://data.sec.gov/submissions/CIK${investor.cik}.json`; 
-            const response = await fetch(apiUrl);      
-            const data = await response.json();
-            const recentFilings = data.filings.recent;
-            if (recentFilings) {
-                let first = true;
-                for (let i = 0; i < recentFilings.accessionNumber.length; i++) {
-                const accessionNumber = recentFilings.accessionNumber[i];
-                const formType = recentFilings.form[i];
-                if ( formType == '13F-HR' && first) {
-                    first = false;
-                    getHoldings(accessionNumber, data.cik).then(holdings => {
-                    const combinedHoldings = combineSameIssuer(holdings)
-                    let totalValue = 0
-                    if(combinedHoldings){
-                       
-                      totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value || 0), 0); 
-                      allHoldings.push({"name":investor.name, "holdings": combinedHoldings})
-
-                    }            
-                    });
-                    
-                }
-
-
-                }
-     
-                
-
-            } else {
-                console.log("No recent filings found.");
+      for (const investor of invData) {
+        await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
+        console.log(`${investor.name} (${investor.institution})`);
+        const apiUrl = `https://data.sec.gov/submissions/CIK${investor.cik}.json`;
+      
+        try {
+          const response = await fetch(apiUrl, { headers });
+          const data = await response.json();
+          const recentFilings = data.filings.recent;
+          if (recentFilings) {
+            let first = true;
+            for (let i = 0; i < recentFilings.accessionNumber.length; i++) {
+              const accessionNumber = recentFilings.accessionNumber[i];
+              const formType = recentFilings.form[i];
+              if (formType == '13F-HR' && first) {
+                first = false;
+                await getHoldings(accessionNumber, data.cik).then(holdings => {
+                  const combinedHoldings = combineSameIssuer(holdings);
+                  let totalValue = 0;
+                  if (combinedHoldings) {
+                    totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value || 0), 0);
+                    allHoldings.push({ name: investor.name, holdings: combinedHoldings });
+                  }
+                });
+              }
             }
-
-        };
+          }
+        } catch (error) {
+          console.error("Error fetching investor info:", error);
+        }
+      }
+      
         setInvestorInfo(allHoldings)
         return allHoldings
     }
@@ -178,29 +178,23 @@ const HomeScreen: React.FC = () => {
       fetchStockData();
     }
     }, [db]);
-  useEffect(() => {
-    const insertData = async () => {
-        if (db) {
-            let jsonString = ""
-            if (investorInfo.length > 0){
-                jsonString = JSON.stringify(investorInfo);
-                try{
-                  const result = await db.runAsync(`INSERT INTO ${TABLE_NAME} (investor_holdings) VALUES (?)`, jsonString);
-  
-                  const rows = await db.getAllAsync(`SELECT * FROM ${TABLE_NAME}`);
-                  setData(rows);
-                  console.log(rows, 'new')
-              }
-              catch (error){
-                  console.log(error, 'error')
-              }
-            }
-
-    
+    useEffect(() => {
+      const insertData = async () => {
+        if (db && investorInfo && investorInfo.length > 0) {
+          const jsonString = JSON.stringify(investorInfo);
+          try {
+            const result = await db.runAsync(`INSERT INTO ${TABLE_NAME} (investor_holdings) VALUES (?)`, jsonString);
+            const rows = await db.getAllAsync(`SELECT * FROM ${TABLE_NAME}`);
+            setData(rows);
+            console.log(rows, 'new');
+          } catch (error) {
+            console.log(error, 'error');
+          }
         }
-      }
-      insertData(); 
-}, [investorInfo])
+      };
+      insertData();
+    }, [investorInfo]);
+    
 
   useEffect(() => {
     const initializeDatabase = async () => {
@@ -230,10 +224,14 @@ const HomeScreen: React.FC = () => {
       try {
         const promises = investorsData.map(async (investor) => {
           try {
-            const response = await fetch(`https://data.sec.gov/submissions/CIK${investor.cik}.json`);
+            const response = await fetch(`https://data.sec.gov/submissions/CIK${investor.cik}.json`, {
+              headers
+          });
+
             if (!response.ok) {
               throw new Error(`HTTP error! status: ${response.status}`);
             }
+
             const data = await response.json();
             const recentFilings = data.filings.recent;
             if (recentFilings) {
