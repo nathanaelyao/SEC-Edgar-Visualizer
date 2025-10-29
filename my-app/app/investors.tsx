@@ -25,7 +25,9 @@ export const investorsData = [
     { name: 'Bill Ackman', institution: "Pershing Square Capital Management", cik: '0001336528' },
     { name: 'Seth Klarman', institution: "Baupost Group", cik: '0001061768' },
     { name: 'Thomas Russo', institution: "Gardner Russo & Quinn", cik: '0000860643' },
-
+  { name: 'Duan Yongping', institution: "H&H International Investment", cik: '0001759760' },
+  { name: 'Bill & Melinda Gates', institution: "Bill & Melinda Gates Foundation", cik: '0001166559' },
+  { name: 'Michael Burry', institution: "Scion Asset Management, LLC", cik: '0001649339' },
   ];
 
   

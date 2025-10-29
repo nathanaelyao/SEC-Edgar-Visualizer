@@ -31,13 +31,14 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={ DefaultTheme}>
       <Stack>
+        
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen 
           name="SearchResultsScreen" 
           options={{ headerShown: false }}
         />
         <Stack.Screen 
-          name="Holdings" 
+          name="HoldingsScreen" 
           options={{ 
             // title: 'Portfolio Holdings', 
             headerShown: false

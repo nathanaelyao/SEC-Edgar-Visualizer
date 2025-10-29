@@ -23,6 +23,7 @@ const HoldingsScreen: React.FC = () => {
     'User-Agent': 'SEC_APP (nathanael.yao123@gmail.com)',
     // 'Content-Type': 'application/json'
   };
+  
   useEffect(() => {
     fetchFilings();
   }, [cik]);
@@ -328,6 +329,7 @@ const styles = StyleSheet.create({
 container: {
     flex: 1,
     padding: 20,
+    marginTop:80,
     justifyContent: 'flex-start', 
 
     },

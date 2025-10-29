@@ -22,7 +22,7 @@ const HomeScreen: React.FC = () => {
   const [filingDates, setFilingDates] = useState({});
   const [loading, setLoading] = useState(true);
   const firstRender = useRef(true);
-  const [sortType, setSortType] = useState('alphabetical');
+  const [sortType, setSortType] = useState('recent');
   const [value, setValue] = useState(null);
   const [isFocus, setIsFocus] = useState(false);
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
@@ -315,16 +315,18 @@ const HomeScreen: React.FC = () => {
 
 
   const sortOptions = [
-    { label: 'Alphabetical', value: 'alphabetical' },
     { label: 'Most Recent Filings', value: 'recent' },
+    { label: 'Alphabetical', value: 'alphabetical' },
   ];
 
-  const handleSortChange = (item) => {
-    setValue(item.value);
-    setIsFocus(false);
-    setSortType(item.value);
+const handleSortChange = (item) => {
+  setValue(item.value);
+  setSortType(item.value);
 
-  };
+  // Collapse dropdown after a short delay (ensures re-render sync)
+  setTimeout(() => setIsFocus(false), 50);
+};
+
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
@@ -367,13 +369,17 @@ const HomeScreen: React.FC = () => {
         iconStyle={styles.iconStyle}
         labelField="label"
         valueField="value"
-        placeholder={!isFocus ? 'Alphabetical' : '...'}
+        placeholder={!isFocus ? 'Most Recent Filings' : '...'}
         searchPlaceholder="Search..."
         onFocus={() => setIsFocus(true)}
         onBlur={() => setIsFocus(false)}
         value={value} 
-        onChange={handleSortChange} 
-        renderItem={item => (
+        onChange={(item) => {
+          setValue(item.value);
+          setSortType(item.value);
+          setIsFocus(false); // ensures dropdown closes
+        }}
+          renderItem={item => (
           <TouchableOpacity onPress={() => handleSortChange(item)} style={styles.item}>
             <Text style={styles.itemText}>{item.label}</Text>
           </TouchableOpacity>
@@ -440,8 +446,8 @@ const styles = StyleSheet.create({
   itemText: {
     fontSize: 16,
   },
-    container: {
-        marginTop: 65,
+  container: {
+        marginTop: 80,
         flex: 1,
         padding: 16,
         marginBottom:70
