@@ -5,7 +5,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
-import SearchResultsScreen from './SearchResultsScreen'; // Make sure the path is correct
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 
@@ -13,7 +12,6 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });

@@ -28,14 +28,6 @@ export default function TabLayout() {
         }),
       }}>
         <Tabs.Screen
-        name="search"
-        options={{
-          title: 'Stock Search',
-          headerShown: false,
-          tabBarIcon: ({ color }) => <MaterialIcons name="search" size={28} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="index"
         options={{
           title: '13F Filings',
@@ -43,6 +35,15 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
+        <Tabs.Screen
+        name="search"
+        options={{
+          title: 'Stock Search',
+          headerShown: false,
+          tabBarIcon: ({ color }) => <MaterialIcons name="search" size={28} color={color} />,
+        }}
+      />
+
 
             {/* <Tabs.Screen
         name="calc"

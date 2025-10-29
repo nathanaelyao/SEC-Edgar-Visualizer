@@ -26,7 +26,7 @@ const HomeScreen: React.FC = () => {
   const [value, setValue] = useState(null);
   const [isFocus, setIsFocus] = useState(false);
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
-  const [data, setData] = useState([]);
+  const [setData] = useState([]);
   const [investorInfo, setInvestorInfo] = useState<Record<string, number|string>[] | null>(null);
   const headers = {
     'User-Agent': 'SEC_APP (nathanael.yao123@gmail.com)',
