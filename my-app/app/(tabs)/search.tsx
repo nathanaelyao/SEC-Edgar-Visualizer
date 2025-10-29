@@ -77,7 +77,7 @@ const Home: React.FC = () => {
 
         <TextInput
           style={styles.searchBar}
-          placeholder="Enter stock symbol (e.g., AAPL, MSFT)"
+          placeholder="Search Company (e.g., Apple, MSFT)"
           placeholderTextColor="#aaa"
           onChangeText={setSearchText}
           value={searchText}
@@ -117,19 +117,19 @@ const Home: React.FC = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f2f2f7',
   },
   container: {
     flex: 1,
     justifyContent: 'flex-start',
     alignItems: 'center',
-    padding: 40,
-    marginTop: 130
+    paddingHorizontal: 20,
+    marginTop: 200,
   },
   content: {
     width: '100%',
     maxWidth: 400,
-    marginTop: '20%',
+    marginTop: 20,
   },
   title: {
     fontSize: 28,
@@ -142,27 +142,44 @@ const styles = StyleSheet.create({
     height: 50,
     borderColor: '#ccc',
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 15,
     fontSize: 16,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: '#fff',
     color: '#333',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2, // Android shadow
   },
   suggestionsList: {
     marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 3,
+    maxHeight: 200, // scrollable if many suggestions
   },
   suggestionItem: {
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
   suggestionText: {
     fontSize: 16,
+    color: '#333',
+  },
+  suggestionTicker: {
+    fontWeight: '600',
+    color: '#007aff',
+    marginLeft: 5,
   },
 });
+
 
 export default Home;
