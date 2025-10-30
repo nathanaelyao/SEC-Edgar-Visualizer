@@ -19,5 +19,5 @@ Pictures of App:
   <img src="images/IMG_2085.PNG" alt="Screenshot 1" style="width: 200px; margin-right: 10px;">
     <img src="images/IMG_3352EBE852B4-1.PNG" alt="Screenshot 2" style="width: 200px; margin-right: 10px;">
   <img src="images/IMG_2087.PNG" alt="Screenshot 2" style="width: 200px; margin-right: 10px;">
-  <img src="images/IMG_2088.PNG" alt="Screenshot 3" style="width: 200px;">
+  <img src="images/Screenshot 2025-10-28 at 7.41.28 PM.PNG" alt="Screenshot 3" style="width: 200px;">
 </div>
