@@ -6,6 +6,7 @@ import {investorsData} from '../investors'
 import * as SQLite from 'expo-sqlite';
 import cheerio from 'react-native-cheerio'; 
 import { XMLParser } from 'fast-xml-parser';
+import { secFetch } from '../utils/secApi';
 
 const DB_NAME = 'stock_data.db';
 const TABLE_NAME = 'investor_info_new1234';
@@ -36,14 +37,9 @@ const HomeScreen: React.FC = () => {
   const getHoldings = async (accessionNumber, cik1) => {
     try {
         const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
-      const response = await fetch(
-        `https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`,
-        { headers }
+      const response = await secFetch(
+        `https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`
       );
-      // const response = await fetch(
-      //   `https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`
-      // );
- 
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -63,9 +59,7 @@ const HomeScreen: React.FC = () => {
 
       for (let i = 0; i < foundFiles.length; i++) {
         if (!foundFiles[i].startsWith("primary")){
-            const response1 = await fetch(
-                `https://www.sec.gov${foundFiles[i]}`
-            );
+            const response1 = await secFetch(`https://www.sec.gov${foundFiles[i]}`);
             const data1 = await response1.text();
             const parser = new XMLParser();
             const json = removeNamespace(parser.parse(data1));  
@@ -224,9 +218,7 @@ const HomeScreen: React.FC = () => {
       try {
         const promises = investorsData.map(async (investor) => {
           try {
-            const response = await fetch(`https://data.sec.gov/submissions/CIK${investor.cik}.json`, {
-              headers
-          });
+            const response = await secFetch(`https://data.sec.gov/submissions/CIK${investor.cik}.json`);
 
             if (!response.ok) {
               throw new Error(`HTTP error! status: ${response.status}`);

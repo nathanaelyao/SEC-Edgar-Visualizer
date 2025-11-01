@@ -4,6 +4,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import cheerio from 'react-native-cheerio'; // Import cheerio
 import { useNavigation } from '@react-navigation/native';
+import { secFetch } from './utils/secApi';
 
 type RootStackParamList = {
   HoldingsScreen: { investorName: string; cik: string, institution: string };
@@ -35,11 +36,16 @@ const HoldingsScreen: React.FC = () => {
 
     try {
       const apiUrl = `https://data.sec.gov/submissions/CIK${cik}.json`;
-      const response = await fetch(apiUrl, { headers });
+      const response = await secFetch(apiUrl);
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        // try to parse body if present, otherwise throw generic
+        let errorMsg = `HTTP error! status: ${response.status}`;
+        try {
+          const errJson = await response.json();
+          errorMsg = errJson.message || errorMsg;
+        } catch (e) {}
+        throw new Error(errorMsg);
       }
 
       
@@ -184,10 +190,7 @@ const HoldingsScreen: React.FC = () => {
         const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
   
         
-      const response = await fetch(
-        `https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`,
-        { headers }
-      );
+      const response = await secFetch(`https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`);
  
       
       if (!response.ok) {
@@ -210,9 +213,7 @@ const HoldingsScreen: React.FC = () => {
       for (let i = 0; i < foundFiles.length; i++) {
         if (!foundFiles[i].startsWith("primary")){
             console.log(foundFiles[i])
-            const response1 = await fetch(
-                `https://www.sec.gov${foundFiles[i]}`, { headers }
-            );
+            const response1 = await secFetch(`https://www.sec.gov${foundFiles[i]}`);
             const data1 = await response1.text();
             console.log(data1)
             const parser = new XMLParser();
