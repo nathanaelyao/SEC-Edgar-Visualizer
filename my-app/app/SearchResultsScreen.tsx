@@ -408,36 +408,30 @@ const SearchResultsScreen: React.FC = () => {
     }
   }, [stockInfo, animatedHeights]);
 
+  const renderGraph = () => {
+    if (!stockInfo || !stockInfo.graphData || stockInfo.graphData.length === 0) {
+      return (
+        <Text style={styles.noDataText}>
+          No data available. {"\n"}Please choose another option using the dropdown.
+        </Text>
+      ); 
+    }
 
+    const data = stockInfo.graphData
+      .slice(0, 10)
+      .map(item => ({
+        label: item.label ?? "N/A",
+        value: item.value ?? 0,
+      }));
 
-const renderGraph = () => {
-  if (!stockInfo || !stockInfo.graphData || stockInfo.graphData.length === 0) {
     return (
-      <Text style={styles.noDataText}>
-        No data available. {"\n"}Please choose another option using the dropdown.
-      </Text>
-    ); 
-  }
-
-  const data = stockInfo.graphData
-    .slice(0, 10)
-    .map(item => ({
-      label: item.label ?? "N/A",
-      value: item.value ?? 0,
-    }));
+      <View style={styles.card}><BarGraph data={data.reverse()} /></View>
+    );
+  };
 
   return (
-    <View style={styles.card}>
-      <BarGraph data={data.reverse()} /> {/* Safe data */}
-    </View>
-  );
-};
-
-
-  return (
-    <ScrollView contentContainerStyle={styles.scrollViewContent}> {/* Wrap with ScrollView */}
-
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.scrollViewContent}>
+      <View style={styles.container}>
       {loading && <ActivityIndicator size="large" color="#0000ff" />}
       {error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -463,7 +457,7 @@ const renderGraph = () => {
               renderItem={(item) => (
                 <Text style={styles.dropdownItem}>{item.label}</Text>
               )}
-              disabled={dropdownOptions.length === 0} 
+              disable={dropdownOptions.length === 0} 
             />
             {dropdownOptions.length === 0 && <Text style={styles.noDataText}>No data available for selected ticker.</Text>}
           </View>
@@ -491,17 +485,17 @@ const renderGraph = () => {
         return percentB - percentA;
       })
       .map((investor, index) => (
-        <TouchableOpacity
-          key={index}
-          style={styles.investorItem}
-          onPress={() =>
-            navigation.navigate('HoldingsScreen', {
+         <TouchableOpacity
+           key={index}
+           style={styles.investorItem}
+           onPress={() =>
+            (navigation as any).navigate('HoldingsScreen', {
               investorName: investor.name ?? "N/A",
               institution: investor.institution ?? "N/A",
               cik: investor.cik ?? "N/A",
             })
-          }
-        >
+           }
+         >
           <Text style={styles.investorName}>{investor.name ?? "N/A"}</Text>
           <Text style={styles.institutionName}>{investor.institution ?? "N/A"}</Text>
           <View style={styles.holdingDetails}>
@@ -517,12 +511,13 @@ const renderGraph = () => {
         )}
         </View>
       )}
-    </View>
+      </View>
     </ScrollView>
 
   );
 };
 const styles = StyleSheet.create({
+
     investorInfoCard: {
         marginTop: 20,
         width: 350,
