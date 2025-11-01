@@ -12,7 +12,7 @@ type SecFetchOptions = {
 };
 
 const USER_AGENT = 'SEC_APP (nathanael.yao123@gmail.com)';
-const DEFAULT_DELAY_MS = 200; // delay between requests for rate limiting per worker (raised to be safer)
+const DEFAULT_DELAY_MS = 100; // delay between requests for rate limiting per worker (raised to be safer)
 const DEFAULT_CONCURRENCY = 5; // safer default concurrency for initial release
 // Default persistent cache TTL: 6 hours
 const DEFAULT_PERSISTENT_TTL_MS = 6 * 60 * 60 * 1000;

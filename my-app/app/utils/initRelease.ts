@@ -6,12 +6,12 @@ import { debug } from './logger';
 export function initReleaseDefaults() {
   try {
     // sensible defaults to reduce risk of 429s for initial release
-    (global as any).__SEC_API_CONCURRENCY = (global as any).__SEC_API_CONCURRENCY ?? 2;
-    (global as any).__SEC_API_DELAY = (global as any).__SEC_API_DELAY ?? 400; // ms between requests per worker
-    (global as any).__SEC_API_THROTTLE_MS = (global as any).__SEC_API_THROTTLE_MS ?? 2 * 60 * 1000;
-    (global as any).__SEC_API_THROTTLE_DELAY_MS = (global as any).__SEC_API_THROTTLE_DELAY_MS ?? 2000;
-    (global as any).__SEC_API_THROTTLE_CONCURRENCY = (global as any).__SEC_API_THROTTLE_CONCURRENCY ?? 2;
-    (global as any).__SEC_API_429_DECAY_MS = (global as any).__SEC_API_429_DECAY_MS ?? 2 * 60 * 1000;
+    (global as any).__SEC_API_CONCURRENCY = (global as any).__SEC_API_CONCURRENCY ?? 5;
+    (global as any).__SEC_API_DELAY = (global as any).__SEC_API_DELAY ?? 200; // ms between requests per worker
+    (global as any).__SEC_API_THROTTLE_MS = (global as any).__SEC_API_THROTTLE_MS ?? 2 * 20 * 1000;
+    (global as any).__SEC_API_THROTTLE_DELAY_MS = (global as any).__SEC_API_THROTTLE_DELAY_MS ?? 400;
+    (global as any).__SEC_API_THROTTLE_CONCURRENCY = (global as any).__SEC_API_THROTTLE_CONCURRENCY ?? 3;
+    (global as any).__SEC_API_429_DECAY_MS = (global as any).__SEC_API_429_DECAY_MS ?? 1 * 60 * 1000;
 
     // Apply to exported setters too (they use globals internally)
     setConcurrency((global as any).__SEC_API_CONCURRENCY);
