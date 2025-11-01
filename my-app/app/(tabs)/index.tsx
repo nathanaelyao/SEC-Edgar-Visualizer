@@ -9,8 +9,6 @@ import { XMLParser } from 'fast-xml-parser';
 import { secFetch } from '../utils/secApi';
 import { debug, info, warn, error as logError } from '../utils/logger';
 
-const DB_NAME = 'stock_data.db';
-const TABLE_NAME = 'investor_info_new1234';
 interface Investor {
   name: string;
   institution: string;
@@ -27,177 +25,18 @@ const HomeScreen: React.FC = () => {
   const [sortType, setSortType] = useState('recent');
   const [value, setValue] = useState(null);
   const [isFocus, setIsFocus] = useState(false);
-  const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
-  const [data, setData] = useState<any[]>([]);
-  const [investorInfo, setInvestorInfo] = useState<Array<{ name: string; holdings: any[] }> | null>(null);
-  const headers = {
-    'User-Agent': 'SEC_APP (nathanael.yao123@gmail.com)',
-    // 'Content-Type': 'application/json'
-  };
 
-  const getHoldings = async (accessionNumber: string, cik1: string): Promise<any[]> => {
-    try {
-        const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
-      const response = await secFetch(
-        `https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`
-      );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
-      const data = await response.text();
-      const $ = cheerio.load(data); 
-
-      const foundFiles: string[] = [];
-
-      $('a').each((i: number, el: any) => {  
-          const href = $(el).attr && $(el).attr('href'); 
-          if (href && href.endsWith('.xml')) {
-              foundFiles.push(href);
-          }
-      });
-
-      for (let i = 0; i < foundFiles.length; i++) {
-        if (!foundFiles[i].startsWith("primary")){
-            const response1 = await secFetch(`https://www.sec.gov${foundFiles[i]}`);
-            const data1 = await response1.text();
-            const parser = new XMLParser();
-            const json = removeNamespace(parser.parse(data1));  
-            return json['informationTable']?.infoTable || 
-            json['ns1:informationTable']?.['ns1:infoTable'] ||
-             [];
-                    }
-      }
-      return [];
-      
- // Handle cases where infoTable might be missing
-    } catch (error) {
-      logError("Error fetching holdings:", error);
-      return []; 
-    }
-  };
-
-  function removeNamespace(data: any): any {
-    if (Array.isArray(data)) {
-      return data.map((item) => removeNamespace(item));
-    } else if (typeof data === 'object' && data !== null) {
-      const newData: Record<string, any> = {};
-      for (const key in data) {
-        const newKey = key.replace('ns1:', '');
-        newData[newKey] = removeNamespace((data as any)[key]);
-      }
-      return newData;
-    } else {
-      return data;
-    }
-  }
-
-  const combineSameIssuer = (holdings: any[]): any[] => {
-    let combined: any[] = [];
-    const seen = new Set<string>(); 
-
-    for (const item of holdings) {
-        if (!item?.nameOfIssuer || !item?.shrsOrPrnAmt?.sshPrnamt || !item?.value) continue; // Skip if data is missing.
-
-        const issuer = item.nameOfIssuer;
-        const shares = parseFloat(item.shrsOrPrnAmt.sshPrnamt);
-        const value = parseFloat(item.value);
-        if (seen.has(issuer)) {
-            const existingItem = combined.find(h => h.nameOfIssuer === issuer);
-            if (existingItem) {
-                existingItem.shrsOrPrnAmt.sshPrnamt = (parseFloat(existingItem.shrsOrPrnAmt.sshPrnamt) + shares).toString(); // Add shares. Convert to string
-                existingItem.value = (parseFloat(existingItem.value) + value).toString(); // Add value. Convert to string
-            }
-        } else {
-            const newItem = JSON.parse(JSON.stringify(item));
-            combined.push(newItem);
-            seen.add(issuer);
-        }
-    }
-    return combined;
-};
-
-// Lazy-loading: do NOT fetch all investor holdings at startup. Only fetch filing dates for the list view (handled below).
-// When a user taps an investor, the app navigates to HoldingsScreen which fetches that investor's filings and holdings on demand.
-
-  const getInvestorInfo = async (invData: Investor[]): Promise<Array<{ name: string; holdings: any[] }>> => {
-    const delayBetweenRequests = 300; 
-    let allHoldings: Array<{ name: string; holdings: any[] }> = [];
-    try {
-      for (const investor of invData) {
-        await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
-        debug(`${investor.name} (${investor.institution})`);
-        const apiUrl = `https://data.sec.gov/submissions/CIK${investor.cik}.json`;
-      
-        try {
-          const response = await secFetch(apiUrl);
-           const data = await response.json();
-          const recentFilings = data.filings.recent;
-          if (recentFilings) {
-            let first = true;
-            for (let i = 0; i < recentFilings.accessionNumber.length; i++) {
-              const accessionNumber = recentFilings.accessionNumber[i];
-              const formType = recentFilings.form[i];
-              if (formType == '13F-HR' && first) {
-                first = false;
-                await getHoldings(accessionNumber, data.cik).then(holdings => {
-                  const combinedHoldings = combineSameIssuer(holdings);
-                  let totalValue = 0;
-                  if (combinedHoldings) {
-                    totalValue = combinedHoldings.reduce((sum, item) => sum + parseFloat(item.value || 0), 0);
-                    allHoldings.push({ name: investor.name, holdings: combinedHoldings });
-                  }
-                });
-              }
-            }
-          }
-        } catch (err) {
-          logError("Error fetching investor info:", err);
-        }
-      }
-      
-        setInvestorInfo(allHoldings);
-        return allHoldings;
-    } catch (err) {
-        logError("Error fetching investor info:", err);
-        return allHoldings;
-      }
-
-   }
   useEffect(() => {
-    const fetchStockData = async () => {
 
-        // intentionally omitted heavy investor holdings fetch to keep list loading fast
-        // holdings will be fetched when user navigates to an investor's HoldingsScreen
-    };
     if (firstRender.current) {
       firstRender.current = false; 
-      fetchStockData();
     }
-    }, [db]);
+    }, );
     
 
-  useEffect(() => {
-    const initializeDatabase = async () => {
-      try {
-        const dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
-        setDb(dbInstance);
 
-        await dbInstance.execAsync(`
-          PRAGMA journal_mode = WAL;
-          CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
-            investor_holdings TEXT 
-          );
-        `);
-
-      } catch (err) {
-        logError("Error initializing database:", err);
-      }
-    };
-
-    initializeDatabase();
-  }, []); 
   useEffect(() => {
     const fetchFilingDates = async () => {
       const dates: Record<string, { date: string; quarter: string }> = {};
