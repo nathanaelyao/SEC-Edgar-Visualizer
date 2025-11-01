@@ -11,7 +11,6 @@ export const investorsData = [
     { name: 'Norbert Lou', institution: "Punch Card Management", cik: '0001631664' },
     { name: 'Chuck Akre', institution: "Akre Capital Management", cik: '0001112520' },
     { name: 'Guy Spier', institution: "Aquamarine Capital Management", cik: '0001953324' },
-    { name: 'Stanley Druckenmiller', institution: "Duquesne Family Office LLC", cik: '0001536411' },
     { name: 'Francois Rochon', institution: "Giverny Capital Inc.", cik: '0001641864' },
     { name: 'Thomas Gayner', institution: "Markel Group", cik: '0001096343' },
     { name: 'Josh Tarasoff', institution: "GREENLEA LANE CAPITAL MANAGEMENT, LLC", cik: '0001766504' },
