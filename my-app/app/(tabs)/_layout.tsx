@@ -14,6 +14,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      initialRouteName="search"
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
@@ -28,19 +29,19 @@ export default function TabLayout() {
         }),
       }}>
         <Tabs.Screen
-        name="index"
-        options={{
-          title: '13F Filings',
-          headerShown: false,
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-        <Tabs.Screen
         name="search"
         options={{
           title: 'Stock Search',
           headerShown: false,
           tabBarIcon: ({ color }) => <MaterialIcons name="search" size={28} color={color} />,
+        }}
+      />
+        <Tabs.Screen
+        name="index"
+        options={{
+          title: '13F Filings',
+          headerShown: false,
+          tabBarIcon: ({ color }) => <MaterialIcons name="article" size={28} color={color} />,
         }}
       />
 

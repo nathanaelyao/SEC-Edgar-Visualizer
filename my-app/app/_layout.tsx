@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { scheduleDailyPrefetch } from './utils/secApi';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -20,6 +21,18 @@ export default function RootLayout() {
     if (loaded) {
       SplashScreen.hideAsync();
     }
+  }, [loaded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    // Prefetch commonly used SEC resources daily to keep cache fresh and reduce rate pressure
+    const cleanup = scheduleDailyPrefetch([
+      'https://www.sec.gov/files/company_tickers.json',
+      // add other frequently-accessed endpoints or CIK submissions here
+    ]);
+    return () => {
+      if (typeof cleanup === 'function') cleanup();
+    };
   }, [loaded]);
 
   if (!loaded) {

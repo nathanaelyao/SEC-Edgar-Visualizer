@@ -27,7 +27,7 @@ const HomeScreen: React.FC = () => {
   const [value, setValue] = useState(null);
   const [isFocus, setIsFocus] = useState(false);
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
-  const [setData] = useState([]);
+  const [data, setData] = useState<any[]>([]);
   const [investorInfo, setInvestorInfo] = useState<Record<string, number|string>[] | null>(null);
   const headers = {
     'User-Agent': 'SEC_APP (nathanael.yao123@gmail.com)',
@@ -116,6 +116,10 @@ const HomeScreen: React.FC = () => {
     }
     return combined;
 };
+
+// Lazy-loading: do NOT fetch all investor holdings at startup. Only fetch filing dates for the list view (handled below).
+// When a user taps an investor, the app navigates to HoldingsScreen which fetches that investor's filings and holdings on demand.
+
   const getInvestorInfo = async(invData:Investor[] ) =>{
     const delayBetweenRequests = 300; 
     let allHoldings = []
@@ -163,31 +167,14 @@ const HomeScreen: React.FC = () => {
   useEffect(() => {
     const fetchStockData = async () => {
 
-        const invData = await getInvestorInfo(investorsData)
-
-        setInvestorInfo(invData)
+        // intentionally omitted heavy investor holdings fetch to keep list loading fast
+        // holdings will be fetched when user navigates to an investor's HoldingsScreen
     };
     if (firstRender.current) {
       firstRender.current = false; 
       fetchStockData();
     }
     }, [db]);
-    useEffect(() => {
-      const insertData = async () => {
-        if (db && investorInfo && investorInfo.length > 0) {
-          const jsonString = JSON.stringify(investorInfo);
-          try {
-            const result = await db.runAsync(`INSERT INTO ${TABLE_NAME} (investor_holdings) VALUES (?)`, jsonString);
-            const rows = await db.getAllAsync(`SELECT * FROM ${TABLE_NAME}`);
-            setData(rows);
-            console.log(rows, 'new');
-          } catch (error) {
-            console.log(error, 'error');
-          }
-        }
-      };
-      insertData();
-    }, [investorInfo]);
     
 
   useEffect(() => {
@@ -218,7 +205,7 @@ const HomeScreen: React.FC = () => {
       try {
         const promises = investorsData.map(async (investor) => {
           try {
-            const response = await secFetch(`https://data.sec.gov/submissions/CIK${investor.cik}.json`);
+            const response = await secFetch(`https://data.sec.gov/submissions/CIK${investor.cik}.json`, { priority: true });
 
             if (!response.ok) {
               throw new Error(`HTTP error! status: ${response.status}`);
@@ -265,9 +252,11 @@ const HomeScreen: React.FC = () => {
       }
     };
 
+    // Immediately prioritize fetching filing dates for the list view
     fetchFilingDates();
+    // Defer heavy investor holdings fetch until filing dates are loaded and user interacts
+    // (getInvestorInfo will still be used elsewhere on demand)
   }, []);
-
   useEffect(() => {
     let sortedInvestors = [...investorsData];
 

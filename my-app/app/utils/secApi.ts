@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 type SecFetchOptions = {
   cacheTTL?: number; // ms
   force?: boolean; // bypass cache
+  priority?: boolean; // if true, enqueue at front
 };
 
 const USER_AGENT = 'SEC_APP (nathanael.yao123@gmail.com)';
@@ -209,7 +210,11 @@ export async function secFetch(url: string, opts?: SecFetchOptions) {
       }
     };
 
-    queue.push(task);
+    if (opts?.priority) {
+      queue.unshift(task);
+    } else {
+      queue.push(task);
+    }
     void processQueue();
   });
 }
@@ -225,4 +230,42 @@ export function setRateLimitDelay(ms: number) {
 
 export function setConcurrency(n: number) {
   (global as any).__SEC_API_CONCURRENCY = Math.max(1, Math.floor(n));
+}
+
+// Default persistent cache TTL: 24 hours
+const DEFAULT_PERSISTENT_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Prefetch a set of URLs and refresh persistent cache if stale (>24h).
+ * Runs non-blocking; uses force=true to update cache.
+ */
+export async function prefetchDaily(urls: string[]) {
+  if (!Array.isArray(urls) || urls.length === 0) return;
+  for (const url of urls) {
+    try {
+      const key = encodeURIComponent(url);
+      const p = await readPersistentCache(key);
+      if (p && (Date.now() - p.timestamp) < DEFAULT_PERSISTENT_TTL_MS) {
+        // still fresh
+        continue;
+      }
+      // refresh in low-priority background (don't await)
+      void secFetch(url, { force: true, priority: false });
+    } catch (e) {
+      // ignore per-url errors
+      continue;
+    }
+  }
+}
+
+/**
+ * Schedule daily prefetch; returns a cleanup function to cancel the interval.
+ * Call this once at app startup with commonly-used SEC endpoints (e.g., company_tickers.json, common CIK submissions)
+ */
+export function scheduleDailyPrefetch(urls: string[]) {
+  void prefetchDaily(urls);
+  const id = setInterval(() => {
+    void prefetchDaily(urls);
+  }, DEFAULT_PERSISTENT_TTL_MS);
+  return () => clearInterval(id);
 }
