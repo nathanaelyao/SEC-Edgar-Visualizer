@@ -69,6 +69,10 @@ const SearchResultsScreen: React.FC = () => {
   const firstRender = useRef(true);
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [graphData, setGraphData] = useState<GraphDataItem[]>([]);
+  // Tracks if the current fetch was triggered by an explicit user filter change
+  const userFilterRef = useRef(false);
+  // Stable data used for rendering to avoid flicker when graphData is briefly empty
+  const [displayGraphData, setDisplayGraphData] = useState<GraphDataItem[]>([]);
   const headers = {
     'User-Agent': 'SEC_APP (nathanael.yao123@gmail.com)',
     // 'Content-Type': 'application/json'
@@ -134,9 +138,25 @@ const SearchResultsScreen: React.FC = () => {
       try {
         const info = await getStockInfo(stockSymbol, filterType);
         setStockInfo(info);
-        // Ensure graphData state is updated immediately so renderGraph has a
-        // consistent single source of truth and doesn't briefly render "No data".
-        setGraphData(info?.graphData ?? []);
+        // Update graphData only when new data exists, or when the user
+        // explicitly selected a filter (allow clearing). This avoids a
+        // race where a subsequent programmatic fetch clears valid data
+        // and causes the brief "No data" flicker.
+        setGraphData(prev => {
+          const newData = info?.graphData ?? [];
+          if (newData && newData.length > 0) {
+            return newData;
+          }
+          if (userFilterRef.current) {
+            // user explicitly requested this filter; reflect the empty state
+            return [];
+          }
+          // keep previous data to avoid flicker
+          return prev;
+        });
+        // reset the flag after handling
+        userFilterRef.current = false;
+
         const availableOptions: { label: string; value: string }[] = [];
         if (info?.revData) availableOptions.push({ label: 'Revenue', value: 'revenue' });
         if (info?.incomeData) availableOptions.push({ label: 'Net Income', value: 'net income' });
@@ -387,12 +407,22 @@ const SearchResultsScreen: React.FC = () => {
     }
   }, [stockInfo]);
 
+  // keep a stable displayGraphData so the UI doesn't flash "No data"
   useEffect(() => {
-    // Animate based on the stable `graphData` state instead of stockInfo to
-    // avoid timing/race conditions where stockInfo.graphData exists but the
-    // animation state has not been initialized yet.
     if (graphData && graphData.length > 0) {
-      const data = graphData.slice(0, 10);
+      setDisplayGraphData(graphData);
+    } else if (userFilterRef.current) {
+      // user explicitly selected a filter and there is no data
+      setDisplayGraphData([]);
+    }
+    // do not reset userFilterRef here; it is reset after fetchStockData handles it
+  }, [graphData]);
+
+  useEffect(() => {
+    // Animate based on the stable `displayGraphData` state instead of graphData
+    // to avoid timing/race conditions where graphData briefly toggles.
+    if (displayGraphData && displayGraphData.length > 0) {
+      const data = displayGraphData.slice(0, 10);
       const maxValue = Math.max(...data.map(item => item.value));
       const scale = maxValue === 0 ? 10 : 170 / maxValue;
 
@@ -414,11 +444,11 @@ const SearchResultsScreen: React.FC = () => {
 
       Animated.stagger(100, animations).start();
     }
-  }, [graphData, animatedHeights]);
+  }, [displayGraphData, animatedHeights]);
 
   const renderGraph = () => {
-    // Use the `graphData` state as the single source of truth for rendering.
-    if (!graphData || graphData.length === 0) {
+    // Use the `displayGraphData` state as the single source of truth for rendering.
+    if (!displayGraphData || displayGraphData.length === 0) {
       return (
         <Text style={styles.noDataText}>
           No data available. {"\n"}Please choose another option using the dropdown.
@@ -426,7 +456,7 @@ const SearchResultsScreen: React.FC = () => {
       );
     }
 
-    const data = graphData
+    const data = displayGraphData
       .slice(0, 10)
       .map(item => ({ label: item.label ?? 'N/A', value: item.value ?? 0 }));
 
@@ -453,20 +483,23 @@ const SearchResultsScreen: React.FC = () => {
           <Text>Ticker: {stockSymbol}</Text>
           <View style={styles.dropdownContainer}>
           <Dropdown
-              style={styles.dropdown}
-              placeholder="Select item"
-              data={dropdownOptions}
-              labelField="label"
-              valueField="value"
-              value={filterType}  
-              onChange={item => {
-                setFilterType(item.value);
-              }}
-              renderItem={(item) => (
-                <Text style={styles.dropdownItem}>{item.label}</Text>
-              )}
-              disable={dropdownOptions.length === 0} 
-            />
+               style={styles.dropdown}
+               placeholder="Select item"
+               data={dropdownOptions}
+               labelField="label"
+               valueField="value"
+               value={filterType}  
+               onChange={item => {
+                 // Mark this as a user-initiated change so we allow clearing the
+                 // graph when the selected filter truly has no data.
+                 userFilterRef.current = true;
+                 setFilterType(item.value);
+               }}
+               renderItem={(item) => (
+                 <Text style={styles.dropdownItem}>{item.label}</Text>
+               )}
+               disable={dropdownOptions.length === 0} 
+             />
             {dropdownOptions.length === 0 && <Text style={styles.noDataText}>No data available for selected ticker.</Text>}
           </View>
           {filterType && <Text style={styles.graphTitle}>{filterType.toUpperCase()} Over Time</Text>}
@@ -575,7 +608,6 @@ const styles = StyleSheet.create({
       holdingDetails: {
         marginLeft: 16, 
       },
-
 
 
   noDataText: {
