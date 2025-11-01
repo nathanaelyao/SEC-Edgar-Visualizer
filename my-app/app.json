@@ -2,7 +2,7 @@
   "expo": {
     "name": "Stock Trends and 13F Filings",
     "slug": "my-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon_real.png",
     "scheme": "myapp",

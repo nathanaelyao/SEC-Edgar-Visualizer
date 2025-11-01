@@ -11,6 +11,8 @@ import {
   FlatList,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { error as logError } from '../utils/logger';
+import { secFetch } from '../utils/secApi';
 
 interface Company {
   name: string;
@@ -21,16 +23,12 @@ interface Company {
 const Home: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [suggestions, setSuggestions] = useState<Company[]>([]);
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
 
   const fetchCompanies = async () => {
     try {
-      const response = await fetch('https://www.sec.gov/files/company_tickers.json', {
-        headers: { 'User-Agent': 'SEC_APP (nathanael.yao123@gmail.com)' },
-      });
-
+      const response = await secFetch('https://www.sec.gov/files/company_tickers.json');
       if (!response.ok) throw new Error('Failed to fetch tickers from SEC');
-
       const data = await response.json();
       const companies: Company[] = Object.values(data).map((item: any) => ({
         name: item.title ?? '',
@@ -50,8 +48,8 @@ const Home: React.FC = () => {
       } else {
         setSuggestions([]);
       }
-    } catch (error) {
-      console.error('Error fetching companies:', error);
+    } catch (err) {
+      logError('Error fetching companies:', err);
       setSuggestions([]);
     }
   };

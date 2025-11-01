@@ -5,12 +5,13 @@ import { RouteProp, useRoute } from '@react-navigation/native';
 import cheerio from 'react-native-cheerio'; // Import cheerio
 import { useNavigation } from '@react-navigation/native';
 import { secFetch } from './utils/secApi';
+import { debug, info, warn, error as logError } from './utils/logger';
 
 type RootStackParamList = {
   HoldingsScreen: { investorName: string; cik: string, institution: string };
 };
 const HoldingsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
 
   const [totalPortfolioValue, setTotalPortfolioValue] = useState(0);
   const route = useRoute<RouteProp<RootStackParamList, 'HoldingsScreen'>>();
@@ -29,7 +30,7 @@ const HoldingsScreen: React.FC = () => {
     fetchFilings();
   }, [cik]);
 
-  const fetchFilings = async () => {
+  const fetchFilings = async (): Promise<void> => {
     setLoading(true);
     setError(null);
 
@@ -51,9 +52,9 @@ const HoldingsScreen: React.FC = () => {
       
 
       const data = await response.json();
-      console.log("Company Name:", data.name);
-      console.log("CIK:", data.cik);
-      console.log("Fiscal Year End:", data.fiscalYearEnd);
+      debug("Company Name:", data.name);
+      debug("CIK:", data.cik);
+      debug("Fiscal Year End:", data.fiscalYearEnd);
 
       const recentFilings = data.filings.recent;
       if (recentFilings) {
@@ -69,10 +70,10 @@ const HoldingsScreen: React.FC = () => {
           const filename = primaryDocument.substring(primaryDocument.lastIndexOf('/') + 1);
           if ( formType == '13F-HR' && first) {
             first = false;
-            console.log(`  Accession Number: ${accessionNumber}`);
-            console.log(filename)
-            console.log(`  Filing Date: ${filingDate}`);
-            console.log(`  Form Type: ${formType}`);
+            debug(`  Accession Number: ${accessionNumber}`);
+            debug(filename);
+            debug(`  Filing Date: ${filingDate}`);
+            debug(`  Form Type: ${formType}`);
 
             const filingDateObj = new Date(filingDate);
             const month = filingDateObj.getMonth() + 1; // Month is 0-indexed
@@ -90,7 +91,7 @@ const HoldingsScreen: React.FC = () => {
             setQuarter(quarterString); 
 
             getHoldings(accessionNumber, data.cik).then(holdings => {
-              console.log(holdings)
+              debug(holdings);
               const combinedHoldings = combineSameIssuer(holdings)
               const sortedHoldings = sortHoldingsByValue(combinedHoldings);
               setFilings(sortedHoldings || []);
@@ -103,20 +104,20 @@ const HoldingsScreen: React.FC = () => {
           }
           else if (formType == '13F-HR' && second) {  
             second = false;
-            console.log(`Second 13F-HR: ${accessionNumber}`);
+            debug(`Second 13F-HR: ${accessionNumber}`);
             await getHoldings(accessionNumber, data.cik).then(previousHoldings => {
-                console.log(previousHoldings,'prevvvv')
+                debug(previousHoldings,'prevvvv');
               setPreviousFilings(combineSameIssuer(previousHoldings)); 
             });
             break; 
           }
         }
       } else {
-        console.log("No recent filings found.");
+        debug("No recent filings found.");
       }
-    } catch (err) {
-      setError(err.message);
-      console.error("Error fetching filings:", err);
+    } catch (err: unknown) {
+      setError((err as any)?.message ?? String(err));
+      logError("Error fetching filings:", err);
     } finally {
       setLoading(false);
     }
@@ -160,8 +161,8 @@ const HoldingsScreen: React.FC = () => {
   const sortHoldingsByValue = (holdings: any[]) => {
     return [...holdings].sort((a, b) => parseFloat(b.value) - parseFloat(a.value));
   };
-  const combineSameIssuer = (holdings: any[]) => {
-    const combined = [];
+  const combineSameIssuer = (holdings: any[]): any[] => {
+    const combined: any[] = [];
     const seen = new Set<string>(); 
 
     for (const item of holdings) {
@@ -185,9 +186,9 @@ const HoldingsScreen: React.FC = () => {
     }
     return combined;
 };
-  const getHoldings = async (accessionNumber, cik1) => {
+  const getHoldings = async (accessionNumber: string, cik1: string): Promise<any[]> => {
     try {
-        const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
+         const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
   
         
       const response = await secFetch(`https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`);
@@ -203,8 +204,8 @@ const HoldingsScreen: React.FC = () => {
 
       const foundFiles: string[] = [];
 
-      $('a').each(function () {  
-          const href = $(this).attr('href'); 
+      $('a').each((i: number, el: any) => {  
+          const href = $(el).attr && $(el).attr('href'); 
           if (href && href.endsWith('.xml')) {
               foundFiles.push(href);
           }
@@ -212,14 +213,14 @@ const HoldingsScreen: React.FC = () => {
 
       for (let i = 0; i < foundFiles.length; i++) {
         if (!foundFiles[i].startsWith("primary")){
-            console.log(foundFiles[i])
+            debug(foundFiles[i]);
             const response1 = await secFetch(`https://www.sec.gov${foundFiles[i]}`);
             const data1 = await response1.text();
-            console.log(data1)
+            debug(data1);
             const parser = new XMLParser();
             const json = removeNamespace(parser.parse(data1));
-            console.log(json.infoTable)
-            console.log( json['ns1:informationTable']?.['ns1:infoTable'], 'lassst')
+            debug(json.infoTable);
+            debug( json['ns1:informationTable']?.['ns1:infoTable'], 'lassst');
             
             return json['informationTable']?.infoTable || 
             json['ns1:informationTable']?.['ns1:infoTable'] ||
@@ -228,19 +229,19 @@ const HoldingsScreen: React.FC = () => {
       }
       return [];
       
-    } catch (error) {
-      console.error("Error fetching holdings:", error);
+    } catch (error: unknown) {
+      logError("Error fetching holdings:", error);
       return []; 
     }
   };
-  function removeNamespace(data) {
+  function removeNamespace(data: any): any {
     if (Array.isArray(data)) {
-      return data.map(item => removeNamespace(item));
+      return data.map((item: any) => removeNamespace(item));
     } else if (typeof data === 'object' && data !== null) {
-      const newData = {};
+      const newData: Record<string, any> = {};
       for (const key in data) {
         const newKey = key.replace('ns1:', '');
-        newData[newKey] = removeNamespace(data[key]);
+        newData[newKey] = removeNamespace((data as any)[key]);
       }
       return newData;
     } else {
@@ -261,10 +262,10 @@ const HoldingsScreen: React.FC = () => {
     const percentage = (value / totalPortfolioValue) * 100;
     return percentage.toFixed(2) + "%";
 };
-const renderItem = ({ item }) => {
-    const changeData = calculatePercentageChange(parseFloat(item.shrsOrPrnAmt?.sshPrnamt), item.nameOfIssuer);
-    const change = changeData.change;
-    const color = changeData.color;
+const renderItem = ({ item }: { item: any }) => {
+     const changeData = calculatePercentageChange(parseFloat(item.shrsOrPrnAmt?.sshPrnamt), item.nameOfIssuer);
+     const change = changeData.change;
+     const color = changeData.color;
   
     return ( 
 
@@ -351,6 +352,11 @@ container: {
       portfolioValue: { 
         fontSize: 16,
         fontWeight: 'bold',
+      },
+      quarterText: {
+        fontSize: 12,
+        color: 'gray',
+        marginBottom: 4,
       },
 
     companyName: {

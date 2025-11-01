@@ -7,6 +7,7 @@ import * as SQLite from 'expo-sqlite';
 import cheerio from 'react-native-cheerio'; 
 import { XMLParser } from 'fast-xml-parser';
 import { secFetch } from '../utils/secApi';
+import { debug, info, warn, error as logError } from '../utils/logger';
 
 const DB_NAME = 'stock_data.db';
 const TABLE_NAME = 'investor_info_new1234';
@@ -17,10 +18,10 @@ interface Investor {
 }
 
 const HomeScreen: React.FC = () => {
-  const navigation = useNavigation();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredInvestors, setFilteredInvestors] = useState(investorsData);
-  const [filingDates, setFilingDates] = useState({});
+  const navigation = useNavigation<any>();
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filteredInvestors, setFilteredInvestors] = useState<Investor[]>(investorsData);
+  const [filingDates, setFilingDates] = useState<Record<string, {date: string; quarter: string}>>({});
   const [loading, setLoading] = useState(true);
   const firstRender = useRef(true);
   const [sortType, setSortType] = useState('recent');
@@ -28,13 +29,13 @@ const HomeScreen: React.FC = () => {
   const [isFocus, setIsFocus] = useState(false);
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [data, setData] = useState<any[]>([]);
-  const [investorInfo, setInvestorInfo] = useState<Record<string, number|string>[] | null>(null);
+  const [investorInfo, setInvestorInfo] = useState<Array<{ name: string; holdings: any[] }> | null>(null);
   const headers = {
     'User-Agent': 'SEC_APP (nathanael.yao123@gmail.com)',
     // 'Content-Type': 'application/json'
   };
 
-  const getHoldings = async (accessionNumber, cik1) => {
+  const getHoldings = async (accessionNumber: string, cik1: string): Promise<any[]> => {
     try {
         const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
       const response = await secFetch(
@@ -50,8 +51,8 @@ const HomeScreen: React.FC = () => {
 
       const foundFiles: string[] = [];
 
-      $('a').each(function () {  
-          const href = $(this).attr('href'); 
+      $('a').each((i: number, el: any) => {  
+          const href = $(el).attr && $(el).attr('href'); 
           if (href && href.endsWith('.xml')) {
               foundFiles.push(href);
           }
@@ -72,19 +73,19 @@ const HomeScreen: React.FC = () => {
       
  // Handle cases where infoTable might be missing
     } catch (error) {
-      console.error("Error fetching holdings:", error);
+      logError("Error fetching holdings:", error);
       return []; 
     }
   };
 
-  function removeNamespace(data) {
+  function removeNamespace(data: any): any {
     if (Array.isArray(data)) {
-      return data.map(item => removeNamespace(item));
+      return data.map((item) => removeNamespace(item));
     } else if (typeof data === 'object' && data !== null) {
-      const newData = {};
+      const newData: Record<string, any> = {};
       for (const key in data) {
         const newKey = key.replace('ns1:', '');
-        newData[newKey] = removeNamespace(data[key]);
+        newData[newKey] = removeNamespace((data as any)[key]);
       }
       return newData;
     } else {
@@ -92,8 +93,8 @@ const HomeScreen: React.FC = () => {
     }
   }
 
-  const combineSameIssuer = (holdings: any[]) => {
-    let combined = [];
+  const combineSameIssuer = (holdings: any[]): any[] => {
+    let combined: any[] = [];
     const seen = new Set<string>(); 
 
     for (const item of holdings) {
@@ -120,18 +121,18 @@ const HomeScreen: React.FC = () => {
 // Lazy-loading: do NOT fetch all investor holdings at startup. Only fetch filing dates for the list view (handled below).
 // When a user taps an investor, the app navigates to HoldingsScreen which fetches that investor's filings and holdings on demand.
 
-  const getInvestorInfo = async(invData:Investor[] ) =>{
+  const getInvestorInfo = async (invData: Investor[]): Promise<Array<{ name: string; holdings: any[] }>> => {
     const delayBetweenRequests = 300; 
-    let allHoldings = []
-    try{
+    let allHoldings: Array<{ name: string; holdings: any[] }> = [];
+    try {
       for (const investor of invData) {
         await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
-        console.log(`${investor.name} (${investor.institution})`);
+        debug(`${investor.name} (${investor.institution})`);
         const apiUrl = `https://data.sec.gov/submissions/CIK${investor.cik}.json`;
       
         try {
-          const response = await fetch(apiUrl, { headers });
-          const data = await response.json();
+          const response = await secFetch(apiUrl);
+           const data = await response.json();
           const recentFilings = data.filings.recent;
           if (recentFilings) {
             let first = true;
@@ -151,19 +152,19 @@ const HomeScreen: React.FC = () => {
               }
             }
           }
-        } catch (error) {
-          console.error("Error fetching investor info:", error);
+        } catch (err) {
+          logError("Error fetching investor info:", err);
         }
       }
       
-        setInvestorInfo(allHoldings)
-        return allHoldings
-    }
-    catch (error) {
-        console.error("Error fetching investor info:", error);
+        setInvestorInfo(allHoldings);
+        return allHoldings;
+    } catch (err) {
+        logError("Error fetching investor info:", err);
+        return allHoldings;
       }
 
-  }
+   }
   useEffect(() => {
     const fetchStockData = async () => {
 
@@ -190,10 +191,8 @@ const HomeScreen: React.FC = () => {
           );
         `);
 
-        console.log("Database and table created/opened successfully!");
-
-      } catch (error) {
-        console.error("Error initializing database:", error);
+      } catch (err) {
+        logError("Error initializing database:", err);
       }
     };
 
@@ -201,7 +200,7 @@ const HomeScreen: React.FC = () => {
   }, []); 
   useEffect(() => {
     const fetchFilingDates = async () => {
-      const dates = {};
+      const dates: Record<string, { date: string; quarter: string }> = {};
       try {
         const promises = investorsData.map(async (investor) => {
           try {
@@ -237,14 +236,16 @@ const HomeScreen: React.FC = () => {
               }
             }
             return { cik: investor.cik, date: data.filingDate || 'N/A', quarter: data.filingQuarter || 'N/A' };
-          } catch (error) {
-            console.error(`Error fetching filing date for ${investor.name}:`, error);
+          } catch (err) {
+            logError(`Error fetching filing date for ${investor.name}:`, err);
             return { cik: investor.cik, date: 'N/A', quarter: 'N/A' };
           }
         });
 
         const results = await Promise.all(promises);
-        results.forEach(result => dates[result.cik] = { date: result.date, quarter: result.quarter });
+        results.forEach((result) => {
+          dates[result.cik] = { date: result.date, quarter: result.quarter };
+        });
         setFilingDates(dates);
 
       } finally {
@@ -300,16 +301,16 @@ const HomeScreen: React.FC = () => {
     { label: 'Alphabetical', value: 'alphabetical' },
   ];
 
-const handleSortChange = (item) => {
-  setValue(item.value);
-  setSortType(item.value);
+const handleSortChange = (item: any) => {
+   setValue(item.value);
+   setSortType(item.value);
 
   // Collapse dropdown after a short delay (ensures re-render sync)
   setTimeout(() => setIsFocus(false), 50);
 };
 
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item }: { item: Investor }) => (
     <TouchableOpacity
       style={styles.investorItem}
       onPress={() => {

@@ -6,6 +6,8 @@ import BarGraph from './barChart';
 import { Dropdown } from 'react-native-element-dropdown';
 import { investorsData } from './investors';
 import { useNavigation } from '@react-navigation/native';
+import { secFetch } from './utils/secApi';
+import { debug, info, warn, error as logError } from './utils/logger';
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'stock_data.db';
@@ -51,7 +53,7 @@ interface InvestorHolding {
 }
 
 const SearchResultsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RootStackParamList, 'SearchResultsScreen'>>();
   const { stockSymbol } = route.params;
   const [stockInfo, setStockInfo] = useState<StockInfo | null>(null);
@@ -76,19 +78,19 @@ const SearchResultsScreen: React.FC = () => {
       try {
         const dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
         setDb(dbInstance);
-        const rows = await dbInstance.getAllAsync(`SELECT * FROM ${TABLE_NAME}`);
-        if (rows.length > 0 && rows[0]?.investor_holdings) {
+        const rows = await (dbInstance as any).getAllAsync(`SELECT * FROM ${TABLE_NAME}`) as any[];
+        if (rows.length > 0 && (rows[0] as any).investor_holdings) {
           try {
-            resolve(JSON.parse(rows[0].investor_holdings) || []);
+            resolve(JSON.parse((rows[0] as any).investor_holdings) || []);
           } catch (e) {
-            console.error("Error parsing investor holdings:", e);
+            logError("Error parsing investor holdings:", e);
             reject(e);
           }
         } else {
           resolve([]); // Resolve with an empty array if no data
         }
       } catch (error) {
-        console.error("Error opening database:", error);
+        logError("Error opening database:", error);
         reject(error);
       }
     });
@@ -100,7 +102,7 @@ const SearchResultsScreen: React.FC = () => {
         setFilings(holdingsData);
       })
       .catch((err) => {
-        console.error("Failed to load investor holdings:", err);
+        logError("Failed to load investor holdings:", err);
         // Optionally set an error state here if fetching filings fails
       });
   }, []);
@@ -215,15 +217,13 @@ const SearchResultsScreen: React.FC = () => {
         }
       }
     }
-    console.log(invesDict, 'dict');
+    debug(invesDict, 'dict');
     return invesDict;
   };
 
   const getStockInfo = async (ticker: string, filter: string | null): Promise<StockInfo> => {
     try {
-      const tickersResponse = await fetch(
-        `https://www.sec.gov/files/company_tickers.json`, {headers}
-      );
+      const tickersResponse = await secFetch(`https://www.sec.gov/files/company_tickers.json`);
       if (!tickersResponse.ok) {
         throw new Error(`HTTP error! status: ${tickersResponse.status}`);
       }
@@ -262,9 +262,7 @@ const SearchResultsScreen: React.FC = () => {
       if (!cik_str) {
         throw new Error(`Ticker ${ticker} not found.`);
       }
-      const factsResponse = await fetch(
-        `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik_str}.json`, {headers}
-      );
+      const factsResponse = await secFetch(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik_str}.json`);
 
       if (!factsResponse.ok) {
         throw new Error(`HTTP error! status: ${factsResponse.status} for CIK: ${cik_str}`);
@@ -314,10 +312,10 @@ const SearchResultsScreen: React.FC = () => {
         graphData = getInfo(currentData);
       }
 
-      return { roicData, liabilities: currentLiabilities, companyName: compName, cik: cik_str, graphData, epsData, revData, incomeData, assetsData, sharesData };
+      return { roicData, liabilities: currentLiabilities, companyName: compName, cik: cik_str, graphData, epsData, revData, incomeData, assetsData, sharesData, eps: epsData ?? null } as StockInfo;
     } catch (error: any) {
-      console.error("Error fetching stock info:", error);
-      return { companyName: null, cik: null, eps: null, graphData: null };
+      logError("Error fetching stock info:", error);
+      return { companyName: null, cik: null, eps: null, graphData: null, epsData: null, revData: null, incomeData: null, assetsData: null, sharesData: null };
     }
   };
 
@@ -518,19 +516,20 @@ const SearchResultsScreen: React.FC = () => {
 };
 const styles = StyleSheet.create({
 
-    investorInfoCard: {
-        marginTop: 20,
-        width: 350,
-        backgroundColor: 'white',
-        borderRadius: 8,
-        padding: 16,
-        elevation: 3,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        marginBottom:20
-      },
+
+     investorInfoCard: {
+         marginTop: 20,
+         width: 350,
+         backgroundColor: 'white',
+         borderRadius: 8,
+         padding: 16,
+         elevation: 3,
+         shadowColor: '#000',
+         shadowOffset: { width: 0, height: 2 },
+         shadowOpacity: 0.2,
+         shadowRadius: 4,
+         marginBottom:20
+       },
       cardTitle: { 
         fontSize: 20,
         fontWeight: 'bold',
@@ -647,7 +646,7 @@ const styles = StyleSheet.create({
         color: 'red',
         marginTop: 10,
       },
-  
+
   });
 
 

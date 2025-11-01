@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { debug, info, warn, error } from './logger';
 
 // secApi.ts
 // Centralized SEC API client with request queue, retries, worker-pool concurrency and persistent caching to avoid rate limits.
@@ -7,10 +8,14 @@ type SecFetchOptions = {
   cacheTTL?: number; // ms
   force?: boolean; // bypass cache
   priority?: boolean; // if true, enqueue at front
+  staleWhileRevalidate?: boolean; // if true (default) return stale cache immediately and refresh in background
 };
 
 const USER_AGENT = 'SEC_APP (nathanael.yao123@gmail.com)';
-const DEFAULT_DELAY_MS = 300; // delay between requests for rate limiting per worker
+const DEFAULT_DELAY_MS = 200; // delay between requests for rate limiting per worker (raised to be safer)
+const DEFAULT_CONCURRENCY = 5; // safer default concurrency for initial release
+// Default persistent cache TTL: 6 hours
+const DEFAULT_PERSISTENT_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_RETRIES = 5;
 const PERSISTENT_CACHE_PREFIX = '@secapi:cache:';
 
@@ -22,12 +27,26 @@ type CachedEntry = {
 };
 
 const cache = new Map<string, CachedEntry>();
+// track last time we triggered a background refresh for a URL to avoid repeated revalidation
+const lastBackgroundRefresh = new Map<string, number>();
 let queue: Array<() => Promise<void>> = [];
 let processing = false;
 let runningWorkers = 0;
 
+// auto-throttle state
+let recent429Count = 0;
+let throttleTimer: any = null;
+let throttledUntil = 0;
+
 function wait(ms: number) {
   return new Promise((res) => setTimeout(res, ms));
+}
+
+function jitter(ms: number) {
+  // add 0-30% random jitter to avoid too large overshoots
+  const variance = Math.max(1, Math.floor(ms * 0.3));
+  const delta = Math.floor(Math.random() * variance);
+  return ms + delta;
 }
 
 function parseRetryAfter(header?: string | null): number | null {
@@ -77,7 +96,7 @@ async function processQueue() {
   processing = true;
 
   // concurrency can be tuned at runtime by setting global.__SEC_API_CONCURRENCY
-  const concurrency = Math.max(1, (global as any).__SEC_API_CONCURRENCY ?? 4);
+  const concurrency = Math.max(1, (global as any).__SEC_API_CONCURRENCY ?? DEFAULT_CONCURRENCY);
   const delayMs = () => (global as any).__SEC_API_DELAY ?? DEFAULT_DELAY_MS;
 
   const startWorker = async () => {
@@ -88,7 +107,7 @@ async function processQueue() {
         try {
           await task();
         } catch (e) {
-          console.warn('secApi task error', e);
+          warn('secApi task error', e);
         }
         await wait(delayMs());
       }
@@ -136,9 +155,35 @@ export async function secFetch(url: string, opts?: SecFetchOptions) {
     // try persistent cache
     try {
       const p = await readPersistentCache(cacheKey);
-      if (p && Date.now() - p.timestamp < ttl) {
-        cache.set(cacheKey, p);
-        return makeResponseFromCache(p);
+      if (p) {
+        const age = Date.now() - p.timestamp;
+        // if still fresh
+        if (age < ttl) {
+          cache.set(cacheKey, p);
+          return makeResponseFromCache(p);
+        }
+
+        // stale entry: support stale-while-revalidate to return quickly and refresh in background
+        const allowSWR = opts?.staleWhileRevalidate !== false;
+        if (allowSWR) {
+          cache.set(cacheKey, p);
+          // only schedule a background refresh if we haven't for this URL recently
+          const last = lastBackgroundRefresh.get(cacheKey) ?? 0;
+          const now = Date.now();
+          const BACKGROUND_REFRESH_DEBOUNCE_MS = 60 * 1000; // 1 minute
+          if (now - last > BACKGROUND_REFRESH_DEBOUNCE_MS) {
+            lastBackgroundRefresh.set(cacheKey, now);
+            // refresh in low priority background without awaiting
+            setTimeout(() => {
+              try {
+                void secFetch(url, { force: true, priority: false, staleWhileRevalidate: false });
+              } catch (e) {
+                // ignore
+              }
+            }, 0);
+          }
+          return makeResponseFromCache(p);
+        }
       }
     } catch (e) {
       // ignore persistent cache errors
@@ -153,6 +198,11 @@ export async function secFetch(url: string, opts?: SecFetchOptions) {
         while (true) {
           attempt++;
           try {
+            // If we're currently in a throttled period, pause before making request
+            if (Date.now() < throttledUntil) {
+              await wait((global as any).__SEC_API_DELAY_THROTTLE_MS ?? 2000);
+            }
+
             const res = await global.fetch(url, {
               headers: {
                 'User-Agent': USER_AGENT,
@@ -169,9 +219,25 @@ export async function secFetch(url: string, opts?: SecFetchOptions) {
 
             // handle 429 Rate Limit responses by honoring Retry-After
             if (res.status === 429) {
+              // increment recent 429 counter and schedule decay
+              recent429Count++;
+              if (throttleTimer) clearTimeout(throttleTimer);
+              throttleTimer = setTimeout(() => { recent429Count = Math.max(0, recent429Count - 1); }, (global as any).__SEC_API_429_DECAY_MS ?? (2 * 60 * 1000)); // decay after 2m by default
+
+              // if many 429s recently, throttle aggressively
+              if (recent429Count >= 3) {
+                // set throttledUntil for 2 minutes
+                throttledUntil = Date.now() + ((global as any).__SEC_API_THROTTLE_MS ?? (2 * 60 * 1000));
+                // increase global delay and reduce concurrency
+                (global as any).__SEC_API_DELAY = Math.max((global as any).__SEC_API_DELAY ?? DEFAULT_DELAY_MS, (global as any).__SEC_API_THROTTLE_DELAY_MS ?? 2000);
+                (global as any).__SEC_API_CONCURRENCY = Math.max(1, Math.min((global as any).__SEC_API_CONCURRENCY ?? 1, (global as any).__SEC_API_THROTTLE_CONCURRENCY ?? 2));
+                info('secApi: entering aggressive throttle mode', { recent429Count, throttledUntil, delay: (global as any).__SEC_API_DELAY, concurrency: (global as any).__SEC_API_CONCURRENCY });
+              }
+
               const retryAfterMs = parseRetryAfter(headersObj['retry-after'] ?? null) ?? backoff;
               const cap = Math.min(retryAfterMs, 60 * 1000);
-              await wait(cap);
+              // add jitter to avoid thundering reattempts
+              await wait(jitter(cap));
               backoff = Math.min(backoff * 2, 60 * 1000);
               if (attempt >= MAX_RETRIES) {
                 const cacheEntry: CachedEntry = { timestamp: Date.now(), text, status: res.status, headers: headersObj };
@@ -180,6 +246,9 @@ export async function secFetch(url: string, opts?: SecFetchOptions) {
               }
               continue; // retry
             }
+
+            // reset recent429Count on successful response
+            recent429Count = Math.max(0, recent429Count - 1);
 
             const cacheEntry: CachedEntry = {
               timestamp: Date.now(),
@@ -201,7 +270,8 @@ export async function secFetch(url: string, opts?: SecFetchOptions) {
               reject(err);
               break;
             }
-            await wait(backoff);
+            // use jittered backoff for network errors
+            await wait(jitter(backoff));
             backoff = Math.min(backoff * 2, 60 * 1000);
           }
         }
@@ -232,8 +302,70 @@ export function setConcurrency(n: number) {
   (global as any).__SEC_API_CONCURRENCY = Math.max(1, Math.floor(n));
 }
 
-// Default persistent cache TTL: 24 hours
-const DEFAULT_PERSISTENT_TTL_MS = 24 * 60 * 60 * 1000;
+/**
+ * Simple stress-test helper to exercise secFetch under load.
+ * - urls: single URL or array of URLs to request
+ * - totalRequests: total number of requests to issue (default 20)
+ * - parallel: number of concurrent promises to start at once (default 4)
+ * - delayMs: optional delay between starting batches to avoid immediate bursts (default 50)
+ * Returns stats object with counts and timings.
+ */
+export async function secApiStressTest(opts: {
+  urls: string | string[];
+  totalRequests?: number;
+  parallel?: number;
+  delayMs?: number;
+}): Promise<any> {
+  const urls = Array.isArray(opts.urls) ? opts.urls : [opts.urls];
+  const total = Math.max(1, opts.totalRequests ?? 20);
+  const parallel = Math.max(1, opts.parallel ?? 4);
+  const delayBetweenBatches = Math.max(0, opts.delayMs ?? 50);
+
+  const stats = {
+    total,
+    success: 0,
+    rateLimit: 0,
+    otherErrors: 0,
+    errors: 0,
+    latencies: [] as number[],
+  };
+
+  const tasks: (() => Promise<void>)[] = [];
+  for (let i = 0; i < total; i++) {
+    const url = urls[i % urls.length];
+    tasks.push(async () => {
+      const start = Date.now();
+      try {
+        const res = await secFetch(url, { priority: false });
+        const status = res.status;
+        const dur = Date.now() - start;
+        stats.latencies.push(dur);
+        if (status === 429) {
+          stats.rateLimit++;
+        } else if (status >= 200 && status < 300) {
+          stats.success++;
+        } else {
+          stats.otherErrors++;
+        }
+      } catch (e) {
+        stats.errors++;
+        debug('secApiStressTest request error', e);
+      }
+    });
+  }
+
+  // run tasks in batches of `parallel`
+  for (let i = 0; i < tasks.length; i += parallel) {
+    const batch = tasks.slice(i, i + parallel).map((t) => t());
+    await Promise.all(batch);
+    if (i + parallel < tasks.length) await wait(delayBetweenBatches);
+  }
+
+  const avgLatency = stats.latencies.length > 0 ? stats.latencies.reduce((a, b) => a + b, 0) / stats.latencies.length : 0;
+  const result = { ...stats, avgLatency };
+  info('secApiStressTest complete', result);
+  return result;
+}
 
 /**
  * Prefetch a set of URLs and refresh persistent cache if stale (>24h).
