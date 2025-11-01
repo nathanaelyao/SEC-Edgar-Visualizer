@@ -134,6 +134,9 @@ const SearchResultsScreen: React.FC = () => {
       try {
         const info = await getStockInfo(stockSymbol, filterType);
         setStockInfo(info);
+        // Ensure graphData state is updated immediately so renderGraph has a
+        // consistent single source of truth and doesn't briefly render "No data".
+        setGraphData(info?.graphData ?? []);
         const availableOptions: { label: string; value: string }[] = [];
         if (info?.revData) availableOptions.push({ label: 'Revenue', value: 'revenue' });
         if (info?.incomeData) availableOptions.push({ label: 'Net Income', value: 'net income' });
@@ -378,12 +381,16 @@ const SearchResultsScreen: React.FC = () => {
   };
 
   useEffect(() => {
-    if (stockInfo && stockInfo.graphData) {
+    // keep this as a fallback in case graphData wasn't set earlier
+    if (stockInfo && stockInfo.graphData && (!graphData || graphData.length === 0)) {
       setGraphData(stockInfo.graphData);
     }
   }, [stockInfo]);
 
   useEffect(() => {
+    // Animate based on the stable `graphData` state instead of stockInfo to
+    // avoid timing/race conditions where stockInfo.graphData exists but the
+    // animation state has not been initialized yet.
     if (graphData && graphData.length > 0) {
       const data = graphData.slice(0, 10);
       const maxValue = Math.max(...data.map(item => item.value));
@@ -391,11 +398,14 @@ const SearchResultsScreen: React.FC = () => {
 
       if (animatedHeights.length === 0 || animatedHeights.length !== data.length) {
         setAnimatedHeights(data.map(() => new Animated.Value(0)));
+        // we return early; the next effect run will perform animations when
+        // animatedHeights has been initialized
+        return;
       }
 
       const animations = animatedHeights.map((animatedHeight, index) => (
         Animated.timing(animatedHeight, {
-          toValue: data[index]?.value * scale,
+          toValue: (data[index]?.value ?? 0) * scale,
           duration: 1000,
           easing: Easing.elastic(1),
           useNativeDriver: false,
@@ -404,26 +414,26 @@ const SearchResultsScreen: React.FC = () => {
 
       Animated.stagger(100, animations).start();
     }
-  }, [stockInfo, animatedHeights]);
+  }, [graphData, animatedHeights]);
 
   const renderGraph = () => {
-    if (!stockInfo || !stockInfo.graphData || stockInfo.graphData.length === 0) {
+    // Use the `graphData` state as the single source of truth for rendering.
+    if (!graphData || graphData.length === 0) {
       return (
         <Text style={styles.noDataText}>
           No data available. {"\n"}Please choose another option using the dropdown.
         </Text>
-      ); 
+      );
     }
 
-    const data = stockInfo.graphData
+    const data = graphData
       .slice(0, 10)
-      .map(item => ({
-        label: item.label ?? "N/A",
-        value: item.value ?? 0,
-      }));
+      .map(item => ({ label: item.label ?? 'N/A', value: item.value ?? 0 }));
 
     return (
-      <View style={styles.card}><BarGraph data={data.reverse()} /></View>
+      <View style={styles.card}>
+        <BarGraph data={data.reverse()} />
+      </View>
     );
   };
 
@@ -565,6 +575,8 @@ const styles = StyleSheet.create({
       holdingDetails: {
         marginLeft: 16, 
       },
+
+
 
   noDataText: {
     color: 'gray',
