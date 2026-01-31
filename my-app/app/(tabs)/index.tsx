@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Dropdown } from 'react-native-element-dropdown';
-import {investorsData} from '../investors'
+import { investorsData } from '@/constants/investors'
 import * as SQLite from 'expo-sqlite';
-import cheerio from 'react-native-cheerio'; 
+import cheerio from 'react-native-cheerio';
 import { XMLParser } from 'fast-xml-parser';
 import { secFetch } from '../utils/secApi';
 import { debug, info, warn, error as logError } from '../utils/logger';
@@ -19,7 +19,7 @@ const HomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filteredInvestors, setFilteredInvestors] = useState<Investor[]>(investorsData);
-  const [filingDates, setFilingDates] = useState<Record<string, {date: string; quarter: string}>>({});
+  const [filingDates, setFilingDates] = useState<Record<string, { date: string; quarter: string }>>({});
   const [loading, setLoading] = useState(true);
   const firstRender = useRef(true);
   const [sortType, setSortType] = useState('recent');
@@ -31,10 +31,10 @@ const HomeScreen: React.FC = () => {
   useEffect(() => {
 
     if (firstRender.current) {
-      firstRender.current = false; 
+      firstRender.current = false;
     }
-    }, );
-    
+  },);
+
 
 
   useEffect(() => {
@@ -62,7 +62,7 @@ const HomeScreen: React.FC = () => {
                   const month = filingDateObj.getMonth() + 1;
                   let quarterString = "";
                   if (month >= 1 && month <= 3) {
-                    quarterString = "Q4 " + (filingDateObj.getFullYear()-1);
+                    quarterString = "Q4 " + (filingDateObj.getFullYear() - 1);
                   } else if (month >= 4 && month <= 6) {
                     quarterString = "Q1 " + filingDateObj.getFullYear();
                   } else if (month >= 7 && month <= 9) {
@@ -140,13 +140,13 @@ const HomeScreen: React.FC = () => {
     { label: 'Alphabetical', value: 'alphabetical' },
   ];
 
-const handleSortChange = (item: any) => {
-   setValue(item.value);
-   setSortType(item.value);
+  const handleSortChange = (item: any) => {
+    setValue(item.value);
+    setSortType(item.value);
 
-  // Collapse dropdown after a short delay (ensures re-render sync)
-  setTimeout(() => setIsFocus(false), 50);
-};
+    // Collapse dropdown after a short delay (ensures re-render sync)
+    setTimeout(() => setIsFocus(false), 50);
+  };
 
 
   const renderItem = ({ item }: { item: Investor }) => (
@@ -181,7 +181,7 @@ const handleSortChange = (item: any) => {
         value={searchQuery}
       />
 
-<Dropdown
+      <Dropdown
         data={sortOptions}
         style={[styles.dropdown, isFocus && { borderColor: 'blue' }]}
         placeholderStyle={styles.placeholderStyle}
@@ -194,13 +194,13 @@ const handleSortChange = (item: any) => {
         searchPlaceholder="Search..."
         onFocus={() => setIsFocus(true)}
         onBlur={() => setIsFocus(false)}
-        value={value} 
+        value={value}
         onChange={(item) => {
           setValue(item.value);
           setSortType(item.value);
           setIsFocus(false); // ensures dropdown closes
         }}
-          renderItem={item => (
+        renderItem={item => (
           <TouchableOpacity onPress={() => handleSortChange(item)} style={styles.item}>
             <Text style={styles.itemText}>{item.label}</Text>
           </TouchableOpacity>
@@ -255,12 +255,12 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
   },
-  clickedItemText: { 
+  clickedItemText: {
     marginTop: 16,
     fontSize: 16,
     fontWeight: 'bold',
   },
-  item: { 
+  item: {
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
@@ -268,52 +268,52 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   container: {
-        marginTop: 80,
-        flex: 1,
-        padding: 16,
-        marginBottom:70
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 16,
-        textAlign: 'center',
-    },
-    searchBar: {
-        height: 40,
-        borderColor: 'gray',
-        borderWidth: 1,
-        marginBottom: 16,
-        paddingHorizontal: 8,
-        borderRadius: 5,
-        backgroundColor:'#fafafa'
-    },
-    investorItem: {
-        backgroundColor: '#fafafa',
-        padding: 16,
-        marginBottom: 8,
-        borderRadius: 4,
-        borderWidth: 1,
-        borderColor: '#ddd',
-    },
-    investorNameContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
-    investorName: {
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    filingInfo: {
-        fontSize: 12,
-        color: 'gray',
-    },
-    institutionName: {
-        fontSize: 14,
-        color: 'gray',
-    },
+    marginTop: 80,
+    flex: 1,
+    padding: 16,
+    marginBottom: 70
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  searchBar: {
+    height: 40,
+    borderColor: 'gray',
+    borderWidth: 1,
+    marginBottom: 16,
+    paddingHorizontal: 8,
+    borderRadius: 5,
+    backgroundColor: '#fafafa'
+  },
+  investorItem: {
+    backgroundColor: '#fafafa',
+    padding: 16,
+    marginBottom: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  investorNameContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  investorName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  filingInfo: {
+    fontSize: 12,
+    color: 'gray',
+  },
+  institutionName: {
+    fontSize: 14,
+    color: 'gray',
+  },
 });
 
 export default HomeScreen;
