@@ -419,6 +419,10 @@ export interface StockQuote {
   volume?: number;
   peRatio?: number;
   earningsTimestamp?: number;
+  previousClose?: number;
+  preMarketPrice?: number;
+  postMarketPrice?: number;
+  marketState?: string;
 }
 
 export interface HistoryPoint {
@@ -437,7 +441,7 @@ let lastTickerCacheUpdate = 0;
 async function fetchYahooQuote(symbol: string): Promise<StockQuote | null> {
   const upperSymbol = symbol.toUpperCase();
   // Using query1.finance.yahoo.com v8 chart endpoint as a more stable alternative to v7/v6 quote
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${upperSymbol}?interval=1d&range=1d`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${upperSymbol}?interval=1d&range=1d&includePrePost=true`;
 
   try {
     const res = await fetch(url, {
@@ -475,7 +479,11 @@ async function fetchYahooQuote(symbol: string): Promise<StockQuote | null> {
       marketCap: result.marketCap,
       volume: result.regularMarketVolume,
       peRatio: result.trailingPE || result.forwardPE,
-      earningsTimestamp: result.earningsTimestamp
+      earningsTimestamp: result.earningsTimestamp,
+      previousClose: prevClose,
+      preMarketPrice: result.preMarketPrice,
+      postMarketPrice: result.postMarketPrice,
+      marketState: result.marketState
     };
   } catch (err) {
     error(`Error fetching from Yahoo Finance (v8) for ${upperSymbol}:`, err);
@@ -492,10 +500,11 @@ async function fetchYahooQuote(symbol: string): Promise<StockQuote | null> {
 export async function fetchStockHistory(
   symbol: string,
   range: string = '1mo',
-  interval: string = '1d'
+  interval: string = '1d',
+  includePrePost: boolean = false
 ): Promise<HistoryPoint[]> {
   const upperSymbol = symbol.toUpperCase();
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${upperSymbol}?interval=${interval}&range=${range}`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${upperSymbol}?interval=${interval}&range=${range}${includePrePost ? '&includePrePost=true' : ''}`;
 
   try {
     const res = await fetch(url, {

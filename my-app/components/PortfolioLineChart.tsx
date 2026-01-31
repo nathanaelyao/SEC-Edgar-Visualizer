@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, PanResponder } from 'react-native';
-import Svg, { Path, Polyline, G, Line, Circle, Rect } from 'react-native-svg';
+import Svg, { Path, Polyline, G, Line, Circle, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { PortfolioSnapshot } from '@/utils/db';
 
@@ -43,8 +43,15 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
         return `${x},${y} `;
     }).join(' ');
 
-    const isProfit = lastVal >= firstVal;
-    const color = isProfit ? '#34C759' : '#FF3B30';
+    const baselineY = padding + chartHeight - ((firstVal - min) / vRange) * chartHeight;
+    const stopPercent = Math.max(0, Math.min(100, (baselineY / height) * 100));
+
+    const activePoint = activeIndex !== null ? data[activeIndex] : null;
+
+    // The current performance is based on the active point if scrubbing, else the last point
+    const comparisonVal = activePoint ? activePoint.totalProfit : lastVal;
+    const isProfit = comparisonVal >= firstVal;
+    const chartColor = isProfit ? '#34C759' : '#FF3B30';
 
     const handleTouch = (event: any) => {
         const x = event.nativeEvent.locationX;
@@ -58,7 +65,6 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
         }
     };
 
-    const activePoint = activeIndex !== null ? data[activeIndex] : null;
     const firstPointProfit = data[0].totalProfit;
     const activeX = activeIndex !== null ? padding + (activeIndex / (data.length - 1)) * chartWidth : 0;
     const activeY = activeIndex !== null ? padding + chartHeight - ((data[activeIndex].totalProfit - min) / vRange) * chartHeight : 0;
@@ -111,22 +117,31 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
                 </View>
             )}
             <Svg width={screenWidth} height={height}>
+                <Defs>
+                    <LinearGradient id="portfolioBaselineGradient" x1="0" y1="0" x2="0" y2="100%">
+                        <Stop offset={`${stopPercent}%`} stopColor="#34C759" stopOpacity="1" />
+                        <Stop offset={`${stopPercent}%`} stopColor="#FF3B30" stopOpacity="1" />
+                    </LinearGradient>
+                </Defs>
                 <G>
-                    {/* Grid line (simple) */}
-                    <Line
-                        x1={padding}
-                        y1={padding + chartHeight}
-                        x2={padding + chartWidth}
-                        y2={padding + chartHeight}
-                        stroke="#eee"
-                        strokeWidth="1"
-                    />
+                    {/* Horizontal Baseline Indicator */}
+                    {baselineY >= padding && baselineY <= padding + chartHeight && (
+                        <Line
+                            x1={padding}
+                            y1={baselineY}
+                            x2={padding + chartWidth}
+                            y2={baselineY}
+                            stroke={isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'}
+                            strokeWidth="1"
+                            strokeDasharray="4,4"
+                        />
+                    )}
 
                     {/* The line */}
                     <Polyline
                         points={points}
                         fill="none"
-                        stroke={activeIndex !== null ? '#ccc' : color}
+                        stroke="url(#portfolioBaselineGradient)"
                         strokeWidth="3"
                         strokeLinejoin="round"
                     />
@@ -138,8 +153,8 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
                             y1={padding}
                             x2={activeX}
                             y2={padding + chartHeight}
-                            stroke="#007AFF"
-                            strokeWidth="1"
+                            stroke={isDark ? '#8e8e93' : '#666'}
+                            strokeWidth="1.5"
                             strokeDasharray="4,4"
                         />
                     )}
@@ -155,7 +170,7 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
                                     cx={cx}
                                     cy={cy}
                                     r={activeIndex !== null ? "6" : "4"}
-                                    fill={activeIndex !== null ? "#007AFF" : color}
+                                    fill={chartColor}
                                 />
                             );
                         }

@@ -150,7 +150,7 @@ const SearchResultsScreen: React.FC = () => {
         case 'ALL': range = 'max'; interval = '1mo'; break;
       }
 
-      const history = await fetchStockHistory(stockSymbol, range, interval);
+      const history = await fetchStockHistory(stockSymbol, range, interval, priceHistoryRange === '1D');
       setPriceHistory(history);
       setPriceHistoryLoading(false);
     };
@@ -759,6 +759,25 @@ const SearchResultsScreen: React.FC = () => {
                     </View>
                   )}
 
+                  {stockQuote && (stockQuote.preMarketPrice || stockQuote.postMarketPrice) && (
+                    <View style={styles.extendedHoursContainer}>
+                      <Text style={[styles.extendedHoursLabel, { color: isDark ? '#8e8e93' : '#666' }]}>
+                        {stockQuote.marketState === 'PRE' ? 'Pre-Market ' : 'After-Hours '}
+                      </Text>
+                      {(() => {
+                        const price = stockQuote.marketState === 'PRE' ? stockQuote.preMarketPrice : stockQuote.postMarketPrice;
+                        if (!price) return null;
+                        const diff = price - (realTimePrice || 0);
+                        const perc = (realTimePrice || 0) > 0 ? (diff / (realTimePrice || 0)) * 100 : 0;
+                        return (
+                          <Text style={[styles.extendedHoursValue, diff >= 0 ? styles.positiveSmall : styles.negativeSmall]}>
+                            {formatCurrency(price, (stockQuote.currency || 'USD') as any)} {diff >= 0 ? '+' : ''}{diff.toFixed(2)} ({perc.toFixed(2)}%)
+                          </Text>
+                        );
+                      })()}
+                    </View>
+                  )}
+
                   {stockQuote && (
                     <View style={[styles.statsGrid, { borderTopColor: isDark ? '#333' : '#f1f1f1', borderBottomColor: isDark ? '#333' : '#f1f1f1' }]}>
                       {(() => {
@@ -770,16 +789,20 @@ const SearchResultsScreen: React.FC = () => {
 
                         const pe = stockQuote.peRatio;
 
-                        // For PE fallback, try to get the latest yearly EPS for a better TTM approximation
-                        let epsYearly = null;
+                        // For PE fallback, use Trailing Twelve Months (TTM) EPS by summing the last 4 quarters
+                        let epsTTM = null;
                         if (stockInfo?.epsData) {
-                          const yearlyEpsData = getInfo(stockInfo.epsData, 'yearly');
-                          if (yearlyEpsData.length > 0) {
-                            epsYearly = yearlyEpsData[yearlyEpsData.length - 1].value;
+                          const quarterlyEpsData = getInfo(stockInfo.epsData, 'quarterly');
+                          if (quarterlyEpsData.length >= 4) {
+                            // Sum the last 4 quarters
+                            epsTTM = quarterlyEpsData.slice(-4).reduce((sum, item) => sum + item.value, 0);
+                          } else if (quarterlyEpsData.length > 0) {
+                            // If fewer than 4 quarters, at least sum what we have or fall back to yearly
+                            epsTTM = quarterlyEpsData.reduce((sum, item) => sum + item.value, 0);
                           }
                         }
 
-                        const fallbackPE = (realTimePrice && epsYearly && epsYearly > 0) ? realTimePrice / epsYearly : null;
+                        const fallbackPE = (realTimePrice && epsTTM && epsTTM > 0) ? realTimePrice / epsTTM : null;
                         const displayPE = pe || fallbackPE;
 
                         return (
@@ -833,6 +856,7 @@ const SearchResultsScreen: React.FC = () => {
                         range={priceHistoryRange}
                         isDark={isDark}
                         height={180}
+                        previousClose={stockQuote?.previousClose}
                         formatValue={(val) => formatCurrency(val, (stockQuote?.currency || 'USD') as any)}
                       />
                     )}
@@ -1340,6 +1364,26 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 14,
     fontWeight: '800',
+  },
+  extendedHoursContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: -8,
+    marginBottom: 8,
+  },
+  extendedHoursLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  extendedHoursValue: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  positiveSmall: {
+    color: '#34C759',
+  },
+  negativeSmall: {
+    color: '#FF3B30',
   },
   labels: {
     flexDirection: 'row',
