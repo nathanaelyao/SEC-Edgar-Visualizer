@@ -1,14 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Path, Polyline, G, Line, Circle } from 'react-native-svg';
-import { PortfolioSnapshot } from '../app/utils/db';
+import { PortfolioSnapshot } from '@/utils/db';
 
 interface PortfolioLineChartProps {
     data: PortfolioSnapshot[];
     height?: number;
+    range?: '1D' | '1W' | '1M' | '1Y' | '5Y' | 'ALL';
 }
 
-const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 180 }) => {
+const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 180, range = 'ALL' }) => {
     const screenWidth = Dimensions.get('window').width - 64; // Horizontal margin in PortfolioScreen
     const padding = 20;
     const chartWidth = screenWidth - padding * 2;
@@ -25,11 +26,11 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
     const values = data.map(d => d.totalValue);
     const min = Math.min(...values) * 0.95;
     const max = Math.max(...values) * 1.05;
-    const range = max - min || 1;
+    const vRange = max - min || 1;
 
     const points = data.map((d, i) => {
         const x = padding + (i / (data.length - 1)) * chartWidth;
-        const y = padding + chartHeight - ((d.totalValue - min) / range) * chartHeight;
+        const y = padding + chartHeight - ((d.totalValue - min) / vRange) * chartHeight;
         return `${x},${y}`;
     }).join(' ');
 
@@ -77,8 +78,22 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
                 </G>
             </Svg>
             <View style={styles.labels}>
-                <Text style={styles.dateLabel}>{new Date(data[0].timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}</Text>
-                <Text style={styles.dateLabel}>{new Date(data[data.length - 1].timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}</Text>
+                <Text style={styles.dateLabel}>
+                    {(() => {
+                        const date = new Date(data[0].timestamp);
+                        return range === '1D'
+                            ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            : date.toLocaleDateString([], { month: 'short', day: 'numeric', year: range === '5Y' || range === 'ALL' ? '2-digit' : undefined });
+                    })()}
+                </Text>
+                <Text style={styles.dateLabel}>
+                    {(() => {
+                        const date = new Date(data[data.length - 1].timestamp);
+                        return range === '1D'
+                            ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            : date.toLocaleDateString([], { month: 'short', day: 'numeric', year: range === '5Y' || range === 'ALL' ? '2-digit' : undefined });
+                    })()}
+                </Text>
             </View>
         </View>
     );

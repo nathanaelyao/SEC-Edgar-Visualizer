@@ -11,6 +11,7 @@ const PortfolioScreen: React.FC = () => {
     const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
     const [history, setHistory] = useState<PortfolioSnapshot[]>([]);
     const [loading, setLoading] = useState(true);
+    const [selectedRange, setSelectedRange] = useState<'1D' | '1W' | '1M' | '1Y' | '5Y' | 'ALL'>('ALL');
 
     // Management Modal State
     const [isManageModalVisible, setIsManageModalVisible] = useState(false);
@@ -110,6 +111,26 @@ const PortfolioScreen: React.FC = () => {
     const totalProfitPercent = totalCostBasis > 0 ? (totalProfit / totalCostBasis) * 100 : 0;
 
     const totalRealizedProfit = portfolio.reduce((acc, curr) => acc + (curr.realizedProfit || 0), 0);
+
+    const getFilteredHistory = () => {
+        if (!history || history.length === 0) return [];
+        if (selectedRange === 'ALL') return history;
+
+        const now = new Date();
+        let cutoff = new Date();
+
+        switch (selectedRange) {
+            case '1D': cutoff.setDate(now.getDate() - 1); break;
+            case '1W': cutoff.setDate(now.getDate() - 7); break;
+            case '1M': cutoff.setMonth(now.getMonth() - 1); break;
+            case '1Y': cutoff.setFullYear(now.getFullYear() - 1); break;
+            case '5Y': cutoff.setFullYear(now.getFullYear() - 5); break;
+        }
+
+        return history.filter(h => new Date(h.timestamp) >= cutoff);
+    };
+
+    const filteredHistory = getFilteredHistory();
 
     const handleManageSave = async () => {
         const shares = parseFloat(sharesAmount);
@@ -243,8 +264,23 @@ const PortfolioScreen: React.FC = () => {
                     ListHeaderComponent={
                         <View>
                             <View style={styles.chartContainer}>
-                                <Text style={styles.chartSectionTitle}>Historical Performance</Text>
-                                <PortfolioLineChart data={history} />
+                                <View style={styles.chartHeader}>
+                                    <Text style={styles.chartSectionTitle}>Historical Performance</Text>
+                                    <View style={styles.rangeContainer}>
+                                        {(['1D', '1W', '1M', '1Y', '5Y', 'ALL'] as const).map((range) => (
+                                            <TouchableOpacity
+                                                key={range}
+                                                style={[styles.rangeChip, selectedRange === range && styles.rangeChipActive]}
+                                                onPress={() => setSelectedRange(range)}
+                                            >
+                                                <Text style={[styles.rangeText, selectedRange === range && styles.rangeTextActive]}>
+                                                    {range}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+                                <PortfolioLineChart data={filteredHistory} range={selectedRange} />
                             </View>
                             <View style={styles.chartContainer}>
                                 <Text style={styles.chartSectionTitle}>Allocation (%)</Text>
@@ -440,7 +476,40 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
         color: '#333',
+        marginBottom: 8,
+    },
+    chartHeader: {
         marginBottom: 12,
+    },
+    rangeContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        backgroundColor: '#f0f0f0',
+        borderRadius: 10,
+        padding: 2,
+    },
+    rangeChip: {
+        paddingVertical: 6,
+        paddingHorizontal: 8,
+        borderRadius: 8,
+        minWidth: 40,
+        alignItems: 'center',
+    },
+    rangeChipActive: {
+        backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 1,
+        elevation: 1,
+    },
+    rangeText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#888',
+    },
+    rangeTextActive: {
+        color: '#007AFF',
     },
     listContent: {
         paddingBottom: 100,
