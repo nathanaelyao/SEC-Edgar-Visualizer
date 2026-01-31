@@ -663,7 +663,7 @@ const SearchResultsScreen: React.FC = () => {
   // ...
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#121212' : '#fff' }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
       <FlatList
         data={investorInfo}
         keyExtractor={(item, index) => index.toString()}
@@ -768,11 +768,14 @@ const SearchResultsScreen: React.FC = () => {
                 {stockInfo.graphData && stockInfo.graphData.length > 0 && (
                   <>
                     <View style={styles.controlsContainer}>
-                      <View style={styles.dropdownContainer}>
+                      <View style={[styles.dropdownContainer, { backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: isDark ? '#333' : '#e0e0e0' }]}>
                         <Dropdown
                           style={styles.dropdown}
-                          placeholderStyle={styles.dropdownItem}
-                          selectedTextStyle={styles.dropdownItem}
+                          placeholderStyle={[styles.dropdownItem, { color: isDark ? '#aaa' : '#333' }]}
+                          selectedTextStyle={[styles.dropdownItem, { color: isDark ? '#fff' : '#333' }]}
+                          itemTextStyle={{ color: isDark ? '#eee' : '#333' }}
+                          containerStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', borderWidth: 0, borderRadius: 12, overflow: 'hidden' }}
+                          activeColor={isDark ? '#333' : '#f0f0f0'}
                           data={dropdownOptions}
                           maxHeight={300}
                           labelField="label"
@@ -786,18 +789,18 @@ const SearchResultsScreen: React.FC = () => {
                         />
                       </View>
 
-                      <View style={styles.toggleContainer}>
+                      <View style={[styles.toggleContainer, { backgroundColor: isDark ? '#2c2c2e' : '#f0f0f0' }]}>
                         <TouchableOpacity
-                          style={[styles.toggleButton, dataInterval === 'yearly' && styles.toggleButtonActive]}
+                          style={[styles.toggleButton, dataInterval === 'yearly' && [styles.toggleButtonActive, { backgroundColor: isDark ? '#636366' : '#fff' }]]}
                           onPress={() => setDataInterval('yearly')}
                         >
-                          <Text style={[styles.toggleText, dataInterval === 'yearly' && styles.toggleTextActive]}>Yearly</Text>
+                          <Text style={[styles.toggleText, { color: isDark ? '#8e8e93' : '#666' }, dataInterval === 'yearly' && [styles.toggleTextActive, { color: isDark ? '#fff' : '#000' }]]}>Yearly</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={[styles.toggleButton, dataInterval === 'quarterly' && styles.toggleButtonActive]}
+                          style={[styles.toggleButton, dataInterval === 'quarterly' && [styles.toggleButtonActive, { backgroundColor: isDark ? '#636366' : '#fff' }]]}
                           onPress={() => setDataInterval('quarterly')}
                         >
-                          <Text style={[styles.toggleText, dataInterval === 'quarterly' && styles.toggleTextActive]}>Quarterly</Text>
+                          <Text style={[styles.toggleText, { color: isDark ? '#8e8e93' : '#666' }, dataInterval === 'quarterly' && [styles.toggleTextActive, { color: isDark ? '#fff' : '#000' }]]}>Quarterly</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -1188,10 +1191,9 @@ const styles = StyleSheet.create({
   toggleContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    backgroundColor: '#3a3a3c',
     borderRadius: 8,
     padding: 2,
-    height: 50,
+    height: 44, // Slightly shorter for a modern look
     alignItems: 'center',
     width: '48%',
   },
@@ -1205,8 +1207,8 @@ const styles = StyleSheet.create({
   dropdownContainer: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ccc',
-    height: 50,
+    borderColor: '#e0e0e0',
+    height: 44,
     width: '48%',
     backgroundColor: '#fff',
     overflow: 'hidden',
@@ -1243,7 +1245,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   toggleButtonActive: {
-    backgroundColor: '#fff',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
