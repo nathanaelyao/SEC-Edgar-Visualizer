@@ -20,11 +20,12 @@ import { debug, info, warn, error as logError } from '@/utils/logger';
 import * as SQLite from 'expo-sqlite';
 import cheerio from 'react-native-cheerio'; // Import cheerio
 import { XMLParser } from 'fast-xml-parser';
-import { addHolding, getHolding, PortfolioHolding } from '@/utils/db';
+import { addHolding, getHolding, PortfolioHolding, Transaction, getTransactions, updateTransaction, deleteTransaction } from '@/utils/db';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useTheme } from '@/context/ThemeContext';
 import { formatCurrency, convertCurrency } from '@/utils/currency';
+import TransactionList from '@/components/TransactionList';
 
 
 
@@ -97,14 +98,60 @@ const SearchResultsScreen: React.FC = () => {
   const [purchasePrice, setPurchasePrice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingHolding, setExistingHolding] = useState<PortfolioHolding | null>(null);
-  const [portfolioMode, setPortfolioMode] = useState<'buy' | 'sell'>('buy');
+  const [portfolioMode, setPortfolioMode] = useState<'buy' | 'sell' | 'history'>('buy');
   const [transactionDate, setTransactionDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isPriceLoading, setIsPriceLoading] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+
+  const fetchTransactions = async (symbol: string) => {
+    try {
+      const txs = await getTransactions(symbol);
+      setTransactions(txs);
+    } catch (e) {
+      console.error("Error fetching transactions:", e);
+    }
+  };
+
+  const handleEditTransaction = (tx: Transaction) => {
+    setEditingTransaction(tx);
+    setPortfolioMode(tx.type as 'buy' | 'sell');
+    setSharesToAdd(tx.shares.toString());
+    setPurchasePrice(tx.price.toString());
+    setTransactionDate(new Date(tx.date));
+  };
+
+  const handleDeleteTransaction = (tx: Transaction) => {
+    Alert.alert(
+      "Delete Transaction",
+      "Are you sure you want to delete this transaction?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              if (tx.id) {
+                await deleteTransaction(tx.id);
+                if (stockSymbol) fetchTransactions(stockSymbol);
+                // Refresh holding data
+                const holding = await getHolding(stockSymbol);
+                setExistingHolding(holding);
+              }
+            } catch (e) {
+              Alert.alert("Error", "Failed to delete transaction.");
+            }
+          }
+        }
+      ]
+    );
+  };
 
   // Auto-update price when date changes
   useEffect(() => {
-    if (!isPortfolioModalVisible || !stockSymbol) return;
+    if (!isPortfolioModalVisible || !stockSymbol || portfolioMode === 'history') return;
 
     const isToday = (d: Date) => {
       const now = new Date();
@@ -143,16 +190,25 @@ const SearchResultsScreen: React.FC = () => {
   });
 
   const handleAddToPortfolio = () => {
+    setEditingTransaction(null);
     if (existingHolding) {
-      setSharesToAdd(existingHolding.shares.toString());
-      const convertedCostBasis = existingHolding.costBasis || (realTimePrice || 0);
-      setPurchasePrice(convertedCostBasis > 0 ? convertedCostBasis.toFixed(2) : '');
+      setSharesToAdd('');
+      fetchTransactions(stockSymbol);
+      // Don't prefill if managing existing, unless we want to be helpful. 
+      // But clearing is safer for new transaction.
+      // Actually previous logic was: setSharesToAdd(existingHolding.shares.toString()) ... 
+      // That seems wrong for adding MORE. It implies editing the total? 
+      // The previous logic pre-filled assuming user might want to edit? 
+      // Or maybe it was just a default. Let's start fresh for add/sell.
+      const startPrice = realTimePrice || 0;
+      setPurchasePrice(startPrice > 0 ? startPrice.toFixed(2) : '');
     } else {
       setSharesToAdd('');
       const convertedPrice = realTimePrice || 0;
       setPurchasePrice(convertedPrice > 0 ? convertedPrice.toFixed(2) : '');
     }
     setTransactionDate(new Date());
+    setPortfolioMode('buy');
     setIsPortfolioModalVisible(true);
   };
 
@@ -1038,7 +1094,7 @@ const SearchResultsScreen: React.FC = () => {
               visible={isPortfolioModalVisible}
               onRequestClose={() => setIsPortfolioModalVisible(false)}
             >
-              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setIsPortfolioModalVisible(false); }}>
                 <View style={styles.modalOverlay}>
                   <TouchableWithoutFeedback>
                     <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff', shadowOpacity: isDark ? 0.4 : 0.2 }]}>
@@ -1060,142 +1116,195 @@ const SearchResultsScreen: React.FC = () => {
                           >
                             <Text style={[styles.modeTabText, portfolioMode === 'sell' && styles.modeTabTextActive]}>Sell</Text>
                           </TouchableOpacity>
-                        </View>
-                      )}
-
-                      <TextInput
-                        style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
-                        placeholder={portfolioMode === 'buy' ? "Number of shares to add" : "Number of shares to sell"}
-                        keyboardType="numeric"
-                        value={sharesToAdd}
-                        onChangeText={setSharesToAdd}
-                        placeholderTextColor={isDark ? '#666' : '#999'}
-                        autoFocus
-                      />
-
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
-                        <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>{portfolioMode === 'buy' ? 'Purchase Price' : 'Sale Price'} ({stockQuote?.currency || 'USD'})</Text>
-                        {isPriceLoading && <ActivityIndicator size="small" color="#007AFF" style={{ marginLeft: 8 }} />}
-                      </View>
-                      <TextInput
-                        style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
-                        placeholder={`Price per share in ${stockQuote?.currency || 'USD'}`}
-                        keyboardType="numeric"
-                        value={purchasePrice}
-                        onChangeText={setPurchasePrice}
-                        placeholderTextColor={isDark ? '#666' : '#999'}
-                      />
-
-                      <TouchableOpacity
-                        style={[styles.dateRow, { backgroundColor: isDark ? '#2c2c2e' : '#f5f5f5' }]}
-                        onPress={() => Platform.OS === 'android' && setShowDatePicker(true)}
-                      >
-                        <View style={styles.dateLabelGroup}>
-                          <MaterialIcons name="calendar-today" size={14} color={isDark ? '#aaa' : '#666'} style={styles.calendarIcon} />
-                          <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>Transaction Date</Text>
-                        </View>
-                        {Platform.OS === 'ios' ? (
-                          <DateTimePicker
-                            value={transactionDate}
-                            mode="date"
-                            display="compact"
-                            onChange={(event, selectedDate) => {
-                              if (selectedDate) setTransactionDate(selectedDate);
+                          <TouchableOpacity
+                            style={[styles.modeTab, portfolioMode === 'history' && (isDark ? { backgroundColor: '#3a3a3c' } : styles.modeTabActive)]}
+                            onPress={() => {
+                              setPortfolioMode('history');
+                              fetchTransactions(stockSymbol);
                             }}
-                            maximumDate={new Date()}
-                            themeVariant={isDark ? "dark" : "light"}
-                          />
-                        ) : (
-                          <Text style={[styles.datePickerText, { color: isDark ? '#fff' : '#1a1a1a' }]}>
-                            {transactionDate.toLocaleDateString()}
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-
-                      {showDatePicker && Platform.OS === 'android' && (
-                        <DateTimePicker
-                          value={transactionDate}
-                          mode="date"
-                          display="default"
-                          onChange={(event, selectedDate) => {
-                            setShowDatePicker(false);
-                            if (selectedDate) setTransactionDate(selectedDate);
-                          }}
-                          maximumDate={new Date()}
-                        />
+                          >
+                            <Text style={[styles.modeTabText, portfolioMode === 'history' && styles.modeTabTextActive]}>History</Text>
+                          </TouchableOpacity>
+                        </View>
                       )}
 
-                      <View style={styles.modalButtons}>
-                        <TouchableOpacity
-                          style={[styles.modalButton, styles.cancelButton, { backgroundColor: isDark ? '#3a3a3c' : '#f0f0f0' }]}
-                          onPress={() => {
-                            setIsPortfolioModalVisible(false);
-                            setSharesToAdd('');
-                          }}
-                        >
-                          <Text style={[styles.cancelButtonText, { color: isDark ? '#fff' : '#444' }]}>Cancel</Text>
-                        </TouchableOpacity>
+                      {portfolioMode === 'history' ? (
+                        <View style={{ height: 350 }}>
+                          <TransactionList
+                            transactions={transactions}
+                            onEdit={handleEditTransaction}
+                            onDelete={handleDeleteTransaction}
+                            currency={stockQuote?.currency}
+                          />
+                          <TouchableOpacity
+                            style={[styles.modalButton, styles.cancelButton, { marginTop: 10, alignSelf: 'center', width: '100%', backgroundColor: isDark ? '#3a3a3c' : '#f0f0f0' }]}
+                            onPress={() => setIsPortfolioModalVisible(false)}
+                          >
+                            <Text style={[styles.cancelButtonText, { color: isDark ? '#fff' : '#444' }]}>Close</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <>
 
-                        <TouchableOpacity
-                          style={[styles.modalButton, styles.saveButton]}
-                          disabled={isSubmitting}
-                          onPress={async () => {
-                            const shares = parseFloat(sharesToAdd);
-                            const priceInLocal = parseFloat(purchasePrice);
+                          <TextInput
+                            style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
+                            placeholder={portfolioMode === 'buy' ? "Number of shares to add" : "Number of shares to sell"}
+                            keyboardType="numeric"
+                            value={sharesToAdd}
+                            onChangeText={setSharesToAdd}
+                            placeholderTextColor={isDark ? '#666' : '#999'}
+                            autoFocus
+                          />
 
-                            if (isNaN(shares) || shares <= 0) {
-                              Alert.alert("Invalid input", "Please enter a valid number of shares.");
-                              return;
-                            }
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+                            <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>{portfolioMode === 'buy' ? 'Purchase Price' : 'Sale Price'} ({stockQuote?.currency || 'USD'})</Text>
+                            {isPriceLoading && <ActivityIndicator size="small" color="#007AFF" style={{ marginLeft: 8 }} />}
+                          </View>
+                          <TextInput
+                            style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
+                            placeholder={`Price per share in ${stockQuote?.currency || 'USD'}`}
+                            keyboardType="numeric"
+                            value={purchasePrice}
+                            onChangeText={setPurchasePrice}
+                            placeholderTextColor={isDark ? '#666' : '#999'}
+                          />
 
-                            if (isNaN(priceInLocal) || priceInLocal <= 0) {
-                              Alert.alert("Invalid input", "Please enter a valid price.");
-                              return;
-                            }
+                          <TouchableOpacity
+                            style={[styles.dateRow, { backgroundColor: isDark ? '#2c2c2e' : '#f5f5f5' }]}
+                            onPress={() => Platform.OS === 'android' && setShowDatePicker(true)}
+                          >
+                            <View style={styles.dateLabelGroup}>
+                              <MaterialIcons name="calendar-today" size={14} color={isDark ? '#aaa' : '#666'} style={styles.calendarIcon} />
+                              <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>Transaction Date</Text>
+                            </View>
+                            {Platform.OS === 'ios' ? (
+                              <DateTimePicker
+                                value={transactionDate}
+                                mode="date"
+                                display="compact"
+                                onChange={(event, selectedDate) => {
+                                  if (selectedDate) setTransactionDate(selectedDate);
+                                }}
+                                maximumDate={new Date()}
+                                themeVariant={isDark ? "dark" : "light"}
+                              />
+                            ) : (
+                              <Text style={[styles.datePickerText, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                                {transactionDate.toLocaleDateString()}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
 
-                            setIsSubmitting(true);
-                            try {
-                              const sharesChange = portfolioMode === 'buy' ? shares : -shares;
+                          {showDatePicker && Platform.OS === 'android' && (
+                            <DateTimePicker
+                              value={transactionDate}
+                              mode="date"
+                              display="default"
+                              onChange={(event, selectedDate) => {
+                                setShowDatePicker(false);
+                                if (selectedDate) setTransactionDate(selectedDate);
+                              }}
+                              maximumDate={new Date()}
+                            />
+                          )}
 
-                              // Validate sell amount
-                              if (portfolioMode === 'sell') {
-                                if (!existingHolding || existingHolding.shares < shares) {
-                                  Alert.alert("Invalid Transaction", `You cannot sell ${shares} shares because you only own ${existingHolding?.shares || 0}.`);
-                                  setIsSubmitting(false);
+                          <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                              style={[styles.modalButton, styles.cancelButton, { backgroundColor: isDark ? '#3a3a3c' : '#f0f0f0' }]}
+                              onPress={() => {
+                                setIsPortfolioModalVisible(false);
+                                setSharesToAdd('');
+                                setEditingTransaction(null);
+                              }}
+                            >
+                              <Text style={[styles.cancelButtonText, { color: isDark ? '#fff' : '#444' }]}>Cancel</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={[styles.modalButton, styles.saveButton]}
+                              disabled={isSubmitting}
+                              onPress={async () => {
+                                const shares = parseFloat(sharesToAdd);
+                                const priceInLocal = parseFloat(purchasePrice);
+
+                                if (isNaN(shares) || shares <= 0) {
+                                  Alert.alert("Invalid input", "Please enter a valid number of shares.");
                                   return;
                                 }
-                              }
-                              // Convert back to USD for storage
-                              const priceInUsd = priceInLocal;
 
-                              await addHolding({
-                                symbol: stockSymbol,
-                                companyName: stockInfo?.companyName || stockSymbol,
-                                shares: sharesChange,
-                                price: priceInUsd,
-                                currency: stockQuote?.currency || 'USD',
-                                lastTransactionDate: transactionDate.toISOString()
-                              });
+                                if (isNaN(priceInLocal) || priceInLocal <= 0) {
+                                  Alert.alert("Invalid input", "Please enter a valid price.");
+                                  return;
+                                }
 
-                              Alert.alert("Success", existingHolding ? "Portfolio updated." : `${stockSymbol} added to your portfolio.`);
-                              setIsPortfolioModalVisible(false);
-                              setSharesToAdd('');
-                              setPurchasePrice('');
-                            } catch (err) {
-                              console.error("Error updating portfolio:", err);
-                              Alert.alert("Error", "Could not save. Please try again.");
-                            } finally {
-                              setIsSubmitting(false);
-                            }
-                          }}
-                        >
-                          {isSubmitting ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                          ) : (
-                            <Text style={styles.saveButtonText}>Confirm</Text>
-                          )}
-                        </TouchableOpacity>
-                      </View>
+                                setIsSubmitting(true);
+                                try {
+                                  if (editingTransaction) {
+                                    await updateTransaction(editingTransaction.id!, {
+                                      type: portfolioMode as 'buy' | 'sell',
+                                      shares: shares,
+                                      price: priceInLocal,
+                                      date: transactionDate.toISOString()
+                                    });
+                                    Alert.alert("Success", "Transaction updated.");
+
+                                    // Refresh holding
+                                    const holding = await getHolding(stockSymbol);
+                                    setExistingHolding(holding);
+
+                                    // Go back to history
+                                    setPortfolioMode('history');
+                                    fetchTransactions(stockSymbol);
+                                    setEditingTransaction(null);
+                                  } else {
+                                    const sharesChange = portfolioMode === 'buy' ? shares : -shares;
+
+                                    // Validate sell amount
+                                    if (portfolioMode === 'sell') {
+                                      if (!existingHolding || existingHolding.shares < shares) {
+                                        Alert.alert("Invalid Transaction", `You cannot sell ${shares} shares because you only own ${existingHolding?.shares || 0}.`);
+                                        setIsSubmitting(false);
+                                        return;
+                                      }
+                                    }
+                                    // Convert back to USD for storage
+                                    const priceInUsd = priceInLocal;
+
+                                    await addHolding({
+                                      symbol: stockSymbol,
+                                      companyName: stockInfo?.companyName || stockSymbol,
+                                      shares: sharesChange,
+                                      price: priceInUsd,
+                                      currency: stockQuote?.currency || 'USD',
+                                      lastTransactionDate: transactionDate.toISOString()
+                                    });
+
+                                    Alert.alert("Success", existingHolding ? "Portfolio updated." : `${stockSymbol} added to your portfolio.`);
+                                    setIsPortfolioModalVisible(false);
+                                    setSharesToAdd('');
+                                    setPurchasePrice('');
+
+                                    // Refresh holding in background
+                                    const holding = await getHolding(stockSymbol);
+                                    setExistingHolding(holding);
+                                  }
+                                } catch (err) {
+                                  console.error("Error updating portfolio:", err);
+                                  Alert.alert("Error", "Could not save. Please try again.");
+                                } finally {
+                                  setIsSubmitting(false);
+                                }
+                              }}
+                            >
+                              {isSubmitting ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                              ) : (
+                                <Text style={styles.saveButtonText}>{editingTransaction ? 'Update' : 'Confirm'}</Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      )}
                     </View>
                   </TouchableWithoutFeedback>
                 </View>

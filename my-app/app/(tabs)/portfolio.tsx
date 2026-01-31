@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices } from '@/utils/db';
+import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices, Transaction, getTransactions, getAllTransactions, updateTransaction, deleteTransaction, addTransaction, getCashBalance } from '@/utils/db';
 import PieChart from '@/components/PieChart';
 import PortfolioLineChart from '@/components/PortfolioLineChart';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import TransactionList from '@/components/TransactionList';
 import { fetchStockPrice, fetchPriceForDate } from '@/utils/secApi';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/context/ThemeContext';
@@ -22,18 +23,38 @@ const PortfolioScreen: React.FC = () => {
 
     // Management Modal State
     const [isManageModalVisible, setIsManageModalVisible] = useState(false);
+    const [isHistoryModalVisible, setIsHistoryModalVisible] = useState(false);
+    const [globalTransactions, setGlobalTransactions] = useState<Transaction[]>([]);
     const [selectedHolding, setSelectedHolding] = useState<PortfolioHolding | null>(null);
     const [sharesAmount, setSharesAmount] = useState('');
     const [priceAmount, setPriceAmount] = useState('');
-    const [manageMode, setManageMode] = useState<'buy' | 'sell'>('buy');
+    const [manageMode, setManageMode] = useState<'buy' | 'sell' | 'deposit' | 'withdraw' | 'history'>('buy');
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [transactionDate, setTransactionDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isPriceLoading, setIsPriceLoading] = useState(false);
 
+    // Cash Management
+    const [cashBalance, setCashBalance] = useState(0);
+    const [isCashModalVisible, setIsCashModalVisible] = useState(false);
+    const [cashAmount, setCashAmount] = useState('');
+    const [cashType, setCashType] = useState<'deposit' | 'withdraw'>('deposit');
+
     // Auto-update price when date changes
+    const fetchTransactions = async (symbol: string) => {
+        try {
+            const txs = await getTransactions(symbol);
+            setTransactions(txs);
+        } catch (e) {
+            console.error("Error fetching transactions:", e);
+        }
+    };
+
+    // Auto-update price when date changes (only if adding new transaction or editing date)
     React.useEffect(() => {
-        if (!isManageModalVisible || !selectedHolding) return;
+        if (!isManageModalVisible || !selectedHolding || manageMode === 'history') return;
 
         const isToday = (d: Date) => {
             const now = new Date();
@@ -42,7 +63,11 @@ const PortfolioScreen: React.FC = () => {
                 d.getFullYear() === now.getFullYear();
         };
 
-        if (isToday(transactionDate)) return;
+        if (isToday(transactionDate) && !editingTransaction) return; // Don't fetch if today and adding new (already current)
+
+        // If editing, we preserve the price unless date changes? 
+        // Actually for simplicity, let's keep the user entered price if editing.
+        if (editingTransaction) return;
 
         const timer = setTimeout(async () => {
             setIsPriceLoading(true);
@@ -59,7 +84,7 @@ const PortfolioScreen: React.FC = () => {
         }, 600);
 
         return () => clearTimeout(timer);
-    }, [transactionDate, selectedHolding, isManageModalVisible]);
+    }, [transactionDate, selectedHolding, isManageModalVisible, manageMode, editingTransaction]);
 
     const loadPortfolio = async () => {
         try {
@@ -71,10 +96,48 @@ const PortfolioScreen: React.FC = () => {
             setClosedPositions(holdings.filter(h => h.shares <= 0));
             const historyData = await getPortfolioHistory();
             setHistory(historyData);
+            const cash = await getCashBalance();
+            setCashBalance(cash);
         } catch (err) {
             console.error("Error loading portfolio:", err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSaveCash = async () => {
+        const amount = parseFloat(cashAmount);
+        if (isNaN(amount) || amount <= 0) {
+            Alert.alert("Invalid Input", "Please enter a valid amount.");
+            return;
+        }
+
+        if (cashType === 'withdraw' && amount > cashBalance) {
+            Alert.alert("Insufficient Funds", "You cannot withdraw more than your available cash.");
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            // Convert input currency to USD for storage
+            const amountInUsd = convertCurrency(amount, currency, 'USD', exchangeRates);
+
+            await addTransaction({
+                symbol: 'USD', // System symbol for Cash
+                type: cashType,
+                shares: 1, // Convention
+                price: amountInUsd,
+                date: new Date().toISOString()
+            });
+            Alert.alert("Success", `${cashType === 'deposit' ? 'Deposited' : 'Withdrawn'} ${formatCurrency(amount, currency)} successfully.`);
+            setIsCashModalVisible(false);
+            setCashAmount('');
+            loadPortfolio();
+        } catch (e) {
+            console.error(e);
+            Alert.alert("Error", "Failed to process transaction.");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -143,8 +206,10 @@ const PortfolioScreen: React.FC = () => {
 
     const totalTotalProfit = totalProfit + totalRealizedProfit;
 
+    const totalAccountValue = totalPortfolioValue + convertCurrency(cashBalance, 'USD', currency, exchangeRates);
+
     // Currency conversion for display
-    const displayTotalValue = formatCurrency(totalPortfolioValue, currency);
+    const displayTotalValue = formatCurrency(totalAccountValue, currency);
     const displayUnrealized = formatCurrency(Math.abs(totalProfit), currency);
     const displayRealized = formatCurrency(Math.abs(totalRealizedProfit), currency);
 
@@ -206,53 +271,111 @@ const PortfolioScreen: React.FC = () => {
 
     const filteredHistory = getFilteredHistory();
 
+
+
+    const loadGlobalHistory = async () => {
+        try {
+            const txs = await getAllTransactions();
+            setGlobalTransactions(txs);
+        } catch (e) {
+            console.error("Error loading global history:", e);
+        }
+    };
+
     const handleManageSave = async () => {
         const shares = parseFloat(sharesAmount);
         const price = parseFloat(priceAmount);
 
-        if (isNaN(shares) || shares <= 0) {
-            Alert.alert("Invalid input", "Please enter a valid number of shares.");
-            return;
-        }
+        if (manageMode !== 'history') {
+            if (isNaN(shares) || shares <= 0) {
+                Alert.alert("Invalid input", "Please enter a valid number of shares.");
+                return;
+            }
 
-        if (isNaN(price) || price <= 0) {
-            Alert.alert("Invalid input", "Please enter a valid price.");
-            return;
+            if (isNaN(price) || price <= 0) {
+                Alert.alert("Invalid input", "Please enter a valid price.");
+                return;
+            }
         }
 
         if (!selectedHolding) return;
 
         setIsSubmitting(true);
         try {
-            const sharesChange = manageMode === 'buy' ? shares : -shares;
+            if (editingTransaction) {
+                await updateTransaction(editingTransaction.id!, {
+                    type: manageMode as 'buy' | 'sell' | 'deposit' | 'withdraw',
+                    shares: shares,
+                    price: price,
+                    date: transactionDate.toISOString()
+                });
+                Alert.alert("Success", "Transaction updated.");
+            } else {
+                const sharesChange = manageMode === 'buy' ? shares : -shares;
 
-            // Validate sell amount
-            if (manageMode === 'sell' && selectedHolding.shares < shares) {
-                Alert.alert("Invalid Transaction", `You cannot sell ${shares} shares because you only own ${selectedHolding.shares}.`);
-                setIsSubmitting(false);
-                return;
+                // Validate sell amount
+                if (manageMode === 'sell' && selectedHolding.shares < shares) {
+                    Alert.alert("Invalid Transaction", `You cannot sell ${shares} shares because you only own ${selectedHolding.shares}.`);
+                    setIsSubmitting(false);
+                    return;
+                }
+
+                // Using addHolding wrapper for now which handles snapshotting too
+                await addHolding({
+                    symbol: selectedHolding.symbol,
+                    companyName: selectedHolding.companyName,
+                    shares: sharesChange,
+                    price: price, // Use the user-entered price
+                    currency: selectedHolding.currency || 'USD',
+                    lastTransactionDate: transactionDate.toISOString()
+                });
+                Alert.alert("Success", "Portfolio updated successfully.");
             }
-
-            await addHolding({
-                symbol: selectedHolding.symbol,
-                companyName: selectedHolding.companyName,
-                shares: sharesChange,
-                price: price, // Use the user-entered price
-                currency: selectedHolding.currency || 'USD',
-                lastTransactionDate: transactionDate.toISOString()
-            });
 
             setIsManageModalVisible(false);
             setSharesAmount('');
             setPriceAmount('');
+            setEditingTransaction(null);
             loadPortfolio();
-            Alert.alert("Success", "Portfolio updated successfully.");
         } catch (err) {
             console.error("Error updating portfolio:", err);
             Alert.alert("Error", "Could not update portfolio. Please try again.");
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleEditTransaction = (tx: Transaction) => {
+        setEditingTransaction(tx);
+        setManageMode(tx.type);
+        setSharesAmount(tx.shares.toString());
+        setPriceAmount(tx.price.toString());
+        setTransactionDate(new Date(tx.date));
+    };
+
+    const handleDeleteTransaction = (tx: Transaction) => {
+        Alert.alert(
+            "Delete Transaction",
+            "Are you sure you want to delete this transaction?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            if (tx.id) {
+                                await deleteTransaction(tx.id);
+                                if (selectedHolding) fetchTransactions(selectedHolding.symbol);
+                                loadPortfolio();
+                            }
+                        } catch (e) {
+                            Alert.alert("Error", "Failed to delete transaction.");
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     const renderItem = ({ item, index }: { item: PortfolioHolding, index: number }) => {
@@ -303,8 +426,11 @@ const PortfolioScreen: React.FC = () => {
                     onPress={() => {
                         setSelectedHolding(item);
                         setManageMode('buy');
+                        setEditingTransaction(null);
+                        setSharesAmount('');
                         setPriceAmount((item.price || 0).toString());
                         setTransactionDate(new Date());
+                        fetchTransactions(item.symbol);
                         setIsManageModalVisible(true);
                     }}
                 >
@@ -322,9 +448,21 @@ const PortfolioScreen: React.FC = () => {
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
-            <Text style={[styles.title, { color: isDark ? '#fff' : '#1a1a1a' }]}>My Portfolio</Text>
+            <View style={styles.headerRow}>
+                <TouchableOpacity
+                    style={styles.historyButton}
+                    onPress={() => {
+                        loadGlobalHistory();
+                        setIsHistoryModalVisible(true);
+                    }}
+                >
+                    <MaterialIcons name="history" size={24} color={isDark ? '#fff' : '#1a1a1a'} />
+                </TouchableOpacity>
+                <Text style={[styles.title, { color: isDark ? '#fff' : '#1a1a1a' }]}>My Portfolio</Text>
+                <View style={{ width: 24 }} />
+            </View>
 
-            <View style={[styles.headerStats, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
+            <View style={[styles.headerStats, { backgroundColor: isDark ? '#1e1e1e' : '#fff', marginBottom: 12 }]}>
                 <View style={styles.totalValueContainer}>
                     <Text style={styles.totalValueLabel}>Total Value</Text>
                     <Text style={[styles.totalValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>{displayTotalValue}</Text>
@@ -347,6 +485,9 @@ const PortfolioScreen: React.FC = () => {
                     </View>
                 </View>
             </View>
+
+
+
 
             {loading && portfolio.length === 0 ? (
                 <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
@@ -413,6 +554,38 @@ const PortfolioScreen: React.FC = () => {
                                 <Text style={[styles.chartSectionTitle, { color: isDark ? '#fff' : '#333' }]}>Allocation (%)</Text>
                                 <PieChart data={chartData} isDark={isDark} />
                             </View>
+
+                            {/* Cash Balance Section */}
+                            <View style={[styles.headerStats, { backgroundColor: isDark ? '#1e1e1e' : '#fff', paddingVertical: 14, minHeight: 60, marginTop: 16, marginHorizontal: 16 }]}>
+                                <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <View>
+                                        <Text style={styles.statLabel}>Cash Balance</Text>
+                                        <Text style={[styles.totalValue, { fontSize: 20, color: isDark ? '#fff' : '#1a1a1a' }]}>
+                                            {formatCurrency(convertCurrency(cashBalance, 'USD', currency, exchangeRates), currency)}
+                                        </Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                        <TouchableOpacity
+                                            style={{ backgroundColor: isDark ? '#333' : '#e0e0e0', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 }}
+                                            onPress={() => {
+                                                setCashType('deposit');
+                                                setIsCashModalVisible(true);
+                                            }}
+                                        >
+                                            <Text style={{ color: isDark ? '#fff' : '#333', fontSize: 13, fontWeight: '600' }}>Deposit</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={{ backgroundColor: isDark ? '#333' : '#e0e0e0', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 }}
+                                            onPress={() => {
+                                                setCashType('withdraw');
+                                                setIsCashModalVisible(true);
+                                            }}
+                                        >
+                                            <Text style={{ color: isDark ? '#fff' : '#333', fontSize: 13, fontWeight: '600' }}>Withdraw</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </View>
                         </View>
                     }
                     ListFooterComponent={
@@ -444,7 +617,7 @@ const PortfolioScreen: React.FC = () => {
                 visible={isManageModalVisible}
                 onRequestClose={() => setIsManageModalVisible(false)}
             >
-                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setIsManageModalVisible(false); }}>
                     <View style={styles.modalOverlay}>
                         <TouchableWithoutFeedback>
                             <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
@@ -463,93 +636,219 @@ const PortfolioScreen: React.FC = () => {
                                     >
                                         <Text style={[styles.modeTabText, manageMode === 'sell' && styles.modeTabTextActive]}>Sell</Text>
                                     </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.modeTab, manageMode === 'history' && (isDark ? { backgroundColor: '#3a3a3c' } : styles.modeTabActive)]}
+                                        onPress={() => setManageMode('history')}
+                                    >
+                                        <Text style={[styles.modeTabText, manageMode === 'history' && styles.modeTabTextActive]}>History</Text>
+                                    </TouchableOpacity>
                                 </View>
 
-                                <Text style={[styles.currentPositionText, { color: isDark ? '#aaa' : '#666' }]}>
-                                    Current Position: {selectedHolding?.shares.toLocaleString()} shares
+                                {manageMode === 'history' ? (
+                                    <View style={{ height: 350 }}>
+                                        <TransactionList
+                                            transactions={transactions}
+                                            onEdit={handleEditTransaction}
+                                            onDelete={handleDeleteTransaction}
+                                            currency={selectedHolding?.currency}
+                                        />
+                                    </View>
+                                ) : (
+                                    <>
+                                        <Text style={[styles.currentPositionText, { color: isDark ? '#aaa' : '#666' }]}>
+                                            {editingTransaction ? 'Editing Transaction' : `Current Position: ${selectedHolding?.shares.toLocaleString()} shares`}
+                                        </Text>
+
+                                        <View style={styles.inputGroup}>
+                                            <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666' }]}>Shares</Text>
+                                            <TextInput
+                                                style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
+                                                placeholder="0"
+                                                keyboardType="numeric"
+                                                value={sharesAmount}
+                                                onChangeText={setSharesAmount}
+                                                placeholderTextColor={isDark ? '#666' : '#999'}
+                                            />
+                                        </View>
+
+                                        <View style={styles.inputGroup}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+                                                <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>Price per share ({selectedHolding?.currency || 'USD'})</Text>
+                                                {isPriceLoading && <ActivityIndicator size="small" color="#007AFF" style={{ marginLeft: 8 }} />}
+                                            </View>
+                                            <TextInput
+                                                style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
+                                                placeholder="0.00"
+                                                keyboardType="numeric"
+                                                value={priceAmount}
+                                                onChangeText={setPriceAmount}
+                                                placeholderTextColor={isDark ? '#666' : '#999'}
+                                            />
+                                        </View>
+
+                                        <TouchableOpacity
+                                            style={[styles.dateRow, { backgroundColor: isDark ? '#2c2c2e' : '#f5f5f5' }]}
+                                            onPress={() => Platform.OS === 'android' && setShowDatePicker(true)}
+                                        >
+                                            <View style={styles.dateLabelGroup}>
+                                                <MaterialIcons name="calendar-today" size={18} color={isDark ? '#aaa' : '#666'} style={styles.calendarIcon} />
+                                                <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>Transaction Date</Text>
+                                            </View>
+                                            {Platform.OS === 'ios' ? (
+                                                <DateTimePicker
+                                                    value={transactionDate}
+                                                    mode="date"
+                                                    display="compact"
+                                                    onChange={(event, selectedDate) => {
+                                                        if (selectedDate) setTransactionDate(selectedDate);
+                                                    }}
+                                                    maximumDate={new Date()}
+                                                    themeVariant={isDark ? "dark" : "light"}
+                                                />
+                                            ) : (
+                                                <Text style={[styles.datePickerText, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                                                    {transactionDate.toLocaleDateString()}
+                                                </Text>
+                                            )}
+                                        </TouchableOpacity>
+
+                                        {showDatePicker && Platform.OS === 'android' && (
+                                            <DateTimePicker
+                                                value={transactionDate}
+                                                mode="date"
+                                                display="default"
+                                                onChange={(event, selectedDate) => {
+                                                    setShowDatePicker(false);
+                                                    if (selectedDate) setTransactionDate(selectedDate);
+                                                }}
+                                                maximumDate={new Date()}
+                                            />
+                                        )}
+
+                                        <View style={styles.modalButtons}>
+                                            <TouchableOpacity
+                                                style={[styles.modalButton, styles.cancelButton, { backgroundColor: isDark ? '#3a3a3c' : '#f0f0f0' }]}
+                                                onPress={() => {
+                                                    setIsManageModalVisible(false);
+                                                    setSharesAmount('');
+                                                    setPriceAmount('');
+                                                }}
+                                            >
+                                                <Text style={[styles.cancelButtonText, { color: isDark ? '#fff' : '#444' }]}>Cancel</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[styles.modalButton, styles.saveButton]}
+                                                onPress={handleManageSave}
+                                                disabled={isSubmitting}
+                                            >
+                                                {isSubmitting ? (
+                                                    <ActivityIndicator size="small" color="#fff" />
+                                                ) : (
+                                                    <Text style={styles.saveButtonText}>{editingTransaction ? 'Update' : 'Confirm'}</Text>
+                                                )}
+                                            </TouchableOpacity>
+                                        </View>
+                                    </>
+                                )}
+                            </View>
+                        </TouchableWithoutFeedback>
+                    </View>
+                </TouchableWithoutFeedback>
+            </Modal>
+
+
+            {/* Global History Modal */}
+            < Modal
+                animationType="slide"
+                presentationStyle="pageSheet"
+                visible={isHistoryModalVisible}
+                onRequestClose={() => setIsHistoryModalVisible(false)}
+            >
+                <View style={[styles.historyModalContainer, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
+                    <View style={styles.historyHeader}>
+                        <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Transaction History</Text>
+                        <TouchableOpacity onPress={() => setIsHistoryModalVisible(false)} style={styles.closeButton}>
+                            <MaterialIcons name="close" size={24} color={isDark ? '#fff' : '#1a1a1a'} />
+                        </TouchableOpacity>
+                    </View>
+                    <TransactionList
+                        transactions={globalTransactions}
+                        onEdit={(tx) => {
+                            // Find holding to edit? Or just open manage modal logic? 
+                            // Complex: We need 'selectedHolding' for the Manage modal to work.
+                            // We can fetch the holding by symbol.
+                            const holding = portfolio.find(h => h.symbol === tx.symbol) || closedPositions.find(h => h.symbol === tx.symbol);
+                            if (holding) {
+                                setIsHistoryModalVisible(false);
+                                setSelectedHolding(holding);
+                                setManageMode(tx.type as any); // Use logic from handleEditTransaction
+                                setEditingTransaction(tx);
+                                setSharesAmount(tx.shares.toString());
+                                setPriceAmount(tx.price.toString());
+                                setTransactionDate(new Date(tx.date));
+                                fetchTransactions(tx.symbol);
+                                setIsManageModalVisible(true);
+                            } else {
+                                Alert.alert("Error", "Could not find holding details for this transaction.");
+                            }
+                        }}
+                        onDelete={async (tx) => {
+                            Alert.alert("Delete Transaction", "Are you sure?", [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                    text: "Delete", style: "destructive", onPress: async () => {
+                                        if (tx.id) await deleteTransaction(tx.id);
+                                        loadGlobalHistory();
+                                        loadPortfolio();
+                                    }
+                                }
+                            ]);
+                        }}
+                        currency={currency}
+                    />
+                </View>
+            </Modal >
+
+            {/* Cash Modal */}
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={isCashModalVisible}
+                onRequestClose={() => setIsCashModalVisible(false)}
+            >
+                <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setIsCashModalVisible(false); }}>
+                    <View style={styles.modalOverlay}>
+                        <TouchableWithoutFeedback>
+                            <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
+                                <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                                    {cashType === 'deposit' ? 'Deposit Cash' : 'Withdraw Cash'}
                                 </Text>
 
-                                <View style={styles.inputGroup}>
-                                    <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666' }]}>Shares</Text>
-                                    <TextInput
-                                        style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
-                                        placeholder="0"
-                                        keyboardType="numeric"
-                                        value={sharesAmount}
-                                        onChangeText={setSharesAmount}
-                                        placeholderTextColor={isDark ? '#666' : '#999'}
-                                    />
-                                </View>
-
-                                <View style={styles.inputGroup}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
-                                        <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>Price per share ({selectedHolding?.currency || 'USD'})</Text>
-                                        {isPriceLoading && <ActivityIndicator size="small" color="#007AFF" style={{ marginLeft: 8 }} />}
-                                    </View>
-                                    <TextInput
-                                        style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
-                                        placeholder="0.00"
-                                        keyboardType="numeric"
-                                        value={priceAmount}
-                                        onChangeText={setPriceAmount}
-                                        placeholderTextColor={isDark ? '#666' : '#999'}
-                                    />
-                                </View>
-
-                                <TouchableOpacity
-                                    style={[styles.dateRow, { backgroundColor: isDark ? '#2c2c2e' : '#f5f5f5' }]}
-                                    onPress={() => Platform.OS === 'android' && setShowDatePicker(true)}
-                                >
-                                    <View style={styles.dateLabelGroup}>
-                                        <MaterialIcons name="calendar-today" size={18} color={isDark ? '#aaa' : '#666'} style={styles.calendarIcon} />
-                                        <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>Transaction Date</Text>
-                                    </View>
-                                    {Platform.OS === 'ios' ? (
-                                        <DateTimePicker
-                                            value={transactionDate}
-                                            mode="date"
-                                            display="compact"
-                                            onChange={(event, selectedDate) => {
-                                                if (selectedDate) setTransactionDate(selectedDate);
-                                            }}
-                                            maximumDate={new Date()}
-                                            themeVariant={isDark ? "dark" : "light"}
-                                        />
-                                    ) : (
-                                        <Text style={[styles.datePickerText, { color: isDark ? '#fff' : '#1a1a1a' }]}>
-                                            {transactionDate.toLocaleDateString()}
-                                        </Text>
-                                    )}
-                                </TouchableOpacity>
-
-                                {showDatePicker && Platform.OS === 'android' && (
-                                    <DateTimePicker
-                                        value={transactionDate}
-                                        mode="date"
-                                        display="default"
-                                        onChange={(event, selectedDate) => {
-                                            setShowDatePicker(false);
-                                            if (selectedDate) setTransactionDate(selectedDate);
-                                        }}
-                                        maximumDate={new Date()}
-                                    />
-                                )}
+                                <TextInput
+                                    style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
+                                    placeholder="Amount"
+                                    keyboardType="numeric"
+                                    value={cashAmount}
+                                    onChangeText={setCashAmount}
+                                    placeholderTextColor={isDark ? '#666' : '#999'}
+                                    autoFocus
+                                />
 
                                 <View style={styles.modalButtons}>
                                     <TouchableOpacity
                                         style={[styles.modalButton, styles.cancelButton, { backgroundColor: isDark ? '#3a3a3c' : '#f0f0f0' }]}
                                         onPress={() => {
-                                            setIsManageModalVisible(false);
-                                            setSharesAmount('');
-                                            setPriceAmount('');
+                                            setIsCashModalVisible(false);
+                                            setCashAmount('');
                                         }}
                                     >
                                         <Text style={[styles.cancelButtonText, { color: isDark ? '#fff' : '#444' }]}>Cancel</Text>
                                     </TouchableOpacity>
+
                                     <TouchableOpacity
                                         style={[styles.modalButton, styles.saveButton]}
-                                        onPress={handleManageSave}
                                         disabled={isSubmitting}
+                                        onPress={handleSaveCash}
                                     >
                                         {isSubmitting ? (
                                             <ActivityIndicator size="small" color="#fff" />
@@ -571,7 +870,31 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f8f9fa',
-        paddingTop: 80,
+        paddingTop: 60,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        marginBottom: 8,
+    },
+    historyButton: {
+        padding: 5,
+    },
+    historyModalContainer: {
+        flex: 1,
+        padding: 20,
+        paddingTop: Platform.OS === 'ios' ? 20 : 50,
+    },
+    historyHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    closeButton: {
+        padding: 5,
     },
     title: {
         fontSize: 28,

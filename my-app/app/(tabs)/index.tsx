@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Dimensions, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Dropdown } from 'react-native-element-dropdown';
 import { investorsData } from '@/constants/investors'
@@ -258,41 +258,45 @@ const HomeScreen: React.FC = () => {
 
   return (
     <View style={dynamicStyles.container}>
-      <Text style={dynamicStyles.title}>13F Filings</Text>
-      <TextInput
-        style={dynamicStyles.searchBar}
-        placeholder="Search by name or institution"
-        placeholderTextColor={isDark ? '#888' : 'gray'}
-        onChangeText={setSearchQuery}
-        value={searchQuery}
-      />
+      <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setIsFocus(false); }}>
+        <View>
+          <Text style={dynamicStyles.title}>13F Filings</Text>
+          <TextInput
+            style={dynamicStyles.searchBar}
+            placeholder="Search by name or institution"
+            placeholderTextColor={isDark ? '#888' : 'gray'}
+            onChangeText={setSearchQuery}
+            value={searchQuery}
+          />
 
-      <Dropdown
-        data={sortOptions}
-        style={[dynamicStyles.dropdown, isFocus && { borderColor: '#007AFF' }]}
-        placeholderStyle={dynamicStyles.placeholderStyle}
-        selectedTextStyle={dynamicStyles.selectedTextStyle}
-        inputSearchStyle={styles.inputSearchStyle}
-        containerStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', borderBlockColor: isDark ? '#333' : '#eee' }}
-        iconStyle={styles.iconStyle}
-        labelField="label"
-        valueField="value"
-        placeholder={!isFocus ? 'Most Recent Filings' : '...'}
-        searchPlaceholder="Search..."
-        onFocus={() => setIsFocus(true)}
-        onBlur={() => setIsFocus(false)}
-        value={value}
-        onChange={(item) => {
-          setValue(item.value);
-          setSortType(item.value);
-          setIsFocus(false); // ensures dropdown closes
-        }}
-        renderItem={item => (
-          <TouchableOpacity onPress={() => handleSortChange(item)} style={dynamicStyles.item}>
-            <Text style={dynamicStyles.itemText}>{item.label}</Text>
-          </TouchableOpacity>
-        )}
-      />
+          <Dropdown
+            data={sortOptions}
+            style={[dynamicStyles.dropdown, isFocus && { borderColor: '#007AFF' }]}
+            placeholderStyle={dynamicStyles.placeholderStyle}
+            selectedTextStyle={dynamicStyles.selectedTextStyle}
+            inputSearchStyle={styles.inputSearchStyle}
+            containerStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', borderBlockColor: isDark ? '#333' : '#eee' }}
+            iconStyle={styles.iconStyle}
+            labelField="label"
+            valueField="value"
+            placeholder={!isFocus ? 'Most Recent Filings' : '...'}
+            searchPlaceholder="Search..."
+            onFocus={() => setIsFocus(true)}
+            onBlur={() => setIsFocus(false)}
+            value={value}
+            onChange={(item) => {
+              setValue(item.value);
+              setSortType(item.value);
+              setIsFocus(false); // ensures dropdown closes
+            }}
+            renderItem={item => (
+              <TouchableOpacity onPress={() => handleSortChange(item)} style={dynamicStyles.item}>
+                <Text style={dynamicStyles.itemText}>{item.label}</Text>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      </TouchableWithoutFeedback>
 
       {loading ? (
         <ActivityIndicator size="large" color="#007AFF" />
@@ -301,6 +305,7 @@ const HomeScreen: React.FC = () => {
           data={filteredInvestors}
           renderItem={renderItem}
           keyExtractor={(item) => item.cik}
+          onScrollBeginDrag={() => { Keyboard.dismiss(); setIsFocus(false); }}
         />
       )}
     </View>

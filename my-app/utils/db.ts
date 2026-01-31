@@ -27,6 +27,16 @@ export interface PortfolioSnapshot {
     totalProfit: number;
 }
 
+export interface Transaction {
+    id?: number;
+    symbol: string;
+    type: 'buy' | 'sell' | 'deposit' | 'withdraw';
+    shares: number;
+    price: number;
+    date: string;
+    createdAt?: string;
+}
+
 let db: SQLite.SQLiteDatabase | null = null;
 
 export const initDb = async () => {
@@ -58,6 +68,16 @@ export const initDb = async () => {
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY NOT NULL,
             value TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY NOT NULL,
+            symbol TEXT NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('buy', 'sell')),
+            shares REAL NOT NULL,
+            price REAL NOT NULL,
+            date TEXT NOT NULL,
+            createdAt TEXT DEFAULT CURRENT_TIMESTAMP
         );
     `);
 
@@ -98,6 +118,34 @@ export const initDb = async () => {
         if (!hasTotalProfit) {
             await db.execAsync('ALTER TABLE portfolio_history ADD COLUMN totalProfit REAL DEFAULT 0;');
         }
+
+        // Migration for transactions type: allow 'deposit' and 'withdraw'
+        // We use a version check in settings
+        const versionRow = await db.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'db_schema_version';");
+        const currentVersion = versionRow ? parseInt(versionRow.value) : 1;
+
+        if (currentVersion < 2) {
+            console.log("Migrating DB to version 2 (Transaction types)");
+            await db.execAsync(`
+                PRAGMA foreign_keys=off;
+                CREATE TABLE IF NOT EXISTS transactions_new (
+                    id INTEGER PRIMARY KEY NOT NULL,
+                    symbol TEXT NOT NULL,
+                    type TEXT NOT NULL CHECK(type IN ('buy', 'sell', 'deposit', 'withdraw')),
+                    shares REAL NOT NULL,
+                    price REAL NOT NULL,
+                    date TEXT NOT NULL,
+                    createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO transactions_new (id, symbol, type, shares, price, date, createdAt)
+                SELECT id, symbol, type, shares, price, date, createdAt FROM transactions;
+                DROP TABLE transactions;
+                ALTER TABLE transactions_new RENAME TO transactions;
+                PRAGMA foreign_keys=on;
+                INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_version', '2');
+             `);
+        }
+
     } catch (e) {
         console.error('Migration error:', e);
     }
@@ -114,94 +162,194 @@ export const getHolding = async (symbol: string): Promise<PortfolioHolding | nul
     return row;
 };
 
-export const addHolding = async (holding: PortfolioHolding) => {
+
+
+export const getTransactions = async (symbol: string): Promise<Transaction[]> => {
     const database = await initDb();
-    const existing = await getHolding(holding.symbol);
+    return await database.getAllAsync<Transaction>(
+        'SELECT * FROM transactions WHERE symbol = ? ORDER BY date DESC, createdAt DESC;',
+        [symbol.toUpperCase()]
+    );
+};
 
-    if (existing) {
-        let newCostBasis = existing.costBasis || existing.price || 0;
-        const purchasePrice = holding.price || 0;
+export const getAllTransactions = async (): Promise<Transaction[]> => {
+    const database = await initDb();
+    return await database.getAllAsync<Transaction>(
+        'SELECT * FROM transactions ORDER BY date DESC, createdAt DESC;'
+    );
+};
 
-        if (holding.shares > 0) {
-            // Weighted average for buys
-            const totalOldValue = existing.shares * newCostBasis;
-            const totalNewValue = holding.shares * purchasePrice;
-            newCostBasis = (totalOldValue + totalNewValue) / (existing.shares + holding.shares);
-        }
-
-        const newShares = existing.shares + holding.shares;
-        const currentRealized = existing.realizedProfit || 0;
-        let newRealized = currentRealized;
-
-        if (holding.shares < 0) {
-            // Realized profit on sale: (Sale Price - Cost Basis) * Number of Shares Sold
-            const soldCount = Math.abs(holding.shares);
-            const profitOnThisSale = (purchasePrice - newCostBasis) * soldCount;
-            newRealized += profitOnThisSale;
-        }
-
-        if (newShares <= 0) {
-            // Keep the row if there's realized profit, just set shares to 0
-            // OR delete it? If we delete it, we lose the realized profit tracking for that ticker.
-            // Let's UPDATE it to 0 shares so we keep tracking realized profit.
-            return await database.runAsync(
-                'UPDATE portfolio SET shares = 0, price = ?, realizedProfit = ?, lastTransactionDate = ? WHERE symbol = ?;',
-                [purchasePrice, newRealized, holding.lastTransactionDate || new Date().toISOString(), holding.symbol.toUpperCase()]
-            );
-        }
-
-        const updateResult = await database.runAsync(
-            'UPDATE portfolio SET shares = ?, price = ?, costBasis = ?, realizedProfit = ?, lastTransactionDate = ?, currency = ? WHERE symbol = ?;',
-            [newShares, purchasePrice, newCostBasis, newRealized, holding.lastTransactionDate || new Date().toISOString(), holding.currency || 'USD', holding.symbol.toUpperCase()]
-        );
-
-        // Snapshot if past date
-        if (holding.lastTransactionDate) {
-            const txDate = new Date(holding.lastTransactionDate);
-            if (txDate.getTime() < new Date().getTime() - (1000 * 60 * 60 * 2)) {
-                const { fetchExchangeRates, convertCurrency } = require('./currency');
-                const rates = await fetchExchangeRates();
-                const allHoldings = await getPortfolio();
-
-                let totalValueUsd = 0;
-                let totalProfitUsd = 0;
-
-                for (const h of allHoldings) {
-                    const h_is_curr = h.symbol.toUpperCase() === holding.symbol.toUpperCase();
-                    const h_shares = h_is_curr ? newShares : h.shares;
-                    // Note: price might be stale in allHoldings, so we use purchasePrice for current
-                    const h_price = h_is_curr ? purchasePrice : (h.price || 0);
-                    const h_cost = h_is_curr ? newCostBasis : (h.costBasis || h.price || 0);
-                    const h_realized = h_is_curr ? newRealized : (h.realizedProfit || 0);
-
-                    const nativeValue = h_shares * h_price;
-                    const nativeProfit = (nativeValue - (h_shares * h_cost)) + h_realized;
-
-                    totalValueUsd += convertCurrency(nativeValue, h.currency || 'USD', 'USD', rates);
-                    totalProfitUsd += convertCurrency(nativeProfit, h.currency || 'USD', 'USD', rates);
-                }
-
-                await addPortfolioSnapshot(totalValueUsd, totalProfitUsd, holding.lastTransactionDate);
-
-                // Backfill history from transaction date to now
-                await backfillPortfolioHistory(new Date(holding.lastTransactionDate));
-            }
-        }
-
-        return updateResult;
+export const addTransaction = async (transaction: Transaction) => {
+    const database = await initDb();
+    await database.runAsync(
+        'INSERT INTO transactions (symbol, type, shares, price, date) VALUES (?, ?, ?, ?, ?);',
+        [transaction.symbol.toUpperCase(), transaction.type, transaction.shares, transaction.price, transaction.date]
+    );
+    // Only recalculate portfolio holding if it's a trade (buy/sell)
+    if (transaction.type === 'buy' || transaction.type === 'sell') {
+        return await recalculatePortfolio(transaction.symbol);
     }
+};
 
-    const result = await database.runAsync(
-        'INSERT INTO portfolio (symbol, companyName, shares, price, costBasis, realizedProfit, lastTransactionDate, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?);',
-        [holding.symbol.toUpperCase(), holding.companyName, holding.shares, holding.price || 0, holding.price || 0, 0, holding.lastTransactionDate || new Date().toISOString(), holding.currency || 'USD']
+export const getCashBalance = async (): Promise<number> => {
+    const database = await initDb();
+    const transactions = await database.getAllAsync<Transaction>('SELECT * FROM transactions;');
+
+    // Starting balance could be 0 or managed via a Setting? 
+    // Let's assume 0 start and calculate net.
+    let cash = 0;
+
+    for (const tx of transactions) {
+        if (tx.type === 'deposit') {
+            cash += tx.price; // Price logic: for deposit, price is the amount? Or shares * price?
+            // Convention: shares=1, price=amount.
+        } else if (tx.type === 'withdraw') {
+            cash -= tx.price;
+        }
+    }
+    return cash;
+};
+
+export const updateTransaction = async (id: number, transaction: Partial<Transaction>) => {
+    const database = await initDb();
+    // Verify transaction exists and get symbol
+    const existing = await database.getFirstAsync<Transaction>('SELECT * FROM transactions WHERE id = ?;', [id]);
+    if (!existing) throw new Error("Transaction not found");
+
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (transaction.type) { updates.push('type = ?'); values.push(transaction.type); }
+    if (transaction.shares) { updates.push('shares = ?'); values.push(transaction.shares); }
+    if (transaction.price) { updates.push('price = ?'); values.push(transaction.price); }
+    if (transaction.date) { updates.push('date = ?'); values.push(transaction.date); }
+
+    if (updates.length > 0) {
+        values.push(id);
+        await database.runAsync(
+            `UPDATE transactions SET ${updates.join(', ')} WHERE id = ?;`,
+            values
+        );
+        return await recalculatePortfolio(existing.symbol);
+    }
+};
+
+export const deleteTransaction = async (id: number) => {
+    const database = await initDb();
+    const existing = await database.getFirstAsync<Transaction>('SELECT * FROM transactions WHERE id = ?;', [id]);
+    if (!existing) throw new Error("Transaction not found");
+
+    await database.runAsync('DELETE FROM transactions WHERE id = ?;', [id]);
+    return await recalculatePortfolio(existing.symbol);
+};
+
+const recalculatePortfolio = async (symbol: string) => {
+    const database = await initDb();
+    const transactions = await database.getAllAsync<Transaction>(
+        'SELECT * FROM transactions WHERE symbol = ? ORDER BY date ASC, createdAt ASC;',
+        [symbol.toUpperCase()]
     );
 
-    // Snapshot if past date
+    let totalShares = 0;
+    let costBasis = 0;
+    let realizedProfit = 0;
+    let lastTransactionDate = new Date(0).toISOString();
+
+    for (const tx of transactions) {
+        if (tx.type === 'buy') {
+            const oldTotalValue = totalShares * costBasis;
+            const newTotalValue = oldTotalValue + (tx.shares * tx.price);
+            totalShares += tx.shares;
+            costBasis = totalShares > 0 ? newTotalValue / totalShares : 0;
+        } else if (tx.type === 'sell') {
+            const sharesToSell = Math.min(tx.shares, totalShares); // Prevent negative shares logically?
+            // Realized profit calculation
+            const profit = (tx.price - costBasis) * sharesToSell;
+            realizedProfit += profit;
+            totalShares -= sharesToSell;
+            // Cost basis remains the same on sell, or 0 if empty
+            if (totalShares <= 0) {
+                totalShares = 0;
+                costBasis = 0; // Reset cost basis if fully sold? 
+                // Usually cost basis is undefined if 0 shares, but for resumption we might want 0.
+            }
+        }
+        if (tx.date > lastTransactionDate) {
+            lastTransactionDate = tx.date;
+        }
+    }
+
+    // Upsert portfolio record
+    const existing = await getHolding(symbol);
+    const currentPrice = existing?.price || 0; // Preserve current price if known
+
+    if (totalShares <= 0 && realizedProfit === 0) {
+        // If no shares and no profit, maybe delete? 
+        // But we want to keep realized profit records usually.
+        // If both 0, it means effectively no history or effective empty. 
+        // We'll keep it if there ever was a transaction? 
+        // For now, if transactions exist, we keep the record.
+        if (transactions.length === 0) {
+            await database.runAsync('DELETE FROM portfolio WHERE symbol = ?;', [symbol.toUpperCase()]);
+            return;
+        }
+    }
+
+    if (existing) {
+        await database.runAsync(
+            'UPDATE portfolio SET shares = ?, costBasis = ?, realizedProfit = ?, lastTransactionDate = ? WHERE symbol = ?;',
+            [totalShares, costBasis, realizedProfit, lastTransactionDate, symbol.toUpperCase()]
+        );
+    } else {
+        // Insert new
+        // We might not have Company Name here if it's a fresh recalc from just transactions. 
+        // But addTransaction likely came from a context where we knew it, or it exists.
+        // If it doesn't exist, we might have an issue. 
+        // Assumption: addTransaction is usually called after addHolding checks or we need to pass company name to addTransaction?
+        // Let's assume for now we don't create NEW portfolio entries from purely `recalculate` unless we have data.
+        // But `addHolding` handles the creation.
+        // If we are here, and `existing` is null, it means we deleted the portfolio row but have transactions?
+        // We should ensure `addHolding` creates the row first.
+    }
+};
+
+// Refactored addHolding to use transactions
+export const addHolding = async (holding: PortfolioHolding) => {
+    // Ensure portfolio row exists
+    const database = await initDb();
+    let existing = await getHolding(holding.symbol);
+    if (!existing) {
+        await database.runAsync(
+            'INSERT INTO portfolio (symbol, companyName, shares, price, costBasis, realizedProfit, lastTransactionDate, currency) VALUES (?, ?, 0, ?, 0, 0, ?, ?);',
+            [holding.symbol.toUpperCase(), holding.companyName, holding.price || 0, holding.lastTransactionDate || new Date().toISOString(), holding.currency || 'USD']
+        );
+    } else {
+        // Update basic info like price/currency/companyName in case they changed
+        await database.runAsync(
+            'UPDATE portfolio SET price = ?, currency = ?, lastTransactionDate = ? WHERE symbol = ?;',
+            [holding.price || 0, holding.currency || 'USD', holding.lastTransactionDate || new Date().toISOString(), holding.symbol.toUpperCase()]
+        );
+    }
+
+    const type = holding.shares >= 0 ? 'buy' : 'sell';
+    const shares = Math.abs(holding.shares);
+
+    // Add the transaction
+    await addTransaction({
+        symbol: holding.symbol,
+        type,
+        shares,
+        price: holding.price || 0,
+        date: holding.lastTransactionDate || new Date().toISOString()
+    });
+
+    // Snapshot logic (preserved from original)
     if (holding.lastTransactionDate) {
         const txDate = new Date(holding.lastTransactionDate);
         if (txDate.getTime() < new Date().getTime() - (1000 * 60 * 60 * 2)) {
             const { fetchExchangeRates, convertCurrency } = require('./currency');
             const rates = await fetchExchangeRates();
+            // Get updated portfolio state
             const allHoldings = await getPortfolio();
 
             let totalValueUsd = 0;
@@ -217,13 +365,9 @@ export const addHolding = async (holding: PortfolioHolding) => {
             }
 
             await addPortfolioSnapshot(totalValueUsd, totalProfitUsd, holding.lastTransactionDate);
-
-            // Backfill history from transaction date to now
             await backfillPortfolioHistory(txDate);
         }
     }
-
-    return result;
 };
 
 // Reconstruct portfolio history from a specific date to now
