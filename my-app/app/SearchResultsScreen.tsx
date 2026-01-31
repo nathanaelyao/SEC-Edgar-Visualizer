@@ -714,7 +714,11 @@ const SearchResultsScreen: React.FC = () => {
               if (item.cik) {
                 router.push({
                   pathname: '/HoldingsScreen',
-                  params: { cik: item.cik }
+                  params: {
+                    cik: item.cik,
+                    investorName: item.name,
+                    institution: item.institution || ''
+                  }
                 });
               }
             }}

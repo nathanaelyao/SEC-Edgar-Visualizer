@@ -371,6 +371,7 @@ const styles = StyleSheet.create({
   portfolioValue: {
     fontSize: 16,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   quarterText: {
     fontSize: 12,
