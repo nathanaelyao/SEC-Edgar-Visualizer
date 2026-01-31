@@ -114,10 +114,39 @@ const PortfolioScreen: React.FC = () => {
     const getFilteredHistory = () => {
         if (!history || history.length === 0) return [];
         if (selectedRange === '1D') {
-            // For 1D, we want today's progress, so we need at least Today and Yesterday's final snapshot.
-            // If we strictly use -24h, we might miss yesterday's snapshot if it was early.
-            // So we take the last 2 snapshots.
-            return history.slice(-2);
+            // Since snapshots in DB are stored in USD, we need our local aggregates in USD too.
+            const totalPortfolioValueUsd = portfolio.reduce((acc, curr) => {
+                const nativeValue = curr.shares * (curr.price || 0);
+                return acc + convertCurrency(nativeValue, curr.currency || 'USD', 'USD', exchangeRates);
+            }, 0);
+
+            const totalTotalProfitUsd = portfolio.reduce((acc, curr) => {
+                const nativeValue = curr.shares * (curr.price || 0);
+                const nativeCost = curr.shares * (curr.costBasis || curr.price || 0);
+                const nativeProfit = (nativeValue - nativeCost) + (curr.realizedProfit || 0);
+                return acc + convertCurrency(nativeProfit, curr.currency || 'USD', 'USD', exchangeRates);
+            }, 0);
+
+            const totalDayChangeUsd = portfolio.reduce((acc, curr) => {
+                const nativeChange = curr.shares * (curr.priceChange || 0);
+                return acc + convertCurrency(nativeChange, curr.currency || 'USD', 'USD', exchangeRates);
+            }, 0);
+
+            const now = new Date();
+            const prevCloseTimestamp = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(); // Approximate for chart start
+
+            return [
+                {
+                    timestamp: prevCloseTimestamp,
+                    totalValue: totalPortfolioValueUsd - totalDayChangeUsd,
+                    totalProfit: totalTotalProfitUsd - totalDayChangeUsd
+                },
+                {
+                    timestamp: now.toISOString(),
+                    totalValue: totalPortfolioValueUsd,
+                    totalProfit: totalTotalProfitUsd
+                }
+            ];
         }
 
         const now = new Date();
@@ -313,7 +342,7 @@ const PortfolioScreen: React.FC = () => {
                                     const changePercent = startValue > 0 ? (changeAmount / startValue) * 100 : 0;
                                     const isPositive = changeAmount >= 0;
                                     const rangeLabel = {
-                                        '1D': 'Today',
+                                        '1D': '1D',
                                         '1W': 'This Week',
                                         '1M': 'This Month',
                                         '1Y': 'This Year',

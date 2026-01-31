@@ -35,17 +35,15 @@ const HomeScreen: React.FC = () => {
       setPortfolio(holdings);
       setHistory(historyData);
 
-      // Calculate movers based on the refreshed prices
+      // Calculate movers based on the refreshed prices (Daily % Change)
       if (holdings.length > 0) {
         const movers = [...holdings]
           .filter(h => h.shares > 0) // Only show movers for active positions
           .map(h => {
-            const currentPrice = h.price || 0;
-            const costBasis = h.costBasis || currentPrice;
-            const profitPercent = costBasis > 0 ? ((currentPrice - costBasis) / costBasis) * 100 : 0;
-            return { ...h, profitPercent };
+            const dailyChangePercent = h.pricePercent || 0;
+            return { ...h, dailyChangePercent };
           })
-          .sort((a, b) => Math.abs(b.profitPercent) - Math.abs(a.profitPercent))
+          .sort((a, b) => Math.abs(b.dailyChangePercent) - Math.abs(a.dailyChangePercent))
           .slice(0, 3);
         setTopMovers(movers);
       } else {
@@ -120,15 +118,15 @@ const HomeScreen: React.FC = () => {
   const lastSnapshot = history[history.length - 1];
   const secondLastSnapshot = history.length > 1 ? history[history.length - 2] : null;
 
-  // Day change should compare current total profit against previous DAY'S snapshot total profit
-  // This ensures real-time updates are reflected as gains/losses throughout the day.
-  const dayChange = secondLastSnapshot
-    ? currentTotalProfit - convertCurrency(secondLastSnapshot.totalProfit, 'USD', currency, exchangeRates)
-    : 0;
+  // Day change should be based on the last trading day's performance of individual stocks
+  // This ensures accuracy on weekends when snapshots might be flat.
+  const dayChange = portfolio.reduce((acc: number, curr: PortfolioHolding) => {
+    const nativeChange = curr.shares * (curr.priceChange || 0);
+    return acc + convertCurrency(nativeChange, curr.currency || 'USD', currency, exchangeRates);
+  }, 0);
 
-  const dayChangePercent = secondLastSnapshot && secondLastSnapshot.totalValue > 0
-    ? (dayChange / secondLastSnapshot.totalValue) * 100
-    : 0;
+  const prevTotalValue = totalPortfolioValue - dayChange;
+  const dayChangePercent = prevTotalValue > 0 ? (dayChange / prevTotalValue) * 100 : 0;
 
   // Convert values for display
   const displayTotalValue = formatCurrency(totalPortfolioValue, currency);
@@ -213,7 +211,7 @@ const HomeScreen: React.FC = () => {
               <Text style={[styles.cardChange, dayChange >= 0 ? styles.positiveText : styles.negativeText]}>
                 {dayChange >= 0 ? '+' : '-'}{displayDayChange} ({dayChangePercent.toFixed(1)}%)
               </Text>
-              <Text style={styles.cardTime}>Today</Text>
+              <Text style={styles.cardTime}>1D</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -232,8 +230,8 @@ const HomeScreen: React.FC = () => {
                   onPress={() => navigation.navigate('SearchResultsScreen', { stockSymbol: mover.symbol })}
                 >
                   <Text style={[styles.moverSymbol, { color: isDark ? '#fff' : '#1a1a1a' }]}>{mover.symbol}</Text>
-                  <Text style={[styles.moverValue, mover.profitPercent >= 0 ? styles.positiveText : styles.negativeText]}>
-                    {mover.profitPercent >= 0 ? '+' : ''}{mover.profitPercent.toFixed(1)}%
+                  <Text style={[styles.moverValue, mover.dailyChangePercent >= 0 ? styles.positiveText : styles.negativeText]}>
+                    {mover.dailyChangePercent >= 0 ? '+' : ''}{mover.dailyChangePercent.toFixed(1)}%
                   </Text>
                 </TouchableOpacity>
               ))}
