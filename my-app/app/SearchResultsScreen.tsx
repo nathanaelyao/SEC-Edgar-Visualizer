@@ -718,6 +718,7 @@ const SearchResultsScreen: React.FC = () => {
                       const buyMode = existingHolding ? 'buy' : 'buy';
                       setPortfolioMode(buyMode);
                       setPurchasePrice(realTimePrice?.toString() || '');
+                      setTransactionDate(new Date());
                       setIsPortfolioModalVisible(true);
                     }}
                   >
@@ -870,22 +871,44 @@ const SearchResultsScreen: React.FC = () => {
                         placeholderTextColor="#999"
                       />
 
-                      <View style={styles.dateRow}>
+                      <TouchableOpacity
+                        style={styles.dateRow}
+                        onPress={() => Platform.OS === 'android' && setShowDatePicker(true)}
+                      >
                         <View style={styles.dateLabelGroup}>
                           <MaterialIcons name="calendar-today" size={18} color="#666" style={styles.calendarIcon} />
                           <Text style={styles.inputLabel}>Transaction Date</Text>
                         </View>
+                        {Platform.OS === 'ios' ? (
+                          <DateTimePicker
+                            value={transactionDate}
+                            mode="date"
+                            display="compact"
+                            onChange={(event, selectedDate) => {
+                              if (selectedDate) setTransactionDate(selectedDate);
+                            }}
+                            maximumDate={new Date()}
+                            themeVariant="light"
+                          />
+                        ) : (
+                          <Text style={styles.datePickerText}>
+                            {transactionDate.toLocaleDateString()}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+
+                      {showDatePicker && Platform.OS === 'android' && (
                         <DateTimePicker
                           value={transactionDate}
                           mode="date"
-                          display={Platform.OS === 'ios' ? 'compact' : 'default'}
+                          display="default"
                           onChange={(event, selectedDate) => {
+                            setShowDatePicker(false);
                             if (selectedDate) setTransactionDate(selectedDate);
                           }}
                           maximumDate={new Date()}
-                          themeVariant="light"
                         />
-                      </View>
+                      )}
 
                       <View style={styles.modalButtons}>
                         <TouchableOpacity

@@ -420,6 +420,54 @@ export interface StockQuote {
 let tickerListsCache: any[] | null = null;
 let lastTickerCacheUpdate = 0;
 
+/**
+ * Fetch a quote from Yahoo Finance unofficial API.
+ * Uses a browser-like User-Agent to avoid immediate blocks.
+ */
+async function fetchYahooQuote(symbol: string): Promise<StockQuote | null> {
+  const upperSymbol = symbol.toUpperCase();
+  // Using query1.finance.yahoo.com v8 chart endpoint as a more stable alternative to v7/v6 quote
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${upperSymbol}?interval=1d&range=1d`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+      }
+    });
+
+    if (!res.ok) {
+      warn(`Yahoo Finance API (v8) returned status ${res.status} for ${upperSymbol}`);
+      return null;
+    }
+
+    const data = await res.json();
+    const result = data?.chart?.result?.[0]?.meta;
+
+    if (!result) {
+      warn(`No data found in Yahoo Finance v8 response for ${upperSymbol}`);
+      return null;
+    }
+
+    // Capture standard fields from chart meta
+    const price = result.regularMarketPrice || result.previousClose || 0;
+    const prevClose = result.chartPreviousClose || result.previousClose || price;
+    const change = price - prevClose;
+    const percent = prevClose > 0 ? (change / prevClose) * 100 : 0;
+
+    return {
+      price,
+      change,
+      percent,
+      lastUpdated: Date.now()
+    };
+  } catch (err) {
+    error(`Error fetching from Yahoo Finance (v8) for ${upperSymbol}:`, err);
+    return null;
+  }
+}
+
 export async function fetchStockPrice(symbol: string): Promise<StockQuote> {
   const upperSymbol = symbol.toUpperCase();
   const CACHE_KEY = `quote:${upperSymbol}`;
@@ -430,8 +478,24 @@ export async function fetchStockPrice(symbol: string): Promise<StockQuote> {
     return JSON.parse(cachedQuote.text);
   }
 
+  // 2. Try Yahoo Finance as Primary Source
+  info(`Fetching price for ${upperSymbol} from Yahoo Finance (Primary)`);
+  const yahooQuote = await fetchYahooQuote(upperSymbol);
+
+  if (yahooQuote && yahooQuote.price > 0) {
+    // Update cache
+    cache.set(CACHE_KEY, {
+      timestamp: Date.now(),
+      text: JSON.stringify(yahooQuote),
+      status: 200,
+      headers: {}
+    });
+    return yahooQuote;
+  }
+
+  // 3. Fallback to GitHub Source
+  info(`Yahoo failed for ${upperSymbol}, falling back to GitHub source...`);
   try {
-    // 2. Refresh ticker lists cache if older than 12 hours
     const TICKER_LIST_TTL = 12 * 60 * 60 * 1000;
     if (!tickerListsCache || (Date.now() - lastTickerCacheUpdate) > TICKER_LIST_TTL) {
       info('Refreshing ticker lists from GitHub...');
@@ -443,11 +507,9 @@ export async function fetchStockPrice(symbol: string): Promise<StockQuote> {
       lastTickerCacheUpdate = Date.now();
     }
 
-    // 3. Search for symbol
     const entry = tickerListsCache?.find(item => item.symbol === upperSymbol);
 
     if (entry) {
-      // "lastsale" is formatted as "$10.39"
       const priceStr = entry.lastsale?.replace('$', '') || '0';
       const quote: StockQuote = {
         price: parseFloat(priceStr),
@@ -467,7 +529,7 @@ export async function fetchStockPrice(symbol: string): Promise<StockQuote> {
       return quote;
     }
 
-    warn(`Symbol ${upperSymbol} not found in GitHub ticker lists`);
+    warn(`Symbol ${upperSymbol} not found in any source`);
     return { price: 0, change: 0, percent: 0, lastUpdated: 0 };
   } catch (err) {
     error(`Failed to fetch stock price for ${upperSymbol}:`, err);
