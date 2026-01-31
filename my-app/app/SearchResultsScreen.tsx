@@ -1152,6 +1152,15 @@ const SearchResultsScreen: React.FC = () => {
                             setIsSubmitting(true);
                             try {
                               const sharesChange = portfolioMode === 'buy' ? shares : -shares;
+
+                              // Validate sell amount
+                              if (portfolioMode === 'sell') {
+                                if (!existingHolding || existingHolding.shares < shares) {
+                                  Alert.alert("Invalid Transaction", `You cannot sell ${shares} shares because you only own ${existingHolding?.shares || 0}.`);
+                                  setIsSubmitting(false);
+                                  return;
+                                }
+                              }
                               // Convert back to USD for storage
                               const priceInUsd = priceInLocal;
 

@@ -95,9 +95,9 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
                     borderColor: isDark ? '#444' : '#eee'
                 }]}>
                     <View style={styles.hudHeader}>
-                        <Text style={[styles.hudValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                        {/* <Text style={[styles.hudValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
                             {formatValue ? formatValue(activePoint.totalProfit) : (`${activePoint.totalProfit >= 0 ? '+' : ''}$${activePoint.totalProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`)}
-                        </Text>
+                        </Text> */}
                         <View style={[styles.hudChangeBadge, isPositive ? (isDark ? styles.positiveBadgeDark : styles.positiveBadge) : (isDark ? styles.negativeBadgeDark : styles.negativeBadge)]}>
                             <Text style={[styles.hudChangeText, { color: isDark ? '#fff' : '#1a1a1a' }]}>
                                 {isPositive ? '+' : ''}{formatValue ? formatValue(changeAmount) : changeAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({changePercent.toFixed(1)}%)

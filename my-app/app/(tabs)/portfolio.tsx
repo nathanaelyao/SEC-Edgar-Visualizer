@@ -14,6 +14,8 @@ const PortfolioScreen: React.FC = () => {
     const { isDark, currency, exchangeRates } = useTheme();
     const navigation = useNavigation<any>();
     const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
+    const [openPositions, setOpenPositions] = useState<PortfolioHolding[]>([]);
+    const [closedPositions, setClosedPositions] = useState<PortfolioHolding[]>([]);
     const [history, setHistory] = useState<PortfolioSnapshot[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedRange, setSelectedRange] = useState<'1D' | '1W' | '1M' | '1Y' | '5Y' | 'ALL'>('ALL');
@@ -64,6 +66,9 @@ const PortfolioScreen: React.FC = () => {
             setLoading(true);
             const holdings = await refreshPortfolioPrices();
             setPortfolio(holdings);
+            setOpenPositions(holdings.filter(h => h.shares > 0));
+            // Show all closed positions even if realized profit is 0, so users know they are "closed"
+            setClosedPositions(holdings.filter(h => h.shares <= 0));
             const historyData = await getPortfolioHistory();
             setHistory(historyData);
         } catch (err) {
@@ -108,7 +113,8 @@ const PortfolioScreen: React.FC = () => {
     ];
 
     // Chart Data based on Dollar Value (converted to user currency)
-    const chartData = portfolio.map((item, index) => {
+    // Only use Open Positions for allocation chart
+    const chartData = openPositions.map((item, index) => {
         const nativeValue = item.shares * (item.price || 0);
         return {
             label: item.symbol,
@@ -117,12 +123,12 @@ const PortfolioScreen: React.FC = () => {
         };
     });
 
-    const totalPortfolioValue = portfolio.reduce((acc, curr) => {
+    const totalPortfolioValue = openPositions.reduce((acc, curr) => {
         const nativeValue = curr.shares * (curr.price || 0);
         return acc + convertCurrency(nativeValue, curr.currency || 'USD', currency, exchangeRates);
     }, 0);
 
-    const totalCostBasis = portfolio.reduce((acc, curr) => {
+    const totalCostBasis = openPositions.reduce((acc, curr) => {
         const nativeCost = curr.shares * (curr.costBasis || curr.price || 0);
         return acc + convertCurrency(nativeCost, curr.currency || 'USD', currency, exchangeRates);
     }, 0);
@@ -142,11 +148,11 @@ const PortfolioScreen: React.FC = () => {
     const displayUnrealized = formatCurrency(Math.abs(totalProfit), currency);
     const displayRealized = formatCurrency(Math.abs(totalRealizedProfit), currency);
 
-    const getFilteredHistory = () => {
+    const getFilteredHistory = (): PortfolioSnapshot[] => {
         if (!history || history.length === 0) return [];
         if (selectedRange === '1D') {
             // Since snapshots in DB are stored in USD, we need our local aggregates in USD too.
-            const totalPortfolioValueUsd = portfolio.reduce((acc, curr) => {
+            const totalPortfolioValueUsd = openPositions.reduce((acc, curr) => {
                 const nativeValue = curr.shares * (curr.price || 0);
                 return acc + convertCurrency(nativeValue, curr.currency || 'USD', 'USD', exchangeRates);
             }, 0);
@@ -158,7 +164,7 @@ const PortfolioScreen: React.FC = () => {
                 return acc + convertCurrency(nativeProfit, curr.currency || 'USD', 'USD', exchangeRates);
             }, 0);
 
-            const totalDayChangeUsd = portfolio.reduce((acc, curr) => {
+            const totalDayChangeUsd = openPositions.reduce((acc, curr) => {
                 const nativeChange = curr.shares * (curr.priceChange || 0);
                 return acc + convertCurrency(nativeChange, curr.currency || 'USD', 'USD', exchangeRates);
             }, 0);
@@ -219,6 +225,13 @@ const PortfolioScreen: React.FC = () => {
         setIsSubmitting(true);
         try {
             const sharesChange = manageMode === 'buy' ? shares : -shares;
+
+            // Validate sell amount
+            if (manageMode === 'sell' && selectedHolding.shares < shares) {
+                Alert.alert("Invalid Transaction", `You cannot sell ${shares} shares because you only own ${selectedHolding.shares}.`);
+                setIsSubmitting(false);
+                return;
+            }
 
             await addHolding({
                 symbol: selectedHolding.symbol,
@@ -337,9 +350,9 @@ const PortfolioScreen: React.FC = () => {
 
             {loading && portfolio.length === 0 ? (
                 <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
-            ) : portfolio.length > 0 ? (
+            ) : openPositions.length > 0 || closedPositions.length > 0 ? (
                 <FlatList
-                    data={portfolio}
+                    data={openPositions}
                     keyExtractor={(item) => item.symbol}
                     renderItem={renderItem}
                     ListHeaderComponent={
@@ -401,6 +414,18 @@ const PortfolioScreen: React.FC = () => {
                                 <PieChart data={chartData} isDark={isDark} />
                             </View>
                         </View>
+                    }
+                    ListFooterComponent={
+                        closedPositions.length > 0 ? (
+                            <View style={[styles.closedSection, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
+                                <Text style={[styles.chartSectionTitle, { color: isDark ? '#fff' : '#333', marginLeft: 16, marginTop: 24, marginBottom: 8 }]}>Closed Positions</Text>
+                                {closedPositions.map((item, index) => (
+                                    <View key={item.symbol}>
+                                        {renderItem({ item, index })}
+                                    </View>
+                                ))}
+                            </View>
+                        ) : null
                     }
                     contentContainerStyle={styles.listContent}
                 />
@@ -538,7 +563,7 @@ const PortfolioScreen: React.FC = () => {
                     </View>
                 </TouchableWithoutFeedback>
             </Modal>
-        </View>
+        </View >
     );
 };
 
@@ -853,6 +878,12 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: 10,
         lineHeight: 20,
+    },
+    closedSection: {
+        marginTop: 20,
+        borderTopWidth: 1,
+        borderTopColor: '#eee',
+        marginBottom: 20,
     },
     // Modal Styles
     modalOverlay: {

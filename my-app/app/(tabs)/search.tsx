@@ -132,13 +132,7 @@ const HomeScreen: React.FC = () => {
   const displayTotalValue = formatCurrency(totalPortfolioValue, currency);
   const displayDayChange = formatCurrency(Math.abs(dayChange), currency);
 
-  if (loading && portfolio.length === 0) {
-    return (
-      <View style={[styles.container, styles.centered, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
-    );
-  }
+
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]} showsVerticalScrollIndicator={false}>

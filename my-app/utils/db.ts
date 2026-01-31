@@ -338,8 +338,90 @@ export const getPortfolioHistory = async (): Promise<PortfolioSnapshot[]> => {
     );
 };
 
+// Remove a holding's impact from historical snapshots ("Undo" history)
+export const removePortfolioHistoryImpact = async (holding: PortfolioHolding) => {
+    try {
+        console.log(`Removing historical impact for ${holding.symbol}`);
+        const { fetchExchangeRates, convertCurrency } = require('./currency');
+        const rates = await fetchExchangeRates();
+        const database = await initDb();
+
+        // We need to know the price history to subtract the correct value for each day
+        // Similar strategy to backfill, but subtracting
+        const now = new Date();
+        const startDate = new Date(holding.lastTransactionDate || new Date().toISOString());
+
+        const diffTime = Math.abs(now.getTime() - startDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        let range = '1mo';
+        if (diffDays > 1825) range = 'max';
+        else if (diffDays > 365) range = '5y';
+        else if (diffDays > 30) range = '1y';
+        else if (diffDays > 5) range = '1mo';
+
+        const history = await fetchStockHistory(holding.symbol, range);
+        const priceHistoryMap: Record<string, number> = {};
+        history.forEach(point => {
+            const dateStr = new Date(point.timestamp).toISOString().split('T')[0];
+            priceHistoryMap[dateStr] = point.price;
+        });
+
+        // Iterate through all snapshots in DB to update them
+        // This is safer than iterating dates because we only want to touch existing snapshots
+        const snapshots = await getPortfolioHistory();
+
+        for (const snap of snapshots) {
+            const snapDate = new Date(snap.timestamp);
+            const dateStr = snapDate.toISOString().split('T')[0];
+
+            // Only affect snapshots after the holding started
+            if (snapDate >= startDate) {
+                const price = priceHistoryMap[dateStr];
+
+                if (price !== undefined) {
+                    // Calculate what this holding contributed at that time
+                    // NOTE: Assumes constant shares. If shares changed over time, this is an approximation.
+                    // But for "undoing" a simple "add -> delete" workflow, it's accurate.
+                    const nativeValue = holding.shares * price;
+                    const nativeCost = holding.shares * (holding.costBasis || 0);
+                    // Realized profit is static, so we always remove it if it existed? 
+                    // Or only if it was realized before this snapshot? 
+                    // Simplified: We assume realized profit is part of the "total profit" metric we execute
+                    const nativeProfit = (nativeValue - nativeCost) + (holding.realizedProfit || 0);
+
+                    const valueToRemove = convertCurrency(nativeValue, holding.currency || 'USD', 'USD', rates);
+                    const profitToRemove = convertCurrency(nativeProfit, holding.currency || 'USD', 'USD', rates);
+
+                    const newValue = Math.max(0, snap.totalValue - valueToRemove);
+                    // Profit can be negative, so standard subtraction
+                    const newProfit = snap.totalProfit - profitToRemove;
+
+                    if (snap.id !== undefined) {
+                        await database.runAsync(
+                            'UPDATE portfolio_history SET totalValue = ?, totalProfit = ? WHERE id = ?;',
+                            [newValue, newProfit, snap.id]
+                        );
+                    }
+                }
+            }
+        }
+        console.log("Historical impact removed.");
+
+    } catch (err) {
+        console.error("Error removing portfolio history impact:", err);
+    }
+};
+
 export const removeHolding = async (symbol: string) => {
     const database = await initDb();
+
+    // Get the holding first to clean up its history
+    const holding = await getHolding(symbol);
+    if (holding) {
+        await removePortfolioHistoryImpact(holding);
+    }
+
     const result = await database.runAsync(
         'DELETE FROM portfolio WHERE symbol = ?;',
         [symbol.toUpperCase()]
