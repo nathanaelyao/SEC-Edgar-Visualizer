@@ -174,6 +174,17 @@ const SearchResultsScreen: React.FC = () => {
     return typeof lastItem.val === 'number' ? lastItem.val : null;
   }
 
+  // Helper to validate data freshness (within last 2 years)
+  function isDataRecent(data: any): boolean {
+    if (!data || !Array.isArray(data) || data.length === 0) return false;
+    const lastItem = data[data.length - 1];
+    if (!lastItem.end) return true; // If no date, assume it's recent enough
+    const lastDate = new Date(lastItem.end);
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+    return lastDate >= twoYearsAgo;
+  }
+
   function removeNamespace(data: any): any {
     if (Array.isArray(data)) {
       return data.map((item: any) => removeNamespace(item));
@@ -734,27 +745,35 @@ const SearchResultsScreen: React.FC = () => {
                     <View style={[styles.statsGrid, { borderTopColor: isDark ? '#333' : '#f1f1f1', borderBottomColor: isDark ? '#333' : '#f1f1f1' }]}>
                       {(() => {
                         const mCap = stockQuote.marketCap;
-                        const sharesLatest = stockInfo ? getLatestValue(stockInfo.sharesData) : null;
-                        const fallbackMCap = (realTimePrice && sharesLatest) ? realTimePrice * sharesLatest : null;
+
+                        // Calculate fallback Market Cap with validation
+                        let fallbackMCap = null;
+                        if (stockInfo?.sharesData && isDataRecent(stockInfo.sharesData)) {
+                          const sharesLatest = getLatestValue(stockInfo.sharesData);
+                          if (realTimePrice && sharesLatest) {
+                            fallbackMCap = realTimePrice * sharesLatest;
+                          }
+                        }
 
                         const displayMCap = mCap || fallbackMCap;
 
                         const pe = stockQuote.peRatio;
 
-                        // For PE fallback, use Trailing Twelve Months (TTM) EPS by summing the last 4 quarters
-                        let epsTTM = null;
-                        if (stockInfo?.epsData) {
-                          const quarterlyEpsData = getInfo(stockInfo.epsData, 'quarterly');
+                        // Calculate TTM EPS using discrete quarterly values from getInfo
+                        // Only calculate fallback P/E if we have at least 4 quarters
+                        let fallbackPE = null;
+                        if (!pe && stockInfo?.epsData && isDataRecent(stockInfo.epsData)) {
+                          const quarterlyEpsData = getInfo(stockInfo.epsData, 'quarterly', true);
                           if (quarterlyEpsData.length >= 4) {
-                            // Sum the last 4 quarters
-                            epsTTM = quarterlyEpsData.slice(-4).reduce((sum, item) => sum + item.value, 0);
-                          } else if (quarterlyEpsData.length > 0) {
-                            // If fewer than 4 quarters, at least sum what we have or fall back to yearly
-                            epsTTM = quarterlyEpsData.reduce((sum, item) => sum + item.value, 0);
+                            // Sum exactly the last 4 quarters for TTM
+                            const epsTTM = quarterlyEpsData.slice(-4).reduce((sum, item) => sum + item.value, 0);
+                            // Only calculate P/E if EPS is positive
+                            if (realTimePrice && epsTTM > 0) {
+                              fallbackPE = realTimePrice / epsTTM;
+                            }
                           }
                         }
 
-                        const fallbackPE = (realTimePrice && epsTTM && epsTTM > 0) ? realTimePrice / epsTTM : null;
                         const displayPE = pe || fallbackPE;
 
                         return (
@@ -1017,12 +1036,12 @@ const SearchResultsScreen: React.FC = () => {
                       />
 
                       <TouchableOpacity
-                        style={[styles.dateRow, { backgroundColor: isDark ? '#2c2c2e' : '#f5f5f5' }]}
+                        style={styles.dateRow}
                         onPress={() => Platform.OS === 'android' && setShowDatePicker(true)}
                       >
                         <View style={styles.dateLabelGroup}>
-                          <MaterialIcons name="calendar-today" size={18} color={isDark ? '#aaa' : '#666'} style={styles.calendarIcon} />
-                          <Text style={[styles.inputLabel, { marginTop: 0, color: isDark ? '#aaa' : '#666' }]}>Transaction Date</Text>
+                          <MaterialIcons name="calendar-today" size={18} color="#666" style={styles.calendarIcon} />
+                          <Text style={styles.inputLabel}>Transaction Date</Text>
                         </View>
                         {Platform.OS === 'ios' ? (
                           <DateTimePicker
@@ -1033,10 +1052,10 @@ const SearchResultsScreen: React.FC = () => {
                               if (selectedDate) setTransactionDate(selectedDate);
                             }}
                             maximumDate={new Date()}
-                            themeVariant={isDark ? "dark" : "light"}
+                            themeVariant="light"
                           />
                         ) : (
-                          <Text style={[styles.datePickerText, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                          <Text style={styles.datePickerText}>
                             {transactionDate.toLocaleDateString()}
                           </Text>
                         )}
@@ -1608,8 +1627,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 12,
     alignSelf: 'flex-start',
-    width: '100%',
-    paddingLeft: 4,
+    // width: '100%',
+    // paddingLeft: 4,
   },
   modalOverlay: {
     flex: 1,
@@ -1631,6 +1650,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1a1a1a',
     textAlign: 'center',
+    marginBottom: 20,
   },
   modalSubtitle: {
     fontSize: 14,
