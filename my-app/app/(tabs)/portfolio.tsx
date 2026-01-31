@@ -36,16 +36,7 @@ const PortfolioScreen: React.FC = () => {
             setPortfolio(holdings);
             setHistory(historyData);
 
-            // Calculate total value for snapshot
-            const totalValue = holdings.reduce((acc, curr) => acc + (curr.shares * (curr.price || 0)), 0);
-            if (totalValue > 0) {
-                await addPortfolioSnapshot(totalValue);
-                // Refresh history after snapshot
-                const updatedHistory = await getPortfolioHistory();
-                setHistory(updatedHistory);
-            }
-
-            // Background refresh prices
+            // Background refresh prices (this will now also handle the snapshot)
             refreshPrices(holdings);
         } catch (err) {
             console.error("Error loading portfolio:", err);
@@ -55,18 +46,29 @@ const PortfolioScreen: React.FC = () => {
     };
 
     const refreshPrices = async (holdings: PortfolioHolding[]) => {
-        for (const holding of holdings) {
+        let updatedHoldings = [...holdings];
+        for (let i = 0; i < holdings.length; i++) {
+            const holding = holdings[i];
             try {
                 const quote = await fetchStockPrice(holding.symbol);
                 if (quote.price > 0) {
                     await updatePrice(holding.symbol, quote.price);
+                    updatedHoldings[i] = { ...holding, price: quote.price };
                 }
             } catch (err) {
                 console.error(`Failed to refresh price for ${holding.symbol}:`, err);
             }
         }
-        const data = await getPortfolio();
-        setPortfolio(data);
+
+        setPortfolio(updatedHoldings);
+
+        // Record snapshot with latest prices
+        const totalValue = updatedHoldings.reduce((acc, curr) => acc + (curr.shares * (curr.price || 0)), 0);
+        if (totalValue > 0) {
+            await addPortfolioSnapshot(totalValue);
+            const updatedHistory = await getPortfolioHistory();
+            setHistory(updatedHistory);
+        }
     };
 
     useFocusEffect(
@@ -297,6 +299,30 @@ const PortfolioScreen: React.FC = () => {
                                     </View>
                                 </View>
                                 <PortfolioLineChart data={filteredHistory} range={selectedRange} />
+                                {filteredHistory.length > 1 && (() => {
+                                    const startVal = filteredHistory[0].totalValue;
+                                    const endVal = filteredHistory[filteredHistory.length - 1].totalValue;
+                                    const changeAmount = endVal - startVal;
+                                    const changePercent = startVal > 0 ? (changeAmount / startVal) * 100 : 0;
+                                    const isPositive = changeAmount >= 0;
+                                    const rangeLabel = {
+                                        '1D': 'Today',
+                                        '1W': 'This Week',
+                                        '1M': 'This Month',
+                                        '1Y': 'This Year',
+                                        '5Y': 'Last 5 Years',
+                                        'ALL': 'All Time'
+                                    }[selectedRange];
+
+                                    return (
+                                        <View style={styles.rangeSummary}>
+                                            <Text style={styles.rangeLabel}>{rangeLabel}</Text>
+                                            <Text style={[styles.rangeChange, isPositive ? styles.positiveText : styles.negativeText]}>
+                                                {isPositive ? '+' : ''}${Math.abs(changeAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })} ({isPositive ? '+' : ''}{changePercent.toFixed(1)}%)
+                                            </Text>
+                                        </View>
+                                    );
+                                })()}
                             </View>
                             <View style={styles.chartContainer}>
                                 <Text style={styles.chartSectionTitle}>Allocation (%)</Text>
@@ -555,13 +581,37 @@ const styles = StyleSheet.create({
         shadowRadius: 1,
         elevation: 1,
     },
+    rangeTextActive: {
+        color: '#007AFF',
+    },
     rangeText: {
         fontSize: 11,
         fontWeight: '600',
         color: '#888',
     },
-    rangeTextActive: {
-        color: '#007AFF',
+    rangeSummary: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 12,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#f1f1f1',
+    },
+    rangeLabel: {
+        fontSize: 13,
+        color: '#666',
+        fontWeight: '600',
+    },
+    rangeChange: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    positiveText: {
+        color: '#34C759',
+    },
+    negativeText: {
+        color: '#FF3B30',
     },
     listContent: {
         paddingBottom: 100,
