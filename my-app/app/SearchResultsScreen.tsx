@@ -13,7 +13,8 @@ import { investorsData } from '@/constants/investors';
 import { FlatList } from 'react-native';
 import InvestorItem from '@/components/InvestorItem';
 import { useNavigation } from '@react-navigation/native';
-import { secFetch, fetchStockPrice, StockQuote } from '@/utils/secApi';
+import { secFetch, fetchStockPrice, StockQuote, fetchStockHistory, HistoryPoint } from '@/utils/secApi';
+import StockLineChart from '@/components/StockLineChart';
 import { debug, info, warn, error as logError } from '@/utils/logger';
 import * as SQLite from 'expo-sqlite';
 import cheerio from 'react-native-cheerio'; // Import cheerio
@@ -85,6 +86,9 @@ const SearchResultsScreen: React.FC = () => {
   const [dataInterval, setDataInterval] = useState<'yearly' | 'quarterly'>('yearly');
   const [filterType, setFilterType] = useState<string | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [priceHistory, setPriceHistory] = useState<HistoryPoint[]>([]);
+  const [priceHistoryRange, setPriceHistoryRange] = useState<'1D' | '1W' | '1M' | '1Y' | '5Y' | 'ALL'>('1M');
+  const [priceHistoryLoading, setPriceHistoryLoading] = useState(false);
 
   const [isPortfolioModalVisible, setIsPortfolioModalVisible] = useState(false);
   const [sharesToAdd, setSharesToAdd] = useState('');
@@ -128,6 +132,31 @@ const SearchResultsScreen: React.FC = () => {
     };
     checkPortfolio();
   }, [stockSymbol, isPortfolioModalVisible]);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      if (!stockSymbol) return;
+      setPriceHistoryLoading(true);
+
+      let range = '1mo';
+      let interval = '1d';
+
+      switch (priceHistoryRange) {
+        case '1D': range = '1d'; interval = '2m'; break;
+        case '1W': range = '5d'; interval = '15m'; break;
+        case '1M': range = '1mo'; interval = '1d'; break;
+        case '1Y': range = '1y'; interval = '1d'; break;
+        case '5Y': range = '5y'; interval = '1wk'; break;
+        case 'ALL': range = 'max'; interval = '1mo'; break;
+      }
+
+      const history = await fetchStockHistory(stockSymbol, range, interval);
+      setPriceHistory(history);
+      setPriceHistoryLoading(false);
+    };
+
+    fetchHistory();
+  }, [stockSymbol, priceHistoryRange]);
 
   /* Restored Helper Functions */
   function removeNamespace(data: any): any {
@@ -715,6 +744,35 @@ const SearchResultsScreen: React.FC = () => {
                     </View>
                   )}
 
+                  <View style={[styles.historyChartContainer, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
+                    <View style={[styles.priceHistoryRangeContainer, { backgroundColor: isDark ? '#000' : '#f0f0f0' }]}>
+                      {(['1D', '1W', '1M', '1Y', '5Y', 'ALL'] as const).map((range) => (
+                        <TouchableOpacity
+                          key={range}
+                          style={[styles.historyRangeChip, priceHistoryRange === range && (isDark ? styles.historyRangeChipActiveDark : styles.historyRangeChipActive)]}
+                          onPress={() => setPriceHistoryRange(range)}
+                        >
+                          <Text style={[styles.historyRangeText, { color: isDark ? '#aaa' : '#666' }, priceHistoryRange === range && styles.historyRangeTextActive]}>
+                            {range}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    {priceHistoryLoading ? (
+                      <View style={{ height: 180, justifyContent: 'center', alignItems: 'center' }}>
+                        <ActivityIndicator color="#007AFF" />
+                      </View>
+                    ) : (
+                      <StockLineChart
+                        data={priceHistory}
+                        range={priceHistoryRange}
+                        isDark={isDark}
+                        height={180}
+                        formatValue={(val) => formatCurrency(val, (stockQuote?.currency || 'USD') as any)}
+                      />
+                    )}
+                  </View>
+
                   {existingHolding && existingHolding.shares > 0 && (
                     <View style={[styles.positionCard, { backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}>
                       <Text style={[styles.positionTitle, { color: isDark ? '#fff' : '#333' }]}>Your Position</Text>
@@ -1045,6 +1103,51 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     marginTop: 8,
     marginBottom: 4,
+  },
+  historyChartContainer: {
+    width: SCREEN_WIDTH - 32,
+    marginTop: 20,
+    marginBottom: 10,
+    padding: 16,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  priceHistoryRangeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 4,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  historyRangeChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    minWidth: 44,
+    alignItems: 'center',
+  },
+  historyRangeChipActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  historyRangeChipActiveDark: {
+    backgroundColor: '#1c1c1e',
+  },
+  historyRangeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  historyRangeTextActive: {
+    color: '#007AFF',
+    fontWeight: '700',
   },
   priceLabel: {
     fontSize: 14,

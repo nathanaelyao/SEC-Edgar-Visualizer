@@ -417,6 +417,11 @@ export interface StockQuote {
   lastUpdated: number;
 }
 
+export interface HistoryPoint {
+  timestamp: number;
+  price: number;
+}
+
 // Internal cache for the full ticker lists to avoid redundant downloads
 let tickerListsCache: any[] | null = null;
 let lastTickerCacheUpdate = 0;
@@ -467,6 +472,61 @@ async function fetchYahooQuote(symbol: string): Promise<StockQuote | null> {
   } catch (err) {
     error(`Error fetching from Yahoo Finance (v8) for ${upperSymbol}:`, err);
     return null;
+  }
+}
+
+/**
+ * Fetch historical price data from Yahoo Finance.
+ * @param symbol The stock ticker symbol.
+ * @param range Valid ranges: '1d', '5d', '1mo', '6mo', '1y', '5y', 'max'.
+ * @param interval Valid intervals: '1m', '2m', '5m', '15m', '30m', '60m', '1h', '1d', '5d', '1wk', '1mo', '3mo'.
+ */
+export async function fetchStockHistory(
+  symbol: string,
+  range: string = '1mo',
+  interval: string = '1d'
+): Promise<HistoryPoint[]> {
+  const upperSymbol = symbol.toUpperCase();
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${upperSymbol}?interval=${interval}&range=${range}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+      }
+    });
+
+    if (!res.ok) {
+      warn(`Yahoo Finance History API returned status ${res.status} for ${upperSymbol}`);
+      return [];
+    }
+
+    const data = await res.json();
+    const result = data?.chart?.result?.[0];
+
+    if (!result || !result.timestamp || !result.indicators?.quote?.[0]?.close) {
+      warn(`No history data found in Yahoo Finance response for ${upperSymbol}`);
+      return [];
+    }
+
+    const timestamps = result.timestamp as number[];
+    const prices = result.indicators.quote[0].close as (number | null)[];
+
+    const history: HistoryPoint[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      if (prices[i] !== null && prices[i] !== undefined) {
+        history.push({
+          timestamp: timestamps[i] * 1000, // Yahoo uses seconds
+          price: prices[i]!
+        });
+      }
+    }
+
+    return history;
+  } catch (err) {
+    error(`Error fetching history from Yahoo Finance for ${upperSymbol}:`, err);
+    return [];
   }
 }
 /**
