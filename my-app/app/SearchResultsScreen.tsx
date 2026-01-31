@@ -1087,12 +1087,12 @@ const SearchResultsScreen: React.FC = () => {
                       />
 
                       <TouchableOpacity
-                        style={styles.dateRow}
+                        style={[styles.dateRow, { backgroundColor: isDark ? '#2c2c2e' : '#f5f5f5' }]}
                         onPress={() => Platform.OS === 'android' && setShowDatePicker(true)}
                       >
                         <View style={styles.dateLabelGroup}>
-                          <MaterialIcons name="calendar-today" size={18} color="#666" style={styles.calendarIcon} />
-                          <Text style={styles.inputLabel}>Transaction Date</Text>
+                          <MaterialIcons name="calendar-today" size={14} color={isDark ? '#aaa' : '#666'} style={styles.calendarIcon} />
+                          <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>Transaction Date</Text>
                         </View>
                         {Platform.OS === 'ios' ? (
                           <DateTimePicker
@@ -1103,10 +1103,10 @@ const SearchResultsScreen: React.FC = () => {
                               if (selectedDate) setTransactionDate(selectedDate);
                             }}
                             maximumDate={new Date()}
-                            themeVariant="light"
+                            themeVariant={isDark ? "dark" : "light"}
                           />
                         ) : (
-                          <Text style={styles.datePickerText}>
+                          <Text style={[styles.datePickerText, { color: isDark ? '#fff' : '#1a1a1a' }]}>
                             {transactionDate.toLocaleDateString()}
                           </Text>
                         )}
@@ -1685,7 +1685,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#666',
     marginBottom: 8,
-    marginTop: 12,
+    marginTop: 2,
     alignSelf: 'flex-start',
     // width: '100%',
     // paddingLeft: 4,

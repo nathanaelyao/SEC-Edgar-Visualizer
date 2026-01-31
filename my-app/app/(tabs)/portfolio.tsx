@@ -450,15 +450,15 @@ const PortfolioScreen: React.FC = () => {
                             <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
                                 <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Manage {selectedHolding?.symbol}</Text>
 
-                                <View style={styles.modeTabs}>
+                                <View style={[styles.modeTabs, { backgroundColor: isDark ? '#2c2c2e' : '#f0f0f0' }]}>
                                     <TouchableOpacity
-                                        style={[styles.modeTab, manageMode === 'buy' && styles.modeTabActive]}
+                                        style={[styles.modeTab, manageMode === 'buy' && (isDark ? { backgroundColor: '#3a3a3c' } : styles.modeTabActive)]}
                                         onPress={() => setManageMode('buy')}
                                     >
                                         <Text style={[styles.modeTabText, manageMode === 'buy' && styles.modeTabTextActive]}>Buy</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                        style={[styles.modeTab, manageMode === 'sell' && styles.modeTabActive]}
+                                        style={[styles.modeTab, manageMode === 'sell' && (isDark ? { backgroundColor: '#3a3a3c' } : styles.modeTabActive)]}
                                         onPress={() => setManageMode('sell')}
                                     >
                                         <Text style={[styles.modeTabText, manageMode === 'sell' && styles.modeTabTextActive]}>Sell</Text>
@@ -497,12 +497,12 @@ const PortfolioScreen: React.FC = () => {
                                 </View>
 
                                 <TouchableOpacity
-                                    style={styles.dateRow}
+                                    style={[styles.dateRow, { backgroundColor: isDark ? '#2c2c2e' : '#f5f5f5' }]}
                                     onPress={() => Platform.OS === 'android' && setShowDatePicker(true)}
                                 >
                                     <View style={styles.dateLabelGroup}>
-                                        <MaterialIcons name="calendar-today" size={18} color="#666" style={styles.calendarIcon} />
-                                        <Text style={styles.inputLabel}>Transaction Date</Text>
+                                        <MaterialIcons name="calendar-today" size={18} color={isDark ? '#aaa' : '#666'} style={styles.calendarIcon} />
+                                        <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>Transaction Date</Text>
                                     </View>
                                     {Platform.OS === 'ios' ? (
                                         <DateTimePicker
@@ -513,10 +513,10 @@ const PortfolioScreen: React.FC = () => {
                                                 if (selectedDate) setTransactionDate(selectedDate);
                                             }}
                                             maximumDate={new Date()}
-                                            themeVariant="light"
+                                            themeVariant={isDark ? "dark" : "light"}
                                         />
                                     ) : (
-                                        <Text style={styles.datePickerText}>
+                                        <Text style={[styles.datePickerText, { color: isDark ? '#fff' : '#1a1a1a' }]}>
                                             {transactionDate.toLocaleDateString()}
                                         </Text>
                                     )}
@@ -537,14 +537,14 @@ const PortfolioScreen: React.FC = () => {
 
                                 <View style={styles.modalButtons}>
                                     <TouchableOpacity
-                                        style={[styles.modalButton, styles.cancelButton]}
+                                        style={[styles.modalButton, styles.cancelButton, { backgroundColor: isDark ? '#3a3a3c' : '#f0f0f0' }]}
                                         onPress={() => {
                                             setIsManageModalVisible(false);
                                             setSharesAmount('');
                                             setPriceAmount('');
                                         }}
                                     >
-                                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                                        <Text style={[styles.cancelButtonText, { color: isDark ? '#fff' : '#444' }]}>Cancel</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[styles.modalButton, styles.saveButton]}
