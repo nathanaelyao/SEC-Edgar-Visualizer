@@ -246,6 +246,12 @@ const HomeScreen: React.FC = () => {
           }]}>
             <Text style={[styles.emptyTitle, { color: isDark ? '#fff' : '#333' }]}>Start your portfolio</Text>
             <Text style={[styles.emptySubtext, { color: isDark ? '#8e8e93' : '#8e8e93' }]}>Search for a stock and add it to your portfolio to see its performance here.</Text>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => navigation.navigate('settings')}
+            >
+              <Text style={styles.settingsButtonText}>Set Preferred Currency</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -454,6 +460,22 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 15,
+  },
+  settingsButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  settingsButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
   },
   positiveText: {
     color: '#34C759',
