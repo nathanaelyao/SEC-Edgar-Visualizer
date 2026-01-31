@@ -2,14 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Dimensions, ScrollView, Platform } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
-import { secFetch } from '@/utils/secApi';
+import { secFetch, yahooSearch } from '@/utils/secApi';
 import { error as logError } from '@/utils/logger';
 import { getPortfolio, PortfolioHolding, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices } from '@/utils/db';
 
 interface Company {
   name: string;
   ticker: string;
-  cik: string;
+  cik?: string;
+  exchange?: string;
+  type?: string;
 }
 
 const HomeScreen: React.FC = () => {
@@ -67,28 +69,22 @@ const HomeScreen: React.FC = () => {
         return;
       }
       try {
-        const response = await secFetch('https://www.sec.gov/files/company_tickers.json');
-        if (!response.ok) throw new Error('Failed to fetch tickers');
-        const data = await response.json();
-        const companies: Company[] = Object.values(data).map((item: any) => ({
-          name: item.title ?? '',
-          ticker: item.ticker ?? '',
-          cik: item.cik_str?.toString().padStart(10, '0') ?? '',
+        const results = await yahooSearch(searchQuery);
+        const companies: Company[] = results.map((item: any) => ({
+          name: item.longname || item.shortname || item.symbol,
+          ticker: item.symbol,
+          exchange: item.exchDisp,
+          type: item.typeDisp,
         }));
-
-        const filtered = companies
-          .filter(
-            (c) =>
-              c.ticker.toUpperCase().includes(searchQuery.toUpperCase()) ||
-              c.name.toUpperCase().includes(searchQuery.toUpperCase())
-          )
-          .slice(0, 5);
-        setSuggestions(filtered);
+        setSuggestions(companies);
       } catch (err) {
         logError('Error fetching companies:', err);
       }
     };
-    fetchCompanies();
+    const timer = setTimeout(() => {
+      fetchCompanies();
+    }, 300); // Add a small debounce
+    return () => clearTimeout(timer);
   }, [searchQuery]);
 
   const totalPortfolioValue = portfolio.reduce((acc: number, curr: PortfolioHolding) => acc + (curr.shares * (curr.price || 0)), 0);
@@ -131,9 +127,9 @@ const HomeScreen: React.FC = () => {
           />
           {suggestions.length > 0 && (
             <View style={styles.suggestionsContainer}>
-              {suggestions.map((s) => (
+              {suggestions.map((s, index) => (
                 <TouchableOpacity
-                  key={s.cik}
+                  key={`${s.ticker}-${index}`}
                   style={styles.suggestionItem}
                   onPress={() => {
                     navigation.navigate('SearchResultsScreen', { stockSymbol: s.ticker });
@@ -141,7 +137,12 @@ const HomeScreen: React.FC = () => {
                     setSuggestions([]);
                   }}
                 >
-                  <Text style={styles.suggestionText}>{s.name} ({s.ticker})</Text>
+                  <View>
+                    <Text style={styles.suggestionText}>{s.name}</Text>
+                    <Text style={styles.suggestionSubtext}>
+                      {s.ticker} • {s.exchange} • {s.type}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
@@ -278,7 +279,13 @@ const styles = StyleSheet.create({
   },
   suggestionText: {
     fontSize: 15,
-    color: '#333',
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 2,
+  },
+  suggestionSubtext: {
+    fontSize: 12,
+    color: '#8e8e93',
   },
   portfolioCard: {
     backgroundColor: '#ffffff',

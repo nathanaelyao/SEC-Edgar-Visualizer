@@ -467,6 +467,35 @@ async function fetchYahooQuote(symbol: string): Promise<StockQuote | null> {
     return null;
   }
 }
+/**
+ * Search for tickers, companies, and other financial instruments using Yahoo Finance.
+ * Supports global markets, crypto, and ETFs.
+ */
+export async function yahooSearch(query: string): Promise<any[]> {
+  if (!query || query.length < 1) return [];
+
+  const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=10&newsCount=0&enableFuzzyQuery=false&quotesQueryId=tss_match_query_v2`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+      }
+    });
+
+    if (!res.ok) {
+      warn(`Yahoo Search failed for ${query}: ${res.status}`);
+      return [];
+    }
+
+    const data = await res.json();
+    return data.quotes || [];
+  } catch (err) {
+    error(`Error searching Yahoo Finance for ${query}:`, err);
+    return [];
+  }
+}
 
 export async function fetchStockPrice(symbol: string): Promise<StockQuote> {
   const upperSymbol = symbol.toUpperCase();

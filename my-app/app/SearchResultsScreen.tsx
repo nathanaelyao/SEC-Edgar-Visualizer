@@ -389,33 +389,44 @@ const SearchResultsScreen: React.FC = () => {
 
   useEffect(() => {
     const fetchStockData = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        const info = await getStockInfo(stockSymbol, filterType);
-        setStockInfo(info);
+        // Fetch price and financials in parallel
+        const [info, quote] = await Promise.allSettled([
+          getStockInfo(stockSymbol, filterType),
+          fetchStockPrice(stockSymbol)
+        ]);
 
-        // Fetch real-time price
-        try {
-          const quote = await fetchStockPrice(stockSymbol);
-          setStockQuote(quote);
-          if (quote.price > 0) {
-            setRealTimePrice(quote.price);
-            setPurchasePrice(quote.price.toString()); // Pre-fill purchase price
-          }
-        } catch (e) {
-          console.error("Error fetching real-time price:", e);
+        if (info.status === 'fulfilled') {
+          setStockInfo(info.value);
+        } else {
+          // Fallback info if SEC fails
+          setStockInfo({
+            companyName: stockSymbol,
+            cik: null,
+            graphData: null,
+            epsData: null,
+            revData: null,
+            incomeData: null,
+            assetsData: null,
+            sharesData: null,
+            eps: null
+          });
         }
 
-        setChartPage(0); // Reset page on new data
-        // Using info.graphData might need re-processing if our simple getStockInfo call above doesn't pass interval.
-        // Actually getStockInfo calls filters which calls getInfo. We should update getStockInfo signature too 
-        // OR re-process the raw data here if we had it. 
-        // Better: Update getStockInfo to accept interval.
+        if (quote.status === 'fulfilled') {
+          const q = quote.value;
+          setStockQuote(q);
+          if (q.price > 0) {
+            setRealTimePrice(q.price);
+            setPurchasePrice(q.price.toString());
+          }
+        }
 
-        // Wait, getStockInfo returns graphData. We need to pass interval down.
-        // Let's assume we update getStockInfo signature below.
-
+        setChartPage(0);
       } catch (err: any) {
-        setError(err.message);
+        logError("Unexpected error in fetchStockData:", err);
       } finally {
         setLoading(false);
       }
@@ -522,6 +533,8 @@ const SearchResultsScreen: React.FC = () => {
     return processedResults;
   };
 
+
+
   /* Restored getStockInfo */
   const getStockInfo = async (ticker: string, filter: string | null): Promise<StockInfo> => {
     try {
@@ -562,7 +575,8 @@ const SearchResultsScreen: React.FC = () => {
       }
 
       if (!cik_str) {
-        throw new Error(`Ticker ${ticker} not found.`);
+        // Safe return for non-US stocks/crypto instead of throwing
+        return { companyName: compName || ticker, cik: null, eps: null, graphData: null, epsData: null, revData: null, incomeData: null, assetsData: null, sharesData: null };
       }
       const factsResponse = await secFetch(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik_str}.json`);
 
@@ -728,43 +742,43 @@ const SearchResultsScreen: React.FC = () => {
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.controlsContainer}>
-                  <View style={styles.dropdownContainer}>
-                    <Dropdown
-                      style={styles.dropdown}
-                      placeholderStyle={styles.dropdownItem}
-                      selectedTextStyle={styles.dropdownItem}
-                      data={dropdownOptions}
-                      maxHeight={300}
-                      labelField="label"
-                      valueField="value"
-                      placeholder="Select item"
-                      value={selectedValue}
-                      onChange={item => {
-                        setSelectedValue(item.value);
-                        setFilterType(item.value);
-                      }}
-                    />
-                  </View>
-
-                  <View style={styles.toggleContainer}>
-                    <TouchableOpacity
-                      style={[styles.toggleButton, dataInterval === 'yearly' && styles.toggleButtonActive]}
-                      onPress={() => setDataInterval('yearly')}
-                    >
-                      <Text style={[styles.toggleText, dataInterval === 'yearly' && styles.toggleTextActive]}>Yearly</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.toggleButton, dataInterval === 'quarterly' && styles.toggleButtonActive]}
-                      onPress={() => setDataInterval('quarterly')}
-                    >
-                      <Text style={[styles.toggleText, dataInterval === 'quarterly' && styles.toggleTextActive]}>Quarterly</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {stockInfo.graphData && (
+                {stockInfo.graphData && stockInfo.graphData.length > 0 && (
                   <>
+                    <View style={styles.controlsContainer}>
+                      <View style={styles.dropdownContainer}>
+                        <Dropdown
+                          style={styles.dropdown}
+                          placeholderStyle={styles.dropdownItem}
+                          selectedTextStyle={styles.dropdownItem}
+                          data={dropdownOptions}
+                          maxHeight={300}
+                          labelField="label"
+                          valueField="value"
+                          placeholder="Select item"
+                          value={selectedValue}
+                          onChange={item => {
+                            setSelectedValue(item.value);
+                            setFilterType(item.value);
+                          }}
+                        />
+                      </View>
+
+                      <View style={styles.toggleContainer}>
+                        <TouchableOpacity
+                          style={[styles.toggleButton, dataInterval === 'yearly' && styles.toggleButtonActive]}
+                          onPress={() => setDataInterval('yearly')}
+                        >
+                          <Text style={[styles.toggleText, dataInterval === 'yearly' && styles.toggleTextActive]}>Yearly</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.toggleButton, dataInterval === 'quarterly' && styles.toggleButtonActive]}
+                          onPress={() => setDataInterval('quarterly')}
+                        >
+                          <Text style={[styles.toggleText, dataInterval === 'quarterly' && styles.toggleTextActive]}>Quarterly</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
                     <Text style={styles.graphTitle}>
                       {selectedValue ? dropdownOptions.find(o => o.value === selectedValue)?.label : 'Revenue'}
                     </Text>
@@ -775,8 +789,6 @@ const SearchResultsScreen: React.FC = () => {
                       const totalPages = Math.ceil(totalItems / itemsPerPage);
 
                       // Slicing from the end (Newest data first)
-                      // page 0: last 8 items
-                      // page 1: previous 8 items
                       const end = totalItems - (chartPage * itemsPerPage);
                       const start = Math.max(0, end - itemsPerPage);
                       const visibleData = allData.slice(start, end);
