@@ -149,6 +149,11 @@ const PortfolioScreen: React.FC = () => {
             ];
         }
 
+        // For 'ALL', return all history data
+        if (selectedRange === 'ALL') {
+            return history;
+        }
+
         const now = new Date();
         let cutoff = new Date();
 

@@ -6,6 +6,7 @@ import {
   Platform,
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { Animated, Easing } from 'react-native';
 import BarChart from '@/components/BarChart';
 import { Dropdown } from 'react-native-element-dropdown';
@@ -70,6 +71,7 @@ const SearchResultsScreen: React.FC = () => {
   const { isDark, currency, exchangeRates } = useTheme();
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RootStackParamList, 'SearchResultsScreen'>>();
+  const router = useRouter();
   const { stockSymbol } = route.params;
   const [stockInfo, setStockInfo] = useState<StockInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -675,7 +677,18 @@ const SearchResultsScreen: React.FC = () => {
         data={investorInfo}
         keyExtractor={(item, index) => index.toString()}
         renderItem={({ item }) => (
-          <View style={[styles.investorInfoCard, { backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}>
+          <TouchableOpacity
+            style={[styles.investorInfoCard, { backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}
+            onPress={() => {
+              if (item.cik) {
+                router.push({
+                  pathname: '/HoldingsScreen',
+                  params: { cik: item.cik }
+                });
+              }
+            }}
+            activeOpacity={0.7}
+          >
             <View style={styles.investorItem}>
               <Text style={[styles.investorName, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.name}</Text>
               <Text style={[styles.institutionName, { color: isDark ? '#aaa' : '#666' }]}>{item.institution}</Text>
@@ -685,7 +698,7 @@ const SearchResultsScreen: React.FC = () => {
                 <Text style={{ color: isDark ? '#eee' : '#333' }}>Portfolio %: {item.percent}</Text>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
         ListHeaderComponent={
           <>
