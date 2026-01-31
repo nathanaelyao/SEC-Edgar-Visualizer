@@ -159,6 +159,21 @@ const SearchResultsScreen: React.FC = () => {
   }, [stockSymbol, priceHistoryRange]);
 
   /* Restored Helper Functions */
+  function formatAbbreviated(num: number): string {
+    if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
+    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+    if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
+    return num.toString();
+  }
+
+  function getLatestValue(data: any): number | null {
+    if (!data || !Array.isArray(data) || data.length === 0) return null;
+    // Data is usually chronological, get the last one
+    const lastItem = data[data.length - 1];
+    return typeof lastItem.val === 'number' ? lastItem.val : null;
+  }
+
   function removeNamespace(data: any): any {
     if (Array.isArray(data)) {
       return data.map((item: any) => removeNamespace(item));
@@ -744,6 +759,56 @@ const SearchResultsScreen: React.FC = () => {
                     </View>
                   )}
 
+                  {stockQuote && (
+                    <View style={[styles.statsGrid, { borderTopColor: isDark ? '#333' : '#f1f1f1', borderBottomColor: isDark ? '#333' : '#f1f1f1' }]}>
+                      {(() => {
+                        const mCap = stockQuote.marketCap;
+                        const sharesLatest = stockInfo ? getLatestValue(stockInfo.sharesData) : null;
+                        const fallbackMCap = (realTimePrice && sharesLatest) ? realTimePrice * sharesLatest : null;
+
+                        const displayMCap = mCap || fallbackMCap;
+
+                        const pe = stockQuote.peRatio;
+
+                        // For PE fallback, try to get the latest yearly EPS for a better TTM approximation
+                        let epsYearly = null;
+                        if (stockInfo?.epsData) {
+                          const yearlyEpsData = getInfo(stockInfo.epsData, 'yearly');
+                          if (yearlyEpsData.length > 0) {
+                            epsYearly = yearlyEpsData[yearlyEpsData.length - 1].value;
+                          }
+                        }
+
+                        const fallbackPE = (realTimePrice && epsYearly && epsYearly > 0) ? realTimePrice / epsYearly : null;
+                        const displayPE = pe || fallbackPE;
+
+                        return (
+                          <>
+                            <View style={styles.statItem}>
+                              <Text style={[styles.statLabel, { color: isDark ? '#aaa' : '#666' }]}>MCap</Text>
+                              <Text style={[styles.statValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                                {displayMCap ? formatAbbreviated(displayMCap) : '-'}
+                              </Text>
+                            </View>
+                            <View style={styles.statItem}>
+                              <Text style={[styles.statLabel, { color: isDark ? '#aaa' : '#666' }]}>Vol</Text>
+                              <Text style={[styles.statValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                                {stockQuote.volume ? formatAbbreviated(stockQuote.volume) : '-'}
+                              </Text>
+                            </View>
+                            <View style={styles.statItem}>
+                              <Text style={[styles.statLabel, { color: isDark ? '#aaa' : '#666' }]}>PE</Text>
+                              <Text style={[styles.statValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                                {displayPE ? displayPE.toFixed(1) : '-'}
+                              </Text>
+                            </View>
+
+                          </>
+                        );
+                      })()}
+                    </View>
+                  )}
+
                   <View style={[styles.historyChartContainer, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
                     <View style={[styles.priceHistoryRangeContainer, { backgroundColor: isDark ? '#000' : '#f0f0f0' }]}>
                       {(['1D', '1W', '1M', '1Y', '5Y', 'ALL'] as const).map((range) => (
@@ -1249,8 +1314,32 @@ const styles = StyleSheet.create({
   container: {
     marginTop: 60,
 
-    alignItems: 'center',
     justifyContent: 'center',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: SCREEN_WIDTH - 40,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  statValue: {
+    fontSize: 14,
+    fontWeight: '800',
   },
   labels: {
     flexDirection: 'row',

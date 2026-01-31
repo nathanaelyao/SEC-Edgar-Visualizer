@@ -415,6 +415,10 @@ export interface StockQuote {
   percent: number;
   currency: string;
   lastUpdated: number;
+  marketCap?: number;
+  volume?: number;
+  peRatio?: number;
+  earningsTimestamp?: number;
 }
 
 export interface HistoryPoint {
@@ -467,7 +471,11 @@ async function fetchYahooQuote(symbol: string): Promise<StockQuote | null> {
       change,
       percent,
       currency: result.currency || 'USD',
-      lastUpdated: Date.now()
+      lastUpdated: Date.now(),
+      marketCap: result.marketCap,
+      volume: result.regularMarketVolume,
+      peRatio: result.trailingPE || result.forwardPE,
+      earningsTimestamp: result.earningsTimestamp
     };
   } catch (err) {
     error(`Error fetching from Yahoo Finance (v8) for ${upperSymbol}:`, err);

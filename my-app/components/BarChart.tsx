@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
 import Svg, { G, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { useTheme } from '@/context/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_MARGIN = 20;
@@ -20,6 +21,7 @@ interface BarChartProps {
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
 const BarChart: React.FC<BarChartProps> = ({ data }) => {
+  const { isDark } = useTheme();
   const animatedHeights = useRef<Animated.Value[]>([]);
   const [selectedValue, setSelectedValue] = useState<number | null>(null);
 
@@ -70,7 +72,7 @@ const BarChart: React.FC<BarChartProps> = ({ data }) => {
   };
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: isDark ? '#1e1e1e' : '#FFFFFF' }]}>
       <View style={styles.container}>
         <Svg height="220" width={CHART_WIDTH}>
           <Defs>
@@ -143,6 +145,7 @@ const BarChart: React.FC<BarChartProps> = ({ data }) => {
                 {
                   width: barWidth,
                   left: index * (barWidth + gap),
+                  color: isDark ? '#aaa' : '#000',
                 },
               ]}
             >
