@@ -31,19 +31,13 @@ export default function TabLayout() {
       <Tabs.Screen
         name="search"
         options={{
-          title: 'Stock Search',
+          title: 'Home',
           headerShown: false,
-          tabBarIcon: ({ color }) => <MaterialIcons name="search" size={28} color={color} />,
+          tabBarIcon: ({ color }) => <MaterialIcons name="home" size={28} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: '13F Filings',
-          headerShown: false,
-          tabBarIcon: ({ color }) => <MaterialIcons name="article" size={28} color={color} />,
-        }}
-      />
+
+
 
 
       <Tabs.Screen
@@ -52,6 +46,15 @@ export default function TabLayout() {
           title: 'My Portfolio',
           headerShown: false,
           tabBarIcon: ({ color }) => <MaterialIcons name="pie-chart" size={28} color={color} />,
+        }}
+      />
+
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: '13F Filings',
+          headerShown: false,
+          tabBarIcon: ({ color }) => <MaterialIcons name="article" size={28} color={color} />,
         }}
       />
     </Tabs>
