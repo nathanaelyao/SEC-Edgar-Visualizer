@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot } from '@/utils/db';
+import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices } from '@/utils/db';
 import PieChart from '@/components/PieChart';
 import PortfolioLineChart from '@/components/PortfolioLineChart';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -28,16 +28,10 @@ const PortfolioScreen: React.FC = () => {
     const loadPortfolio = async () => {
         try {
             setLoading(true);
-            const [holdings, historyData] = await Promise.all([
-                getPortfolio(),
-                getPortfolioHistory()
-            ]);
-
+            const holdings = await refreshPortfolioPrices();
             setPortfolio(holdings);
+            const historyData = await getPortfolioHistory();
             setHistory(historyData);
-
-            // Background refresh prices (this will now also handle the snapshot)
-            refreshPrices(holdings);
         } catch (err) {
             console.error("Error loading portfolio:", err);
         } finally {
@@ -45,31 +39,6 @@ const PortfolioScreen: React.FC = () => {
         }
     };
 
-    const refreshPrices = async (holdings: PortfolioHolding[]) => {
-        let updatedHoldings = [...holdings];
-        for (let i = 0; i < holdings.length; i++) {
-            const holding = holdings[i];
-            try {
-                const quote = await fetchStockPrice(holding.symbol);
-                if (quote.price > 0) {
-                    await updatePrice(holding.symbol, quote.price);
-                    updatedHoldings[i] = { ...holding, price: quote.price };
-                }
-            } catch (err) {
-                console.error(`Failed to refresh price for ${holding.symbol}:`, err);
-            }
-        }
-
-        setPortfolio(updatedHoldings);
-
-        // Record snapshot with latest prices
-        const totalValue = updatedHoldings.reduce((acc, curr) => acc + (curr.shares * (curr.price || 0)), 0);
-        if (totalValue > 0) {
-            await addPortfolioSnapshot(totalValue);
-            const updatedHistory = await getPortfolioHistory();
-            setHistory(updatedHistory);
-        }
-    };
 
     useFocusEffect(
         useCallback(() => {

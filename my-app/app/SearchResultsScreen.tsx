@@ -13,13 +13,12 @@ import { investorsData } from '@/constants/investors';
 import { FlatList } from 'react-native';
 import InvestorItem from '@/components/InvestorItem';
 import { useNavigation } from '@react-navigation/native';
-import { secFetch } from '@/utils/secApi';
+import { secFetch, fetchStockPrice, StockQuote } from '@/utils/secApi';
 import { debug, info, warn, error as logError } from '@/utils/logger';
 import * as SQLite from 'expo-sqlite';
 import cheerio from 'react-native-cheerio'; // Import cheerio
 import { XMLParser } from 'fast-xml-parser';
 import { addHolding, getHolding, PortfolioHolding } from '@/utils/db';
-import { fetchStockPrice } from '@/utils/secApi';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
@@ -74,6 +73,7 @@ const SearchResultsScreen: React.FC = () => {
   const [selectedValue, setSelectedValue] = useState<string | null>(null);
   const [chartPage, setChartPage] = useState(0);
   const [realTimePrice, setRealTimePrice] = useState<number | null>(null);
+  const [stockQuote, setStockQuote] = useState<StockQuote | null>(null);
   const [animatedHeights, setAnimatedHeights] = useState<Animated.Value[]>([]);
   const [investorInfo, setInvestorInfo] = useState<InvestorHolding[] | null>(null);
   const [dropdownOptions, setDropdownOptions] = useState<any[]>([]);
@@ -396,8 +396,10 @@ const SearchResultsScreen: React.FC = () => {
         // Fetch real-time price
         try {
           const quote = await fetchStockPrice(stockSymbol);
+          setStockQuote(quote);
           if (quote.price > 0) {
             setRealTimePrice(quote.price);
+            setPurchasePrice(quote.price.toString()); // Pre-fill purchase price
           }
         } catch (e) {
           console.error("Error fetching real-time price:", e);
@@ -661,8 +663,14 @@ const SearchResultsScreen: React.FC = () => {
 
                   {realTimePrice !== null && (
                     <View style={styles.priceContainer}>
-                      <Text style={styles.priceLabel}>Delayed Price:</Text>
-                      <Text style={styles.priceValue}>${realTimePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                      <View style={styles.priceValueWrapper}>
+                        <Text style={styles.priceValue}>${realTimePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                        {stockQuote && (
+                          <Text style={[styles.priceChange, stockQuote.change >= 0 ? styles.positive : styles.negative]}>
+                            {stockQuote.change >= 0 ? '+' : ''}{stockQuote.change.toFixed(2)} ({stockQuote.percent.toFixed(2)}%)
+                          </Text>
+                        )}
+                      </View>
                     </View>
                   )}
 
@@ -1000,7 +1008,22 @@ const styles = StyleSheet.create({
   priceValue: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#000',
+    color: '#1a1a1a',
+  },
+  priceValueWrapper: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  priceChange: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  positive: {
+    color: '#34C759',
+  },
+  negative: {
+    color: '#FF3B30',
   },
 
 

@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { fetchStockPrice } from './secApi';
 
 /**
  * db.ts
@@ -210,6 +211,7 @@ export const updateShares = async (symbol: string, shares: number) => {
     return result;
 };
 
+
 export const updatePrice = async (symbol: string, price: number) => {
     const database = await initDb();
     const result = await database.runAsync(
@@ -217,4 +219,34 @@ export const updatePrice = async (symbol: string, price: number) => {
         [price, symbol.toUpperCase()]
     );
     return result;
+};
+
+/**
+ * Centrally refreshes all portfolio prices and records a daily snapshot.
+ */
+export const refreshPortfolioPrices = async (): Promise<PortfolioHolding[]> => {
+    const holdings = await getPortfolio();
+    const updatedHoldings: PortfolioHolding[] = [];
+
+    for (const holding of holdings) {
+        try {
+            const quote = await fetchStockPrice(holding.symbol);
+            if (quote.price > 0) {
+                await updatePrice(holding.symbol, quote.price);
+                updatedHoldings.push({ ...holding, price: quote.price });
+            } else {
+                updatedHoldings.push(holding);
+            }
+        } catch (err) {
+            console.error(`Failed to refresh price for ${holding.symbol}:`, err);
+            updatedHoldings.push(holding);
+        }
+    }
+
+    const totalValue = updatedHoldings.reduce((acc, curr) => acc + (curr.shares * (curr.price || 0)), 0);
+    if (totalValue > 0) {
+        await addPortfolioSnapshot(totalValue);
+    }
+
+    return updatedHoldings;
 };

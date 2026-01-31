@@ -4,7 +4,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { secFetch } from '@/utils/secApi';
 import { error as logError } from '@/utils/logger';
-import { getPortfolio, PortfolioHolding, getPortfolioHistory, PortfolioSnapshot } from '@/utils/db';
+import { getPortfolio, PortfolioHolding, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices } from '@/utils/db';
 
 interface Company {
   name: string;
@@ -23,16 +23,17 @@ const HomeScreen: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [holdings, historyData] = await Promise.all([
-        getPortfolio(),
-        getPortfolioHistory()
-      ]);
+      // Refresh prices to get latest data for the dashboard
+      const holdings = await refreshPortfolioPrices();
+      const historyData = await getPortfolioHistory();
+
       setPortfolio(holdings);
       setHistory(historyData);
 
-      // Calculate movers
-      if (holdings.length >= 3) {
+      // Calculate movers based on the refreshed prices
+      if (holdings.length > 0) {
         const movers = [...holdings]
+          .filter(h => h.shares > 0) // Only show movers for active positions
           .map(h => {
             const currentPrice = h.price || 0;
             const costBasis = h.costBasis || currentPrice;
@@ -168,7 +169,7 @@ const HomeScreen: React.FC = () => {
           </TouchableOpacity>
         )}
 
-        {topMovers.length >= 3 && (
+        {topMovers.length > 0 && (
           <View style={styles.moversSection}>
             <Text style={styles.sectionTitle}>Portfolio Movers</Text>
             <View style={styles.moversGrid}>
