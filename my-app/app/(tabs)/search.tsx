@@ -58,7 +58,17 @@ const HomeScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [])
+
+      // Real-time updates: refresh prices every 30 seconds while in focus
+      const intervalId = setInterval(() => {
+        // Only refresh if we're not already loading
+        if (!loading) {
+          loadData();
+        }
+      }, 30000);
+
+      return () => clearInterval(intervalId);
+    }, [loading])
   );
 
   // Stock search logic
@@ -88,12 +98,21 @@ const HomeScreen: React.FC = () => {
   }, [searchQuery]);
 
   const totalPortfolioValue = portfolio.reduce((acc: number, curr: PortfolioHolding) => acc + (curr.shares * (curr.price || 0)), 0);
+  const totalCostBasis = portfolio.reduce((acc: number, curr: PortfolioHolding) => acc + (curr.shares * (curr.costBasis || curr.price || 0)), 0);
+  const totalRealizedProfit = portfolio.reduce((acc: number, curr: PortfolioHolding) => acc + (curr.realizedProfit || 0), 0);
+  const currentTotalProfit = (totalPortfolioValue - totalCostBasis) + totalRealizedProfit;
+
   const lastSnapshot = history[history.length - 1];
-  const dayChange = lastSnapshot && history.length > 1
-    ? lastSnapshot.totalValue - history[history.length - 2].totalValue
+  const secondLastSnapshot = history.length > 1 ? history[history.length - 2] : null;
+
+  // Day change should compare current total profit against previous DAY'S snapshot total profit
+  // This ensures real-time updates are reflected as gains/losses throughout the day.
+  const dayChange = secondLastSnapshot
+    ? currentTotalProfit - secondLastSnapshot.totalProfit
     : 0;
-  const dayChangePercent = lastSnapshot && history.length > 1 && history[history.length - 2].totalValue > 0
-    ? (dayChange / history[history.length - 2].totalValue) * 100
+
+  const dayChangePercent = secondLastSnapshot && secondLastSnapshot.totalValue > 0
+    ? (dayChange / secondLastSnapshot.totalValue) * 100
     : 0;
 
   if (loading && portfolio.length === 0) {
@@ -165,7 +184,7 @@ const HomeScreen: React.FC = () => {
               <Text style={[styles.cardChange, dayChange >= 0 ? styles.positiveText : styles.negativeText]}>
                 {dayChange >= 0 ? '+' : ''}${Math.abs(dayChange).toLocaleString(undefined, { maximumFractionDigits: 0 })} ({dayChangePercent.toFixed(1)}%)
               </Text>
-              <Text style={styles.cardTime}>Past 24h</Text>
+              <Text style={styles.cardTime}>Today</Text>
             </View>
           </TouchableOpacity>
         )}

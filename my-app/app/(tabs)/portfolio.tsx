@@ -89,13 +89,17 @@ const PortfolioScreen: React.FC = () => {
 
     const getFilteredHistory = () => {
         if (!history || history.length === 0) return [];
-        if (selectedRange === 'ALL') return history;
+        if (selectedRange === '1D') {
+            // For 1D, we want today's progress, so we need at least Today and Yesterday's final snapshot.
+            // If we strictly use -24h, we might miss yesterday's snapshot if it was early.
+            // So we take the last 2 snapshots.
+            return history.slice(-2);
+        }
 
         const now = new Date();
         let cutoff = new Date();
 
         switch (selectedRange) {
-            case '1D': cutoff.setDate(now.getDate() - 1); break;
             case '1W': cutoff.setDate(now.getDate() - 7); break;
             case '1M': cutoff.setMonth(now.getMonth() - 1); break;
             case '1Y': cutoff.setFullYear(now.getFullYear() - 1); break;

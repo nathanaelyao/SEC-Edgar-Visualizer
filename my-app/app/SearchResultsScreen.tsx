@@ -988,11 +988,11 @@ const SearchResultsScreen: React.FC = () => {
             </Modal>
           </>
         }
-        ListEmptyComponent={
-          !loading && investorInfo && investorInfo.length === 0 ? (
-            <Text style={styles.noDataText}>No investor holdings found.</Text>
-          ) : null
-        }
+        // ListEmptyComponent={
+        //   !loading && investorInfo && investorInfo.length === 0 ? (
+        //     <Text style={styles.noDataText}>No investor holdings found.</Text>
+        //   ) : null
+        // }
         contentContainerStyle={styles.scrollViewContent}
       />
     </View>
