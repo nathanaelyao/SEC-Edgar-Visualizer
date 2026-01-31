@@ -306,13 +306,13 @@ const HoldingsScreen: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.investorName}>{investorName}</Text>
+
+          <Text style={styles.investorName}> {investorName}</Text>
           <Text style={styles.institutionName}>{institution}</Text>
           {quarter && <Text style={styles.quarterText}>{quarter}</Text>}
           <Text style={styles.portfolioValue}>
@@ -348,15 +348,20 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   headerContent: {
+    paddingRight: 16,
+
     flex: 1,
     alignItems: 'center',
   },
   investorName: {
+    textAlign: "center",
+
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 5,
   },
   institutionName: {
+    textAlign: "center",
     fontSize: 16,
     color: 'gray',
     marginBottom: 5,
@@ -404,10 +409,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
   },
-  backButton: {
-    padding: 8,
-    marginTop: 4,
-  },
+
   backButtonText: {
     fontSize: 24,
     color: '#007AFF',
