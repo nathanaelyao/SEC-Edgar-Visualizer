@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Modal, TextInput, Alert,
   TouchableWithoutFeedback,
   Keyboard,
+  Platform,
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { Animated, Easing } from 'react-native';
@@ -19,6 +20,8 @@ import cheerio from 'react-native-cheerio'; // Import cheerio
 import { XMLParser } from 'fast-xml-parser';
 import { addHolding, getHolding, PortfolioHolding } from '@/utils/db';
 import { fetchStockPrice } from '@/utils/secApi';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 
 
@@ -86,6 +89,8 @@ const SearchResultsScreen: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingHolding, setExistingHolding] = useState<PortfolioHolding | null>(null);
   const [portfolioMode, setPortfolioMode] = useState<'buy' | 'sell'>('buy');
+  const [transactionDate, setTransactionDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [page, setPage] = useState(0);
   const itemsPerPage = 8;
 
@@ -857,6 +862,40 @@ const SearchResultsScreen: React.FC = () => {
                         placeholderTextColor="#999"
                       />
 
+                      <Text style={styles.inputLabel}>Date</Text>
+                      <TouchableOpacity
+                        style={styles.datePickerButton}
+                        onPress={() => setShowDatePicker(true)}
+                      >
+                        <MaterialIcons name="calendar-today" size={18} color="#007AFF" style={styles.calendarIcon} />
+                        <Text style={styles.datePickerText}>
+                          {transactionDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {showDatePicker && (
+                        <View style={Platform.OS === 'ios' ? styles.iosPickerContainer : null}>
+                          <DateTimePicker
+                            value={transactionDate}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                            onChange={(event, selectedDate) => {
+                              if (Platform.OS !== 'ios') setShowDatePicker(false);
+                              if (selectedDate) setTransactionDate(selectedDate);
+                            }}
+                            maximumDate={new Date()}
+                          />
+                          {Platform.OS === 'ios' && (
+                            <TouchableOpacity
+                              style={styles.iosDoneButton}
+                              onPress={() => setShowDatePicker(false)}
+                            >
+                              <Text style={styles.iosDoneText}>Done</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
+
                       <View style={styles.modalButtons}>
                         <TouchableOpacity
                           style={[styles.modalButton, styles.cancelButton]}
@@ -893,7 +932,8 @@ const SearchResultsScreen: React.FC = () => {
                                 symbol: stockSymbol,
                                 companyName: stockInfo?.companyName || stockSymbol,
                                 shares: sharesChange,
-                                price: price
+                                price: price,
+                                lastTransactionDate: transactionDate.toISOString()
                               });
 
                               Alert.alert("Success", existingHolding ? "Portfolio updated." : `${stockSymbol} added to your portfolio.`);
@@ -1358,6 +1398,43 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#fff',
     fontWeight: '600',
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginBottom: 24,
+  },
+  calendarIcon: {
+    marginRight: 8,
+  },
+  datePickerText: {
+    fontSize: 16,
+    color: '#1a1a1a',
+    fontWeight: '500',
+  },
+  iosPickerContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginTop: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  iosDoneButton: {
+    alignItems: 'center',
+    padding: 10,
+    marginTop: 5,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  iosDoneText: {
+    color: '#fff',
+    fontWeight: '700',
   },
 });
 

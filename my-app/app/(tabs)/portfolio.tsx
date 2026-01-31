@@ -1,13 +1,15 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot } from '@/utils/db';
 import PieChart from '@/components/PieChart';
 import PortfolioLineChart from '@/components/PortfolioLineChart';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { fetchStockPrice } from '@/utils/secApi';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const PortfolioScreen: React.FC = () => {
+    const navigation = useNavigation<any>();
     const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
     const [history, setHistory] = useState<PortfolioSnapshot[]>([]);
     const [loading, setLoading] = useState(true);
@@ -19,6 +21,8 @@ const PortfolioScreen: React.FC = () => {
     const [sharesAmount, setSharesAmount] = useState('');
     const [priceAmount, setPriceAmount] = useState('');
     const [manageMode, setManageMode] = useState<'buy' | 'sell'>('buy');
+    const [transactionDate, setTransactionDate] = useState(new Date());
+    const [showDatePicker, setShowDatePicker] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const loadPortfolio = async () => {
@@ -156,7 +160,8 @@ const PortfolioScreen: React.FC = () => {
                 symbol: selectedHolding.symbol,
                 companyName: selectedHolding.companyName,
                 shares: sharesChange,
-                price: price // Use the user-entered price
+                price: price, // Use the user-entered price
+                lastTransactionDate: transactionDate.toISOString()
             });
 
             setIsManageModalVisible(false);
@@ -180,18 +185,28 @@ const PortfolioScreen: React.FC = () => {
         const profitPercent = costBasis > 0 ? ((currentPrice - costBasis) / costBasis) * 100 : 0;
 
         return (
-            <View style={styles.holdingItem}>
+            <TouchableOpacity
+                style={styles.holdingItem}
+                onPress={() => navigation.navigate('SearchResultsScreen', { stockSymbol: item.symbol })}
+            >
                 <View style={[styles.colorIndicator, { backgroundColor: colors[index % colors.length] }]} />
                 <View style={styles.holdingInfo}>
                     <View style={styles.symbolHeader}>
                         <Text style={styles.symbol}>{item.symbol}</Text>
+                    </View>
+                    <Text style={styles.companyName} numberOfLines={1}>{item.companyName}</Text>
+                    <View style={styles.holdingFooter}>
                         {(item.realizedProfit || 0) !== 0 && (
                             <Text style={[styles.realizedBadge, (item.realizedProfit || 0) > 0 ? styles.positiveBadge : styles.negativeBadge]}>
                                 Realized: {(item.realizedProfit || 0) >= 0 ? '+' : '-'}${Math.abs(item.realizedProfit || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </Text>
                         )}
+                        {item.lastTransactionDate && (
+                            <Text style={styles.dateLabel}>
+                                {new Date(item.lastTransactionDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </Text>
+                        )}
                     </View>
-                    <Text style={styles.companyName} numberOfLines={1}>{item.companyName}</Text>
                 </View>
                 <View style={styles.sharesContainer}>
                     <Text style={styles.shares}>{item.shares.toLocaleString()} shares</Text>
@@ -211,6 +226,7 @@ const PortfolioScreen: React.FC = () => {
                         setSelectedHolding(item);
                         setManageMode('buy');
                         setPriceAmount((item.price || 0).toString());
+                        setTransactionDate(new Date());
                         setIsManageModalVisible(true);
                     }}
                 >
@@ -222,7 +238,7 @@ const PortfolioScreen: React.FC = () => {
                 >
                     <MaterialIcons name="delete-outline" size={22} color="#FF3B30" />
                 </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
         );
     };
 
@@ -352,6 +368,42 @@ const PortfolioScreen: React.FC = () => {
                                         onChangeText={setPriceAmount}
                                         placeholderTextColor="#999"
                                     />
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.inputLabel}>Date</Text>
+                                    <TouchableOpacity
+                                        style={styles.datePickerButton}
+                                        onPress={() => setShowDatePicker(true)}
+                                    >
+                                        <MaterialIcons name="calendar-today" size={20} color="#007AFF" style={styles.calendarIcon} />
+                                        <Text style={styles.datePickerText}>
+                                            {transactionDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    {showDatePicker && (
+                                        <View style={Platform.OS === 'ios' ? styles.iosPickerContainer : null}>
+                                            <DateTimePicker
+                                                value={transactionDate}
+                                                mode="date"
+                                                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                                                onChange={(event, selectedDate) => {
+                                                    if (Platform.OS !== 'ios') setShowDatePicker(false);
+                                                    if (selectedDate) setTransactionDate(selectedDate);
+                                                }}
+                                                maximumDate={new Date()}
+                                            />
+                                            {Platform.OS === 'ios' && (
+                                                <TouchableOpacity
+                                                    style={styles.iosDoneButton}
+                                                    onPress={() => setShowDatePicker(false)}
+                                                >
+                                                    <Text style={styles.iosDoneText}>Done</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    )}
                                 </View>
 
                                 <View style={styles.modalButtons}>
@@ -549,11 +601,20 @@ const styles = StyleSheet.create({
     realizedBadge: {
         fontSize: 10,
         fontWeight: '700',
-        marginLeft: 8,
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 4,
         overflow: 'hidden',
+    },
+    holdingFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 6,
+    },
+    dateLabel: {
+        fontSize: 10,
+        color: '#999',
+        marginLeft: 8,
     },
     positiveBadge: {
         backgroundColor: '#E8F5E9',
@@ -742,6 +803,42 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: '#fff',
+    },
+    datePickerButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
+        borderRadius: 12,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#eee',
+    },
+    calendarIcon: {
+        marginRight: 10,
+    },
+    datePickerText: {
+        fontSize: 16,
+        color: '#1a1a1a',
+        fontWeight: '500',
+    },
+    iosPickerContainer: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        marginTop: 10,
+        padding: 10,
+        borderWidth: 1,
+        borderColor: '#eee',
+    },
+    iosDoneButton: {
+        alignItems: 'center',
+        padding: 10,
+        marginTop: 5,
+        backgroundColor: '#007AFF',
+        borderRadius: 8,
+    },
+    iosDoneText: {
+        color: '#fff',
+        fontWeight: '700',
     },
 });
 

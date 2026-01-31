@@ -13,6 +13,7 @@ export interface PortfolioHolding {
     price?: number; // Last known price
     costBasis?: number; // Average purchase price
     realizedProfit?: number; // Total profit/loss realized from sales
+    lastTransactionDate?: string; // Date of the last buy/sell (ISO string)
 }
 
 export interface PortfolioSnapshot {
@@ -37,7 +38,8 @@ export const initDb = async () => {
             shares REAL NOT NULL,
             price REAL,
             costBasis REAL,
-            realizedProfit REAL DEFAULT 0
+            realizedProfit REAL DEFAULT 0,
+            lastTransactionDate TEXT
         );
 
         CREATE TABLE IF NOT EXISTS portfolio_history (
@@ -63,6 +65,10 @@ export const initDb = async () => {
         const hasRealizedProfit = tableInfo.some(col => col.name === 'realizedProfit');
         if (!hasRealizedProfit) {
             await db.execAsync('ALTER TABLE portfolio ADD COLUMN realizedProfit REAL DEFAULT 0;');
+        }
+        const hasLastTransactionDate = tableInfo.some(col => col.name === 'lastTransactionDate');
+        if (!hasLastTransactionDate) {
+            await db.execAsync('ALTER TABLE portfolio ADD COLUMN lastTransactionDate TEXT;');
         }
     } catch (e) {
         console.error('Migration error:', e);
@@ -111,37 +117,56 @@ export const addHolding = async (holding: PortfolioHolding) => {
             // OR delete it? If we delete it, we lose the realized profit tracking for that ticker.
             // Let's UPDATE it to 0 shares so we keep tracking realized profit.
             return await database.runAsync(
-                'UPDATE portfolio SET shares = 0, price = ?, realizedProfit = ? WHERE symbol = ?;',
-                [purchasePrice, newRealized, holding.symbol.toUpperCase()]
+                'UPDATE portfolio SET shares = 0, price = ?, realizedProfit = ?, lastTransactionDate = ? WHERE symbol = ?;',
+                [purchasePrice, newRealized, holding.lastTransactionDate || new Date().toISOString(), holding.symbol.toUpperCase()]
             );
         }
 
-        return await database.runAsync(
-            'UPDATE portfolio SET shares = ?, price = ?, costBasis = ?, realizedProfit = ? WHERE symbol = ?;',
-            [newShares, purchasePrice, newCostBasis, newRealized, holding.symbol.toUpperCase()]
+        const updateResult = await database.runAsync(
+            'UPDATE portfolio SET shares = ?, price = ?, costBasis = ?, realizedProfit = ?, lastTransactionDate = ? WHERE symbol = ?;',
+            [newShares, purchasePrice, newCostBasis, newRealized, holding.lastTransactionDate || new Date().toISOString(), holding.symbol.toUpperCase()]
         );
+
+        // Snapshot if past date
+        if (holding.lastTransactionDate) {
+            const txDate = new Date(holding.lastTransactionDate);
+            if (txDate.getTime() < new Date().getTime() - (1000 * 60 * 60 * 2)) {
+                await addPortfolioSnapshot(Math.max(0, newShares) * purchasePrice, holding.lastTransactionDate);
+            }
+        }
+
+        return updateResult;
     }
 
     const result = await database.runAsync(
-        'INSERT INTO portfolio (symbol, companyName, shares, price, costBasis, realizedProfit) VALUES (?, ?, ?, ?, ?, ?);',
-        [holding.symbol.toUpperCase(), holding.companyName, holding.shares, holding.price || 0, holding.price || 0, 0]
+        'INSERT INTO portfolio (symbol, companyName, shares, price, costBasis, realizedProfit, lastTransactionDate) VALUES (?, ?, ?, ?, ?, ?, ?);',
+        [holding.symbol.toUpperCase(), holding.companyName, holding.shares, holding.price || 0, holding.price || 0, 0, holding.lastTransactionDate || new Date().toISOString()]
     );
+
+    // Snapshot if past date
+    if (holding.lastTransactionDate) {
+        const txDate = new Date(holding.lastTransactionDate);
+        if (txDate.getTime() < new Date().getTime() - (1000 * 60 * 60 * 2)) {
+            await addPortfolioSnapshot(holding.shares * (holding.price || 0), holding.lastTransactionDate);
+        }
+    }
+
     return result;
 };
 
-export const addPortfolioSnapshot = async (totalValue: number) => {
+export const addPortfolioSnapshot = async (totalValue: number, customTimestamp?: string) => {
     const database = await initDb();
-    const timestamp = new Date().toISOString();
+    const timestamp = customTimestamp || new Date().toISOString();
 
-    // Check if we already have a snapshot for today to avoid flooding
-    const today = timestamp.split('T')[0];
+    // Check if we already have a snapshot for this specific day to avoid flooding
+    const day = timestamp.split('T')[0];
     const existing = await database.getFirstAsync<{ id: number }>(
         'SELECT id FROM portfolio_history WHERE timestamp LIKE ? LIMIT 1;',
-        [`${today}%`]
+        [`${day}%`]
     );
 
     if (existing) {
-        // Update today's snapshot instead of adding new one
+        // Update the snapshot for that day instead of adding new one
         return await database.runAsync(
             'UPDATE portfolio_history SET totalValue = ?, timestamp = ? WHERE id = ?;',
             [totalValue, timestamp, existing.id]
