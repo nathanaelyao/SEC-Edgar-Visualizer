@@ -1,11 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot } from '../utils/db';
-import PieChart from '../../components/PieChart';
-import PortfolioLineChart from '../../components/PortfolioLineChart';
+import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot } from '@/utils/db';
+import PieChart from '@/components/PieChart';
+import PortfolioLineChart from '@/components/PortfolioLineChart';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { fetchStockPrice } from '../utils/secApi';
+import { fetchStockPrice } from '@/utils/secApi';
 
 const PortfolioScreen: React.FC = () => {
     const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
@@ -109,6 +109,8 @@ const PortfolioScreen: React.FC = () => {
     const totalProfit = totalPortfolioValue - totalCostBasis;
     const totalProfitPercent = totalCostBasis > 0 ? (totalProfit / totalCostBasis) * 100 : 0;
 
+    const totalRealizedProfit = portfolio.reduce((acc, curr) => acc + (curr.realizedProfit || 0), 0);
+
     const handleManageSave = async () => {
         const shares = parseFloat(sharesAmount);
         const price = parseFloat(priceAmount);
@@ -160,7 +162,14 @@ const PortfolioScreen: React.FC = () => {
             <View style={styles.holdingItem}>
                 <View style={[styles.colorIndicator, { backgroundColor: colors[index % colors.length] }]} />
                 <View style={styles.holdingInfo}>
-                    <Text style={styles.symbol}>{item.symbol}</Text>
+                    <View style={styles.symbolHeader}>
+                        <Text style={styles.symbol}>{item.symbol}</Text>
+                        {(item.realizedProfit || 0) !== 0 && (
+                            <Text style={[styles.realizedBadge, (item.realizedProfit || 0) > 0 ? styles.positiveBadge : styles.negativeBadge]}>
+                                Realized: {(item.realizedProfit || 0) >= 0 ? '+' : '-'}${Math.abs(item.realizedProfit || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </Text>
+                        )}
+                    </View>
                     <Text style={styles.companyName} numberOfLines={1}>{item.companyName}</Text>
                 </View>
                 <View style={styles.sharesContainer}>
@@ -206,17 +215,22 @@ const PortfolioScreen: React.FC = () => {
                     <Text style={styles.totalValue}>${totalPortfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
                 </View>
 
-                {portfolio.length > 0 && (
-                    <View style={styles.overallProfitContainer}>
-                        <Text style={styles.totalValueLabel}>Total Return</Text>
-                        <Text style={[styles.overallProfit, totalProfit >= 0 ? styles.positive : styles.negative]}>
+                <View style={styles.statDivider} />
+
+                <View style={styles.statsColumn}>
+                    <View style={styles.statRow}>
+                        <Text style={styles.statLabel}>Unrealized</Text>
+                        <Text style={[styles.statValue, totalProfit >= 0 ? styles.positive : styles.negative]}>
                             {totalProfit >= 0 ? '+' : '-'}${Math.abs(totalProfit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
-                        <Text style={[styles.overallProfitPercent, totalProfit >= 0 ? styles.positive : styles.negative]}>
-                            ({totalProfit >= 0 ? '+' : ''}{totalProfitPercent.toFixed(2)}%)
+                    </View>
+                    <View style={styles.statRow}>
+                        <Text style={styles.statLabel}>Realized</Text>
+                        <Text style={[styles.statValue, totalRealizedProfit >= 0 ? styles.positive : styles.negative]}>
+                            {totalRealizedProfit >= 0 ? '+' : '-'}${Math.abs(totalRealizedProfit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
                     </View>
-                )}
+                </View>
             </View>
 
             {loading && portfolio.length === 0 ? (
@@ -351,38 +365,61 @@ const styles = StyleSheet.create({
     },
     headerStats: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
+        justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 20,
         paddingHorizontal: 16,
+        backgroundColor: '#fff',
+        marginHorizontal: 16,
+        paddingVertical: 16,
+        borderRadius: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+        elevation: 2,
     },
     totalValueContainer: {
         alignItems: 'center',
+        flex: 1,
     },
     totalValueLabel: {
-        fontSize: 12,
-        color: '#666',
-        fontWeight: '600',
+        fontSize: 11,
+        color: '#888',
+        fontWeight: '700',
         textTransform: 'uppercase',
         letterSpacing: 0.5,
         marginBottom: 4,
     },
     totalValue: {
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: '800',
         color: '#1a1a1a',
     },
-    overallProfitContainer: {
+    statDivider: {
+        width: 1,
+        height: 40,
+        backgroundColor: '#eee',
+        marginHorizontal: 15,
+    },
+    statsColumn: {
+        flex: 1,
+        justifyContent: 'center',
+    },
+    statRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
+        marginVertical: 1,
     },
-    overallProfit: {
-        fontSize: 20,
+    statLabel: {
+        fontSize: 12,
+        color: '#666',
+        fontWeight: '500',
+    },
+    statValue: {
+        fontSize: 13,
         fontWeight: '700',
-    },
-    overallProfitPercent: {
-        fontSize: 14,
-        fontWeight: '600',
-        marginTop: -2,
     },
     loader: {
         flex: 1,
@@ -431,10 +468,31 @@ const styles = StyleSheet.create({
     holdingInfo: {
         flex: 1,
     },
+    symbolHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
     symbol: {
         fontSize: 18,
         fontWeight: '700',
         color: '#1a1a1a',
+    },
+    realizedBadge: {
+        fontSize: 10,
+        fontWeight: '700',
+        marginLeft: 8,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        overflow: 'hidden',
+    },
+    positiveBadge: {
+        backgroundColor: '#E8F5E9',
+        color: '#2E7D32',
+    },
+    negativeBadge: {
+        backgroundColor: '#FFEBEE',
+        color: '#C62828',
     },
     companyName: {
         fontSize: 12,

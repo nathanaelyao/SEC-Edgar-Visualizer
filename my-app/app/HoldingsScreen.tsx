@@ -4,8 +4,8 @@ import { XMLParser } from 'fast-xml-parser';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import cheerio from 'react-native-cheerio'; // Import cheerio
 import { useNavigation } from '@react-navigation/native';
-import { secFetch } from './utils/secApi';
-import { debug, info, warn, error as logError } from './utils/logger';
+import { secFetch } from '@/utils/secApi';
+import { debug, info, warn, error as logError } from '@/utils/logger';
 
 type RootStackParamList = {
   HoldingsScreen: { investorName: string; cik: string, institution: string };

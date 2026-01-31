@@ -13,8 +13,8 @@ import {
   Keyboard,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { error as logError } from '../utils/logger';
-import { secFetch } from '../utils/secApi';
+import { error as logError } from '@/utils/logger';
+import { secFetch } from '@/utils/secApi';
 
 interface Company {
   name: string;

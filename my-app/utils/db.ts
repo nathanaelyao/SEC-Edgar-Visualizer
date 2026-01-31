@@ -12,6 +12,7 @@ export interface PortfolioHolding {
     shares: number;
     price?: number; // Last known price
     costBasis?: number; // Average purchase price
+    realizedProfit?: number; // Total profit/loss realized from sales
 }
 
 export interface PortfolioSnapshot {
@@ -35,7 +36,8 @@ export const initDb = async () => {
             companyName TEXT NOT NULL,
             shares REAL NOT NULL,
             price REAL,
-            costBasis REAL
+            costBasis REAL,
+            realizedProfit REAL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS portfolio_history (
@@ -57,6 +59,10 @@ export const initDb = async () => {
             await db.execAsync('ALTER TABLE portfolio ADD COLUMN costBasis REAL;');
             // Initialize costBasis with current price for existing holdings
             await db.execAsync('UPDATE portfolio SET costBasis = price WHERE costBasis IS NULL;');
+        }
+        const hasRealizedProfit = tableInfo.some(col => col.name === 'realizedProfit');
+        if (!hasRealizedProfit) {
+            await db.execAsync('ALTER TABLE portfolio ADD COLUMN realizedProfit REAL DEFAULT 0;');
         }
     } catch (e) {
         console.error('Migration error:', e);
@@ -90,19 +96,35 @@ export const addHolding = async (holding: PortfolioHolding) => {
         }
 
         const newShares = existing.shares + holding.shares;
+        const currentRealized = existing.realizedProfit || 0;
+        let newRealized = currentRealized;
+
+        if (holding.shares < 0) {
+            // Realized profit on sale: (Sale Price - Cost Basis) * Number of Shares Sold
+            const soldCount = Math.abs(holding.shares);
+            const profitOnThisSale = (purchasePrice - newCostBasis) * soldCount;
+            newRealized += profitOnThisSale;
+        }
+
         if (newShares <= 0) {
-            return await removeHolding(holding.symbol);
+            // Keep the row if there's realized profit, just set shares to 0
+            // OR delete it? If we delete it, we lose the realized profit tracking for that ticker.
+            // Let's UPDATE it to 0 shares so we keep tracking realized profit.
+            return await database.runAsync(
+                'UPDATE portfolio SET shares = 0, price = ?, realizedProfit = ? WHERE symbol = ?;',
+                [purchasePrice, newRealized, holding.symbol.toUpperCase()]
+            );
         }
 
         return await database.runAsync(
-            'UPDATE portfolio SET shares = ?, price = ?, costBasis = ? WHERE symbol = ?;',
-            [newShares, purchasePrice, newCostBasis, holding.symbol.toUpperCase()]
+            'UPDATE portfolio SET shares = ?, price = ?, costBasis = ?, realizedProfit = ? WHERE symbol = ?;',
+            [newShares, purchasePrice, newCostBasis, newRealized, holding.symbol.toUpperCase()]
         );
     }
 
     const result = await database.runAsync(
-        'INSERT INTO portfolio (symbol, companyName, shares, price, costBasis) VALUES (?, ?, ?, ?, ?);',
-        [holding.symbol.toUpperCase(), holding.companyName, holding.shares, holding.price || 0, holding.price || 0]
+        'INSERT INTO portfolio (symbol, companyName, shares, price, costBasis, realizedProfit) VALUES (?, ?, ?, ?, ?, ?);',
+        [holding.symbol.toUpperCase(), holding.companyName, holding.shares, holding.price || 0, holding.price || 0, 0]
     );
     return result;
 };

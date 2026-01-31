@@ -6,19 +6,19 @@ import {
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { Animated, Easing } from 'react-native';
-import BarChart from '../components/BarChart';
+import BarChart from '@/components/BarChart';
 import { Dropdown } from 'react-native-element-dropdown';
-import { investorsData } from '../constants/investors';
+import { investorsData } from '@/constants/investors';
 import { FlatList } from 'react-native';
-import InvestorItem from '../components/InvestorItem';
+import InvestorItem from '@/components/InvestorItem';
 import { useNavigation } from '@react-navigation/native';
-import { secFetch } from './utils/secApi';
-import { debug, info, warn, error as logError } from './utils/logger';
+import { secFetch } from '@/utils/secApi';
+import { debug, info, warn, error as logError } from '@/utils/logger';
 import * as SQLite from 'expo-sqlite';
 import cheerio from 'react-native-cheerio'; // Import cheerio
 import { XMLParser } from 'fast-xml-parser';
-import { addHolding, getHolding, PortfolioHolding } from './utils/db';
-import { fetchStockPrice } from './utils/secApi';
+import { addHolding, getHolding, PortfolioHolding } from '@/utils/db';
+import { fetchStockPrice } from '@/utils/secApi';
 
 
 
@@ -661,6 +661,44 @@ const SearchResultsScreen: React.FC = () => {
                     </View>
                   )}
 
+                  {existingHolding && existingHolding.shares > 0 && (
+                    <View style={styles.positionCard}>
+                      <Text style={styles.positionTitle}>Your Position</Text>
+                      <View style={styles.positionGrid}>
+                        <View style={styles.positionItem}>
+                          <Text style={styles.positionLabel}>Shares</Text>
+                          <Text style={styles.positionValue}>{existingHolding.shares.toLocaleString()}</Text>
+                        </View>
+                        <View style={styles.positionItem}>
+                          <Text style={styles.positionLabel}>Cost Basis</Text>
+                          <Text style={styles.positionValue}>${(existingHolding.costBasis || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                        </View>
+                        <View style={styles.positionItem}>
+                          <Text style={styles.positionLabel}>Value</Text>
+                          <Text style={styles.positionValue}>
+                            ${((realTimePrice || 0) * existingHolding.shares).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </Text>
+                        </View>
+                        <View style={styles.positionItem}>
+                          <Text style={styles.positionLabel}>Unrealized P&L</Text>
+                          {(() => {
+                            const currentVal = (realTimePrice || 0) * existingHolding.shares;
+                            const cost = (existingHolding.costBasis || 0) * existingHolding.shares;
+                            const profit = currentVal - cost;
+                            const profitPercent = cost > 0 ? (profit / cost) * 100 : 0;
+                            return (
+                              <Text style={[styles.positionValue, profit >= 0 ? styles.positiveText : styles.negativeText]}>
+                                {profit >= 0 ? '+' : '-'}${Math.abs(profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {"\n"}
+                                <Text style={styles.positionSubValue}>({profit >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%)</Text>
+                              </Text>
+                            );
+                          })()}
+                        </View>
+                      </View>
+                    </View>
+                  )}
+
                   <TouchableOpacity
                     style={[styles.addToPortfolioButton, existingHolding ? styles.managePortfolioButton : null]}
                     onPress={() => {
@@ -1150,6 +1188,56 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  positionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    width: SCREEN_WIDTH - 32,
+    marginVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  positionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  positionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  positionItem: {
+    width: '48%',
+    marginBottom: 12,
+  },
+  positionLabel: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  positionValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  positionSubValue: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  positiveText: {
+    color: '#34C759',
+  },
+  negativeText: {
+    color: '#FF3B30',
   },
   addToPortfolioButton: {
     backgroundColor: '#007AFF',

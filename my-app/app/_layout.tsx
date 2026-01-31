@@ -7,8 +7,8 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { scheduleDailyPrefetch } from './utils/secApi';
-import { initReleaseDefaults, initSentryIfAvailable } from './utils/initRelease';
+import { scheduleDailyPrefetch } from '@/utils/secApi';
+import { initReleaseDefaults, initSentryIfAvailable } from '@/utils/initRelease';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 try {

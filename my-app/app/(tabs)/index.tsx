@@ -6,8 +6,9 @@ import { investorsData } from '@/constants/investors'
 import * as SQLite from 'expo-sqlite';
 import cheerio from 'react-native-cheerio';
 import { XMLParser } from 'fast-xml-parser';
-import { secFetch } from '../utils/secApi';
-import { debug, info, warn, error as logError } from '../utils/logger';
+import { secFetch } from '@/utils/secApi';
+import { debug, info, warn, error as logError } from '@/utils/logger';
+import { getPortfolio, PortfolioHolding } from '@/utils/db';
 
 interface Investor {
   name: string;
@@ -29,7 +30,7 @@ const HomeScreen: React.FC = () => {
 
   // Initialize daily prefetch for popular endpoints on app startup
   useEffect(() => {
-    const { scheduleDailyPrefetch } = require('../utils/secApi');
+    const { scheduleDailyPrefetch } = require('@/utils/secApi');
 
     // Prefetch the most popular investor CIK submissions (top 10 by activity)
     const popularEndpoints = investorsData.slice(0, 10).map(
