@@ -114,7 +114,7 @@ const HomeScreen: React.FC = () => {
         <View style={styles.topRow}>
           <View>
             <Text style={styles.greeting}>Welcome back</Text>
-            <Text style={styles.homeTitle}>Investment Hub</Text>
+            <Text style={styles.homeTitle}>Stock Trends</Text>
           </View>
           <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('portfolio')}>
             <Ionicons name="pie-chart-outline" size={32} color="#007AFF" />
@@ -193,12 +193,6 @@ const HomeScreen: React.FC = () => {
           <View style={styles.emptyPortfolioCard}>
             <Text style={styles.emptyTitle}>Start your portfolio</Text>
             <Text style={styles.emptySubtext}>Search for a stock and add it to your portfolio to see its performance here.</Text>
-            <TouchableOpacity
-              style={styles.searchButton}
-              onPress={() => { }}
-            >
-              <Text style={styles.searchButtonText}>Explore Stocks</Text>
-            </TouchableOpacity>
           </View>
         )}
       </View>

@@ -870,39 +870,22 @@ const SearchResultsScreen: React.FC = () => {
                         placeholderTextColor="#999"
                       />
 
-                      <Text style={styles.inputLabel}>Date</Text>
-                      <TouchableOpacity
-                        style={styles.datePickerButton}
-                        onPress={() => setShowDatePicker(true)}
-                      >
-                        <MaterialIcons name="calendar-today" size={18} color="#007AFF" style={styles.calendarIcon} />
-                        <Text style={styles.datePickerText}>
-                          {transactionDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </Text>
-                      </TouchableOpacity>
-
-                      {showDatePicker && (
-                        <View style={Platform.OS === 'ios' ? styles.iosPickerContainer : null}>
-                          <DateTimePicker
-                            value={transactionDate}
-                            mode="date"
-                            display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                            onChange={(event, selectedDate) => {
-                              if (Platform.OS !== 'ios') setShowDatePicker(false);
-                              if (selectedDate) setTransactionDate(selectedDate);
-                            }}
-                            maximumDate={new Date()}
-                          />
-                          {Platform.OS === 'ios' && (
-                            <TouchableOpacity
-                              style={styles.iosDoneButton}
-                              onPress={() => setShowDatePicker(false)}
-                            >
-                              <Text style={styles.iosDoneText}>Done</Text>
-                            </TouchableOpacity>
-                          )}
+                      <View style={styles.dateRow}>
+                        <View style={styles.dateLabelGroup}>
+                          <MaterialIcons name="calendar-today" size={18} color="#666" style={styles.calendarIcon} />
+                          <Text style={styles.inputLabel}>Transaction Date</Text>
                         </View>
-                      )}
+                        <DateTimePicker
+                          value={transactionDate}
+                          mode="date"
+                          display={Platform.OS === 'ios' ? 'compact' : 'default'}
+                          onChange={(event, selectedDate) => {
+                            if (selectedDate) setTransactionDate(selectedDate);
+                          }}
+                          maximumDate={new Date()}
+                          themeVariant="light"
+                        />
+                      </View>
 
                       <View style={styles.modalButtons}>
                         <TouchableOpacity
@@ -1440,24 +1423,19 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     fontWeight: '500',
   },
-  iosPickerContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginTop: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#eee',
-  },
-  iosDoneButton: {
+  dateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 10,
-    marginTop: 5,
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    marginTop: 10,
   },
-  iosDoneText: {
-    color: '#fff',
-    fontWeight: '700',
+  dateLabelGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
 

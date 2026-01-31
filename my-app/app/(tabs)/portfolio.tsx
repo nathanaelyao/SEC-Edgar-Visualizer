@@ -164,17 +164,20 @@ const PortfolioScreen: React.FC = () => {
                 <View style={styles.holdingInfo}>
                     <View style={styles.symbolHeader}>
                         <Text style={styles.symbol}>{item.symbol}</Text>
+                        <View style={styles.itemPriceRow}>
+                            <Text style={styles.itemCurrentPrice}>${currentPrice.toFixed(2)}</Text>
+                            {item.priceChange !== undefined && (
+                                <Text style={[styles.itemPriceChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
+                                    {item.priceChange >= 0 ? '+' : ''}{item.priceChange.toFixed(2)} ({item.pricePercent?.toFixed(2)}%)
+                                </Text>
+                            )}
+                        </View>
                     </View>
                     <Text style={styles.companyName} numberOfLines={1}>{item.companyName}</Text>
                     <View style={styles.holdingFooter}>
                         {(item.realizedProfit || 0) !== 0 && (
                             <Text style={[styles.realizedBadge, (item.realizedProfit || 0) > 0 ? styles.positiveBadge : styles.negativeBadge]}>
                                 Realized: {(item.realizedProfit || 0) >= 0 ? '+' : '-'}${Math.abs(item.realizedProfit || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </Text>
-                        )}
-                        {item.lastTransactionDate && (
-                            <Text style={styles.dateLabel}>
-                                {new Date(item.lastTransactionDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                             </Text>
                         )}
                     </View>
@@ -365,40 +368,21 @@ const PortfolioScreen: React.FC = () => {
                                     />
                                 </View>
 
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.inputLabel}>Date</Text>
-                                    <TouchableOpacity
-                                        style={styles.datePickerButton}
-                                        onPress={() => setShowDatePicker(true)}
-                                    >
-                                        <MaterialIcons name="calendar-today" size={20} color="#007AFF" style={styles.calendarIcon} />
-                                        <Text style={styles.datePickerText}>
-                                            {transactionDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
-                                        </Text>
-                                    </TouchableOpacity>
-
-                                    {showDatePicker && (
-                                        <View style={Platform.OS === 'ios' ? styles.iosPickerContainer : null}>
-                                            <DateTimePicker
-                                                value={transactionDate}
-                                                mode="date"
-                                                display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                                                onChange={(event, selectedDate) => {
-                                                    if (Platform.OS !== 'ios') setShowDatePicker(false);
-                                                    if (selectedDate) setTransactionDate(selectedDate);
-                                                }}
-                                                maximumDate={new Date()}
-                                            />
-                                            {Platform.OS === 'ios' && (
-                                                <TouchableOpacity
-                                                    style={styles.iosDoneButton}
-                                                    onPress={() => setShowDatePicker(false)}
-                                                >
-                                                    <Text style={styles.iosDoneText}>Done</Text>
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    )}
+                                <View style={styles.dateRow}>
+                                    <View style={styles.dateLabelGroup}>
+                                        <MaterialIcons name="calendar-today" size={18} color="#666" style={styles.calendarIcon} />
+                                        <Text style={styles.inputLabel}>Transaction Date</Text>
+                                    </View>
+                                    <DateTimePicker
+                                        value={transactionDate}
+                                        mode="date"
+                                        display={Platform.OS === 'ios' ? 'compact' : 'default'}
+                                        onChange={(event, selectedDate) => {
+                                            if (selectedDate) setTransactionDate(selectedDate);
+                                        }}
+                                        maximumDate={new Date()}
+                                        themeVariant="light"
+                                    />
                                 </View>
 
                                 <View style={styles.modalButtons}>
@@ -488,6 +472,31 @@ const styles = StyleSheet.create({
     statsColumn: {
         flex: 1,
         justifyContent: 'center',
+    },
+    symbolHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        marginBottom: 2,
+    },
+    itemPriceRow: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: 6,
+    },
+    itemCurrentPrice: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1a1a1a',
+    },
+    itemPriceChange: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    symbol: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#007AFF',
     },
     statRow: {
         flexDirection: 'row',
@@ -607,15 +616,6 @@ const styles = StyleSheet.create({
     },
     holdingInfo: {
         flex: 1,
-    },
-    symbolHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    symbol: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1a1a1a',
     },
     realizedBadge: {
         fontSize: 10,
@@ -776,6 +776,19 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         textAlign: 'center',
     },
+    dateRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 20,
+    },
+    dateLabelGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
     inputGroup: {
         marginBottom: 16,
     },
@@ -783,7 +796,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         color: '#666',
-        marginBottom: 8,
         marginLeft: 4,
     },
     modalInput: {
@@ -833,31 +845,7 @@ const styles = StyleSheet.create({
         borderColor: '#eee',
     },
     calendarIcon: {
-        marginRight: 10,
-    },
-    datePickerText: {
-        fontSize: 16,
-        color: '#1a1a1a',
-        fontWeight: '500',
-    },
-    iosPickerContainer: {
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        marginTop: 10,
-        padding: 10,
-        borderWidth: 1,
-        borderColor: '#eee',
-    },
-    iosDoneButton: {
-        alignItems: 'center',
-        padding: 10,
-        marginTop: 5,
-        backgroundColor: '#007AFF',
-        borderRadius: 8,
-    },
-    iosDoneText: {
-        color: '#fff',
-        fontWeight: '700',
+        marginRight: 8,
     },
 });
 

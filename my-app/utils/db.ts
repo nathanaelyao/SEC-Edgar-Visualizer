@@ -12,6 +12,8 @@ export interface PortfolioHolding {
     companyName: string;
     shares: number;
     price?: number; // Last known price
+    priceChange?: number; // Daily dollar change
+    pricePercent?: number; // Daily percentage change
     costBasis?: number; // Average purchase price
     realizedProfit?: number; // Total profit/loss realized from sales
     lastTransactionDate?: string; // Date of the last buy/sell (ISO string)
@@ -233,7 +235,12 @@ export const refreshPortfolioPrices = async (): Promise<PortfolioHolding[]> => {
             const quote = await fetchStockPrice(holding.symbol);
             if (quote.price > 0) {
                 await updatePrice(holding.symbol, quote.price);
-                updatedHoldings.push({ ...holding, price: quote.price });
+                updatedHoldings.push({
+                    ...holding,
+                    price: quote.price,
+                    priceChange: quote.change,
+                    pricePercent: quote.percent
+                });
             } else {
                 updatedHoldings.push(holding);
             }
