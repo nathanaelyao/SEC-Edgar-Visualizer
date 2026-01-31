@@ -28,7 +28,7 @@ export default function TabLayout() {
           default: {},
         }),
       }}>
-        <Tabs.Screen
+      <Tabs.Screen
         name="search"
         options={{
           title: 'Stock Search',
@@ -36,7 +36,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <MaterialIcons name="search" size={28} color={color} />,
         }}
       />
-        <Tabs.Screen
+      <Tabs.Screen
         name="index"
         options={{
           title: '13F Filings',
@@ -46,15 +46,14 @@ export default function TabLayout() {
       />
 
 
-            {/* <Tabs.Screen
-        name="calc"
+      <Tabs.Screen
+        name="portfolio"
         options={{
-          title: 'DCF Calculator',
+          title: 'My Portfolio',
           headerShown: false,
-          tabBarIcon: ({ color }) => <MaterialIcons name="calculate" size={28} color={color} />,
+          tabBarIcon: ({ color }) => <MaterialIcons name="pie-chart" size={28} color={color} />,
         }}
-      /> */}
-
+      />
     </Tabs>
   );
 }

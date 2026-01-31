@@ -11,7 +11,13 @@ import { scheduleDailyPrefetch } from './utils/secApi';
 import { initReleaseDefaults, initSentryIfAvailable } from './utils/initRelease';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
+try {
+  SplashScreen.preventAutoHideAsync().catch(() => {
+    /* ignore already registered errors */
+  });
+} catch (e) {
+  // Benign in dev
+}
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -45,22 +51,22 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={ DefaultTheme}>
+    <ThemeProvider value={DefaultTheme}>
       <Stack>
-        
+
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen 
-          name="SearchResultsScreen" 
+        <Stack.Screen
+          name="SearchResultsScreen"
           options={{ headerShown: false }}
         />
-        <Stack.Screen 
-          name="HoldingsScreen" 
-          options={{ 
+        <Stack.Screen
+          name="HoldingsScreen"
+          options={{
             // title: 'Portfolio Holdings', 
             headerShown: false
             // or
             // headerTitle: 'My Investments', 
-          }} 
+          }}
         />
 
       </Stack>

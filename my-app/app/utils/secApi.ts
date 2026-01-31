@@ -390,14 +390,87 @@ export async function prefetchDaily(urls: string[]) {
   }
 }
 
-/**
- * Schedule daily prefetch; returns a cleanup function to cancel the interval.
- * Call this once at app startup with commonly-used SEC endpoints (e.g., company_tickers.json, common CIK submissions)
- */
 export function scheduleDailyPrefetch(urls: string[]) {
   void prefetchDaily(urls);
   const id = setInterval(() => {
     void prefetchDaily(urls);
   }, DEFAULT_PERSISTENT_TTL_MS);
   return () => clearInterval(id);
+}
+
+/**
+ * MARKET DATA (GITHUB SOURCE)
+ * Pulls stock prices from rreichel3/US-Stock-Symbols repository.
+ * Data is updated regularly via GitHub Actions.
+ */
+const GITHUB_SOURCE_URLS = [
+  'https://raw.githubusercontent.com/rreichel3/US-Stock-Symbols/refs/heads/main/nasdaq/nasdaq_full_tickers.json',
+  'https://raw.githubusercontent.com/rreichel3/US-Stock-Symbols/refs/heads/main/nyse/nyse_full_tickers.json',
+  'https://raw.githubusercontent.com/rreichel3/US-Stock-Symbols/refs/heads/main/amex/amex_full_tickers.json'
+];
+
+export interface StockQuote {
+  price: number;
+  change: number;
+  percent: number;
+  lastUpdated: number;
+}
+
+// Internal cache for the full ticker lists to avoid redundant downloads
+let tickerListsCache: any[] | null = null;
+let lastTickerCacheUpdate = 0;
+
+export async function fetchStockPrice(symbol: string): Promise<StockQuote> {
+  const upperSymbol = symbol.toUpperCase();
+  const CACHE_KEY = `quote:${upperSymbol}`;
+
+  // 1. Check quote memory cache (5 min TTL)
+  const cachedQuote = cache.get(CACHE_KEY);
+  if (cachedQuote && (Date.now() - cachedQuote.timestamp) < 5 * 60 * 1000) {
+    return JSON.parse(cachedQuote.text);
+  }
+
+  try {
+    // 2. Refresh ticker lists cache if older than 12 hours
+    const TICKER_LIST_TTL = 12 * 60 * 60 * 1000;
+    if (!tickerListsCache || (Date.now() - lastTickerCacheUpdate) > TICKER_LIST_TTL) {
+      info('Refreshing ticker lists from GitHub...');
+      const lists = await Promise.all(GITHUB_SOURCE_URLS.map(async url => {
+        const res = await fetch(url);
+        return res.json();
+      }));
+      tickerListsCache = lists.flat();
+      lastTickerCacheUpdate = Date.now();
+    }
+
+    // 3. Search for symbol
+    const entry = tickerListsCache?.find(item => item.symbol === upperSymbol);
+
+    if (entry) {
+      // "lastsale" is formatted as "$10.39"
+      const priceStr = entry.lastsale?.replace('$', '') || '0';
+      const quote: StockQuote = {
+        price: parseFloat(priceStr),
+        change: parseFloat(entry.netchange || '0'),
+        percent: parseFloat(entry.pctchange?.replace('%', '') || '0'),
+        lastUpdated: Date.now()
+      };
+
+      // Update cache
+      cache.set(CACHE_KEY, {
+        timestamp: Date.now(),
+        text: JSON.stringify(quote),
+        status: 200,
+        headers: {}
+      });
+
+      return quote;
+    }
+
+    warn(`Symbol ${upperSymbol} not found in GitHub ticker lists`);
+    return { price: 0, change: 0, percent: 0, lastUpdated: 0 };
+  } catch (err) {
+    error(`Failed to fetch stock price for ${upperSymbol}:`, err);
+    return { price: 0, change: 0, percent: 0, lastUpdated: 0 };
+  }
 }

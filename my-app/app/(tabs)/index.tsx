@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   container: {
-    marginTop: SCREEN_WIDTH > 600 ? 100 : 80,
+    // marginTop: SCREEN_WIDTH > 600 ? 100 : 80,
     flex: 1,
     padding: CONTAINER_PADDING,
     marginBottom: 70,
