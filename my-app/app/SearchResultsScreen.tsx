@@ -14,7 +14,7 @@ import { investorsData } from '@/constants/investors';
 import { FlatList } from 'react-native';
 import InvestorItem from '@/components/InvestorItem';
 import { useNavigation } from '@react-navigation/native';
-import { secFetch, fetchStockPrice, StockQuote, fetchStockHistory, HistoryPoint } from '@/utils/secApi';
+import { secFetch, fetchStockPrice, StockQuote, fetchStockHistory, HistoryPoint, fetchPriceForDate } from '@/utils/secApi';
 import StockLineChart from '@/components/StockLineChart';
 import { debug, info, warn, error as logError } from '@/utils/logger';
 import * as SQLite from 'expo-sqlite';
@@ -100,6 +100,37 @@ const SearchResultsScreen: React.FC = () => {
   const [portfolioMode, setPortfolioMode] = useState<'buy' | 'sell'>('buy');
   const [transactionDate, setTransactionDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isPriceLoading, setIsPriceLoading] = useState(false);
+
+  // Auto-update price when date changes
+  useEffect(() => {
+    if (!isPortfolioModalVisible || !stockSymbol) return;
+
+    const isToday = (d: Date) => {
+      const now = new Date();
+      return d.getDate() === now.getDate() &&
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear();
+    };
+
+    if (isToday(transactionDate)) return;
+
+    const timer = setTimeout(async () => {
+      setIsPriceLoading(true);
+      try {
+        const price = await fetchPriceForDate(stockSymbol, transactionDate);
+        if (price !== null) {
+          setPurchasePrice(price.toString());
+        }
+      } catch (err) {
+        console.error("Error auto-fetching price:", err);
+      } finally {
+        setIsPriceLoading(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [transactionDate, stockSymbol, isPortfolioModalVisible]);
   const [page, setPage] = useState(0);
   const itemsPerPage = 12;
 
@@ -1038,7 +1069,10 @@ const SearchResultsScreen: React.FC = () => {
                         autoFocus
                       />
 
-                      <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666' }]}>{portfolioMode === 'buy' ? 'Purchase Price' : 'Sale Price'} ({stockQuote?.currency || 'USD'})</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+                        <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>{portfolioMode === 'buy' ? 'Purchase Price' : 'Sale Price'} ({stockQuote?.currency || 'USD'})</Text>
+                        {isPriceLoading && <ActivityIndicator size="small" color="#007AFF" style={{ marginLeft: 8 }} />}
+                      </View>
                       <TextInput
                         style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
                         placeholder={`Price per share in ${stockQuote?.currency || 'USD'}`}

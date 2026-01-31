@@ -5,7 +5,7 @@ import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding,
 import PieChart from '@/components/PieChart';
 import PortfolioLineChart from '@/components/PortfolioLineChart';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { fetchStockPrice } from '@/utils/secApi';
+import { fetchStockPrice, fetchPriceForDate } from '@/utils/secApi';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/context/ThemeContext';
 import { formatCurrency, convertCurrency } from '@/utils/currency';
@@ -27,6 +27,37 @@ const PortfolioScreen: React.FC = () => {
     const [transactionDate, setTransactionDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isPriceLoading, setIsPriceLoading] = useState(false);
+
+    // Auto-update price when date changes
+    React.useEffect(() => {
+        if (!isManageModalVisible || !selectedHolding) return;
+
+        const isToday = (d: Date) => {
+            const now = new Date();
+            return d.getDate() === now.getDate() &&
+                d.getMonth() === now.getMonth() &&
+                d.getFullYear() === now.getFullYear();
+        };
+
+        if (isToday(transactionDate)) return;
+
+        const timer = setTimeout(async () => {
+            setIsPriceLoading(true);
+            try {
+                const price = await fetchPriceForDate(selectedHolding.symbol, transactionDate);
+                if (price !== null) {
+                    setPriceAmount(price.toString());
+                }
+            } catch (err) {
+                console.error("Error auto-fetching price:", err);
+            } finally {
+                setIsPriceLoading(false);
+            }
+        }, 600);
+
+        return () => clearTimeout(timer);
+    }, [transactionDate, selectedHolding, isManageModalVisible]);
 
     const loadPortfolio = async () => {
         try {
@@ -426,7 +457,10 @@ const PortfolioScreen: React.FC = () => {
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666' }]}>Price per share ({selectedHolding?.currency || 'USD'})</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+                                        <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>Price per share ({selectedHolding?.currency || 'USD'})</Text>
+                                        {isPriceLoading && <ActivityIndicator size="small" color="#007AFF" style={{ marginLeft: 8 }} />}
+                                    </View>
                                     <TextInput
                                         style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
                                         placeholder="0.00"

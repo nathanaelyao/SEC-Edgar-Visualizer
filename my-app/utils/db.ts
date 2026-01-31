@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { fetchStockPrice } from './secApi';
+import { fetchStockPrice, fetchStockHistory } from './secApi';
 
 /**
  * db.ts
@@ -182,6 +182,9 @@ export const addHolding = async (holding: PortfolioHolding) => {
                 }
 
                 await addPortfolioSnapshot(totalValueUsd, totalProfitUsd, holding.lastTransactionDate);
+
+                // Backfill history from transaction date to now
+                await backfillPortfolioHistory(new Date(holding.lastTransactionDate));
             }
         }
 
@@ -214,10 +217,93 @@ export const addHolding = async (holding: PortfolioHolding) => {
             }
 
             await addPortfolioSnapshot(totalValueUsd, totalProfitUsd, holding.lastTransactionDate);
+
+            // Backfill history from transaction date to now
+            await backfillPortfolioHistory(txDate);
         }
     }
 
     return result;
+};
+
+// Reconstruct portfolio history from a specific date to now
+// This is expensive as it fetches history for ALL holdings, so use sparingly
+export const backfillPortfolioHistory = async (startDate: Date) => {
+    try {
+        const { fetchExchangeRates, convertCurrency } = require('./currency');
+        const rates = await fetchExchangeRates();
+        const allHoldings = await getPortfolio();
+
+        // Determine date range for fetch
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - startDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        let range = '1mo';
+        if (diffDays > 1825) range = 'max';
+        else if (diffDays > 365) range = '5y';
+        else if (diffDays > 30) range = '1y';
+        else if (diffDays > 5) range = '1mo'; // Minimum useful range
+
+        console.log(`Backfilling portfolio history from ${startDate.toISOString()} (Range: ${range})`);
+
+        // Fetch history for all holdings map[symbol] -> validMap[dateString] -> price
+        const priceHistoryMap: Record<string, Record<string, number>> = {};
+
+        for (const h of allHoldings) {
+            const history = await fetchStockHistory(h.symbol, range);
+            priceHistoryMap[h.symbol] = {};
+            history.forEach(point => {
+                const dateStr = new Date(point.timestamp).toISOString().split('T')[0];
+                priceHistoryMap[h.symbol][dateStr] = point.price;
+            });
+        }
+
+        // Iterate through each day from start date to now
+        const dayIterator = new Date(startDate);
+        while (dayIterator <= now) {
+            const dateStr = dayIterator.toISOString().split('T')[0];
+
+            let dailyTotalValueUsd = 0;
+            let dailyTotalProfitUsd = 0;
+            let hasDataForAny = false;
+
+            for (const h of allHoldings) {
+                // Find price for this day, or closest previous? 
+                // Creating a simplified lookup: exact match only for now.
+                // Improve: Finding closest previous price if market closed?
+                // For now, if no price exists (weekend), we might skip creating a snapshot 
+                // OR use the last known price. Let's use exact match for simplicity first.
+                // If it's a weekend, Yahoo usually doesn't return data, so we just skip weekends.
+
+                const price = priceHistoryMap[h.symbol]?.[dateStr];
+
+                if (price !== undefined) {
+                    hasDataForAny = true;
+                    // Note: We use CURRENT shares/costBasis. This is a limitation (no transaction ledger).
+                    const nativeValue = h.shares * price;
+                    const nativeCost = h.shares * (h.costBasis || 0);
+                    const nativeProfit = (nativeValue - nativeCost) + (h.realizedProfit || 0);
+
+                    dailyTotalValueUsd += convertCurrency(nativeValue, h.currency || 'USD', 'USD', rates);
+                    dailyTotalProfitUsd += convertCurrency(nativeProfit, h.currency || 'USD', 'USD', rates);
+                }
+            }
+
+            if (hasDataForAny) {
+                // Format timestamp to end of day to match typical closing time or just keep T00:00:00
+                // addPortfolioSnapshot handles the ID check by date prefix
+                await addPortfolioSnapshot(dailyTotalValueUsd, dailyTotalProfitUsd, dayIterator.toISOString());
+            }
+
+            dayIterator.setDate(dayIterator.getDate() + 1);
+        }
+
+        console.log("Backfill complete");
+
+    } catch (err) {
+        console.error("Error backfilling portfolio history:", err);
+    }
 };
 
 export const addPortfolioSnapshot = async (totalValue: number, totalProfit: number = 0, customTimestamp?: string) => {

@@ -645,3 +645,53 @@ export async function fetchStockPrice(symbol: string): Promise<StockQuote> {
     return { price: 0, change: 0, percent: 0, currency: 'USD', lastUpdated: 0 };
   }
 }
+/**
+ * Fetch the closing price for a specific date.
+ * Tries to find the exact date, or falls back to the closest previous trading day if it's a weekend/holiday.
+ */
+export async function fetchPriceForDate(symbol: string, date: Date): Promise<number | null> {
+  // We need to fetch enough history to ensure we cover the date.
+  // Yahoo's "range" is relative to "now", preventing us from easily asking for a specific historical window
+  // in the past without calculating the range string.
+  // However, we can just fetch a large enough range (e.g. '1y' or '5y' or 'max') if the date is far back,
+  // or calculate the number of days difference.
+
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - date.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  let range = '1mo';
+  if (diffDays > 1825) range = 'max'; // > 5 years
+  else if (diffDays > 365) range = '5y'; // > 1 year
+  else if (diffDays > 30) range = '1y'; // > 1 month
+  else if (diffDays > 5) range = '1mo'; // > 5 days
+
+  // Fetch history
+  const history = await fetchStockHistory(symbol, range, '1d');
+
+  if (!history || history.length === 0) return null;
+
+  // Find the entry for the specific date.
+  // Compare year/month/day
+  const targetYMD = date.toISOString().split('T')[0];
+
+  // Try to find exact match first
+  const exactMatch = history.find(p => {
+    const pointDate = new Date(p.timestamp);
+    return pointDate.toISOString().split('T')[0] === targetYMD;
+  });
+
+  if (exactMatch) return exactMatch.price;
+
+  // If no exact match (weekend/holiday), find the closest PREVIOUS date.
+  // Filter for points before the target date
+  const previousPoints = history.filter(p => p.timestamp < date.getTime());
+
+  if (previousPoints.length > 0) {
+    // Sort by timestamp descending to get the latest one before the target date
+    previousPoints.sort((a, b) => b.timestamp - a.timestamp);
+    return previousPoints[0].price;
+  }
+
+  return null;
+}
