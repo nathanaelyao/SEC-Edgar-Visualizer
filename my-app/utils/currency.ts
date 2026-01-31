@@ -43,9 +43,28 @@ export const fetchExchangeRates = async (): Promise<Record<string, number>> => {
     }
 };
 
-export const convertCurrency = (value: number, to: CurrencyCode, rates: Record<string, number>): number => {
-    const rate = rates[to] || 1;
-    return value * rate;
+/**
+ * Converts value from one currency to another using USD as the central base.
+ * @param value The amount to convert
+ * @param rates Record of rates relative to USD (e.g. { EUR: 0.92, CNY: 7.15 })
+ * @param from The source currency code
+ * @param to The target currency code
+ */
+export const convertCurrency = (
+    value: number,
+    from: string,
+    to: string,
+    rates: Record<string, number>
+): number => {
+    if (from === to) return value;
+
+    // Normalize to USD first
+    const rateFrom = rates[from] || 1;
+    const valueInUsd = from === 'USD' ? value : value / rateFrom;
+
+    // Convert from USD to target
+    const rateTo = rates[to] || 1;
+    return to === 'USD' ? valueInUsd : valueInUsd * rateTo;
 };
 
 export const formatCurrency = (value: number, currency: CurrencyCode): string => {

@@ -76,25 +76,40 @@ const PortfolioScreen: React.FC = () => {
         '#FF9F40', '#E7E9ED', '#8AC249', '#019688', '#607D8B'
     ];
 
-    // Chart Data based on Dollar Value
-    const chartData = portfolio.map((item, index) => ({
-        label: item.symbol,
-        value: item.shares * (item.price || 0),
-        color: colors[index % colors.length],
-    }));
+    // Chart Data based on Dollar Value (converted to user currency)
+    const chartData = portfolio.map((item, index) => {
+        const nativeValue = item.shares * (item.price || 0);
+        return {
+            label: item.symbol,
+            value: convertCurrency(nativeValue, item.currency || 'USD', currency, exchangeRates),
+            color: colors[index % colors.length],
+        };
+    });
 
-    const totalPortfolioValue = portfolio.reduce((acc, curr) => acc + (curr.shares * (curr.price || 0)), 0);
-    const totalCostBasis = portfolio.reduce((acc, curr) => acc + (curr.shares * (curr.costBasis || curr.price || 0)), 0);
+    const totalPortfolioValue = portfolio.reduce((acc, curr) => {
+        const nativeValue = curr.shares * (curr.price || 0);
+        return acc + convertCurrency(nativeValue, curr.currency || 'USD', currency, exchangeRates);
+    }, 0);
+
+    const totalCostBasis = portfolio.reduce((acc, curr) => {
+        const nativeCost = curr.shares * (curr.costBasis || curr.price || 0);
+        return acc + convertCurrency(nativeCost, curr.currency || 'USD', currency, exchangeRates);
+    }, 0);
+
     const totalProfit = totalPortfolioValue - totalCostBasis;
     const totalProfitPercent = totalCostBasis > 0 ? (totalProfit / totalCostBasis) * 100 : 0;
 
-    const totalRealizedProfit = portfolio.reduce((acc, curr) => acc + (curr.realizedProfit || 0), 0);
+    const totalRealizedProfit = portfolio.reduce((acc, curr) => {
+        const nativeRealized = curr.realizedProfit || 0;
+        return acc + convertCurrency(nativeRealized, curr.currency || 'USD', currency, exchangeRates);
+    }, 0);
+
     const totalTotalProfit = totalProfit + totalRealizedProfit;
 
     // Currency conversion for display
-    const displayTotalValue = formatCurrency(convertCurrency(totalPortfolioValue, currency, exchangeRates), currency);
-    const displayUnrealized = formatCurrency(convertCurrency(totalProfit, currency, exchangeRates), currency);
-    const displayRealized = formatCurrency(convertCurrency(totalRealizedProfit, currency, exchangeRates), currency);
+    const displayTotalValue = formatCurrency(totalPortfolioValue, currency);
+    const displayUnrealized = formatCurrency(Math.abs(totalProfit), currency);
+    const displayRealized = formatCurrency(Math.abs(totalRealizedProfit), currency);
 
     const getFilteredHistory = () => {
         if (!history || history.length === 0) return [];
@@ -145,6 +160,7 @@ const PortfolioScreen: React.FC = () => {
                 companyName: selectedHolding.companyName,
                 shares: sharesChange,
                 price: price, // Use the user-entered price
+                currency: selectedHolding.currency || 'USD',
                 lastTransactionDate: transactionDate.toISOString()
             });
 
@@ -168,9 +184,9 @@ const PortfolioScreen: React.FC = () => {
         const profit = (currentPrice - costBasis) * item.shares;
         const profitPercent = costBasis > 0 ? ((currentPrice - costBasis) / costBasis) * 100 : 0;
 
-        const displayValue = formatCurrency(convertCurrency(value, currency, exchangeRates), currency);
-        const displayProfit = formatCurrency(convertCurrency(Math.abs(profit), currency, exchangeRates), currency);
-        const displayRealizedProfitItem = formatCurrency(convertCurrency(Math.abs(item.realizedProfit || 0), currency, exchangeRates), currency);
+        const displayValue = formatCurrency(convertCurrency(value, item.currency || 'USD', currency, exchangeRates), currency);
+        const displayProfit = formatCurrency(convertCurrency(Math.abs(profit), item.currency || 'USD', currency, exchangeRates), currency);
+        const displayRealizedProfitItem = formatCurrency(convertCurrency(Math.abs(item.realizedProfit || 0), item.currency || 'USD', currency, exchangeRates), currency);
 
         return (
             <TouchableOpacity
@@ -198,7 +214,7 @@ const PortfolioScreen: React.FC = () => {
                     <View style={styles.profitContainer}>
                         {item.priceChange !== undefined && (
                             <Text style={[styles.itemPriceChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
-                                {item.priceChange >= 0 ? '+' : ''}{formatCurrency(convertCurrency(Math.abs(item.priceChange), currency, exchangeRates), currency)} ({item.pricePercent?.toFixed(2)}%)
+                                {item.priceChange >= 0 ? '+' : ''}{formatCurrency(convertCurrency(Math.abs(item.priceChange || 0), item.currency || 'USD', currency, exchangeRates), currency)} ({item.pricePercent?.toFixed(2)}%)
                             </Text>
                         )}
                     </View>
@@ -284,7 +300,7 @@ const PortfolioScreen: React.FC = () => {
                                     data={filteredHistory}
                                     range={selectedRange}
                                     isDark={isDark}
-                                    formatValue={(val) => formatCurrency(convertCurrency(val, currency, exchangeRates), currency)}
+                                    formatValue={(val) => formatCurrency(convertCurrency(val, 'USD', currency, exchangeRates), currency)}
                                 />
                                 {filteredHistory.length > 1 && (() => {
                                     const startProfit = filteredHistory[0].totalProfit;
@@ -292,7 +308,7 @@ const PortfolioScreen: React.FC = () => {
                                     const startValue = filteredHistory[0].totalValue;
 
                                     const changeAmount = endProfit - startProfit;
-                                    const displayChangeAmount = formatCurrency(convertCurrency(Math.abs(changeAmount), currency, exchangeRates), currency);
+                                    const displayChangeAmount = formatCurrency(convertCurrency(Math.abs(changeAmount), 'USD', currency, exchangeRates), currency);
 
                                     const changePercent = startValue > 0 ? (changeAmount / startValue) * 100 : 0;
                                     const isPositive = changeAmount >= 0;
@@ -341,8 +357,8 @@ const PortfolioScreen: React.FC = () => {
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                     <View style={styles.modalOverlay}>
                         <TouchableWithoutFeedback>
-                            <View style={styles.modalContent}>
-                                <Text style={styles.modalTitle}>Manage {selectedHolding?.symbol}</Text>
+                            <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
+                                <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Manage {selectedHolding?.symbol}</Text>
 
                                 <View style={styles.modeTabs}>
                                     <TouchableOpacity
@@ -359,31 +375,31 @@ const PortfolioScreen: React.FC = () => {
                                     </TouchableOpacity>
                                 </View>
 
-                                <Text style={styles.currentPositionText}>
+                                <Text style={[styles.currentPositionText, { color: isDark ? '#aaa' : '#666' }]}>
                                     Current Position: {selectedHolding?.shares.toLocaleString()} shares
                                 </Text>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.inputLabel}>Shares</Text>
+                                    <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666' }]}>Shares</Text>
                                     <TextInput
-                                        style={styles.modalInput}
+                                        style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
                                         placeholder="0"
                                         keyboardType="numeric"
                                         value={sharesAmount}
                                         onChangeText={setSharesAmount}
-                                        placeholderTextColor="#999"
+                                        placeholderTextColor={isDark ? '#666' : '#999'}
                                     />
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.inputLabel}>Price per share ($)</Text>
+                                    <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666' }]}>Price per share ({selectedHolding?.currency || 'USD'})</Text>
                                     <TextInput
-                                        style={styles.modalInput}
+                                        style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
                                         placeholder="0.00"
                                         keyboardType="numeric"
                                         value={priceAmount}
                                         onChangeText={setPriceAmount}
-                                        placeholderTextColor="#999"
+                                        placeholderTextColor={isDark ? '#666' : '#999'}
                                     />
                                 </View>
 

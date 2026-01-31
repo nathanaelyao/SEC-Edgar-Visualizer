@@ -413,6 +413,7 @@ export interface StockQuote {
   price: number;
   change: number;
   percent: number;
+  currency: string;
   lastUpdated: number;
 }
 
@@ -460,6 +461,7 @@ async function fetchYahooQuote(symbol: string): Promise<StockQuote | null> {
       price,
       change,
       percent,
+      currency: result.currency || 'USD',
       lastUpdated: Date.now()
     };
   } catch (err) {
@@ -544,6 +546,7 @@ export async function fetchStockPrice(symbol: string): Promise<StockQuote> {
         price: parseFloat(priceStr),
         change: parseFloat(entry.netchange || '0'),
         percent: parseFloat(entry.pctchange?.replace('%', '') || '0'),
+        currency: 'USD',
         lastUpdated: Date.now()
       };
 
@@ -559,9 +562,9 @@ export async function fetchStockPrice(symbol: string): Promise<StockQuote> {
     }
 
     warn(`Symbol ${upperSymbol} not found in any source`);
-    return { price: 0, change: 0, percent: 0, lastUpdated: 0 };
+    return { price: 0, change: 0, percent: 0, currency: 'USD', lastUpdated: 0 };
   } catch (err) {
     error(`Failed to fetch stock price for ${upperSymbol}:`, err);
-    return { price: 0, change: 0, percent: 0, lastUpdated: 0 };
+    return { price: 0, change: 0, percent: 0, currency: 'USD', lastUpdated: 0 };
   }
 }

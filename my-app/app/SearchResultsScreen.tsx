@@ -108,12 +108,11 @@ const SearchResultsScreen: React.FC = () => {
   const handleAddToPortfolio = () => {
     if (existingHolding) {
       setSharesToAdd(existingHolding.shares.toString());
-      // Convert cost basis to user currency for display in input
-      const convertedCostBasis = existingHolding.costBasis ? convertCurrency(existingHolding.costBasis, currency, exchangeRates) : (realTimePrice ? convertCurrency(realTimePrice, currency, exchangeRates) : 0);
+      const convertedCostBasis = existingHolding.costBasis || (realTimePrice || 0);
       setPurchasePrice(convertedCostBasis > 0 ? convertedCostBasis.toFixed(2) : '');
     } else {
       setSharesToAdd('');
-      const convertedPrice = realTimePrice ? convertCurrency(realTimePrice, currency, exchangeRates) : 0;
+      const convertedPrice = realTimePrice || 0;
       setPurchasePrice(convertedPrice > 0 ? convertedPrice.toFixed(2) : '');
     }
     setTransactionDate(new Date());
@@ -664,19 +663,19 @@ const SearchResultsScreen: React.FC = () => {
   // ...
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#121212' : '#fff' }]}>
       <FlatList
         data={investorInfo}
         keyExtractor={(item, index) => index.toString()}
         renderItem={({ item }) => (
-          <View style={styles.investorInfoCard}>
+          <View style={[styles.investorInfoCard, { backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}>
             <View style={styles.investorItem}>
-              <Text style={styles.investorName}>{item.name}</Text>
-              <Text style={styles.institutionName}>{item.institution}</Text>
+              <Text style={[styles.investorName, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.name}</Text>
+              <Text style={[styles.institutionName, { color: isDark ? '#aaa' : '#666' }]}>{item.institution}</Text>
               <View style={styles.holdingDetails}>
-                <Text>Shares: {formatNumberWithCommas(item.numShares)}</Text>
-                <Text>Value: ${formatNumberWithCommas(item.value)}</Text>
-                <Text>Portfolio %: {item.percent}</Text>
+                <Text style={{ color: isDark ? '#eee' : '#333' }}>Shares: {formatNumberWithCommas(item.numShares)}</Text>
+                <Text style={{ color: isDark ? '#eee' : '#333' }}>Value: {formatCurrency(parseFloat(item.value || '0'), 'USD')}</Text>
+                <Text style={{ color: isDark ? '#eee' : '#333' }}>Portfolio %: {item.percent}</Text>
               </View>
             </View>
           </View>
@@ -705,11 +704,11 @@ const SearchResultsScreen: React.FC = () => {
                     <View style={styles.priceContainer}>
                       <View style={styles.priceValueWrapper}>
                         <Text style={[styles.priceValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
-                          {formatCurrency(convertCurrency(realTimePrice, currency, exchangeRates), currency)}
+                          {formatCurrency(realTimePrice, (stockQuote?.currency || 'USD') as any)}
                         </Text>
                         {stockQuote && (
                           <Text style={[styles.priceChange, stockQuote.change >= 0 ? styles.positive : styles.negative]}>
-                            {stockQuote.change >= 0 ? '+' : '-'}{formatCurrency(convertCurrency(Math.abs(stockQuote.change), currency, exchangeRates), currency)} ({stockQuote.percent.toFixed(2)}%)
+                            {stockQuote.change >= 0 ? '+' : '-'}{formatCurrency(Math.abs(stockQuote.change), stockQuote.currency as any)} ({stockQuote.percent.toFixed(2)}%)
                           </Text>
                         )}
                       </View>
@@ -727,13 +726,13 @@ const SearchResultsScreen: React.FC = () => {
                         <View style={styles.positionItem}>
                           <Text style={[styles.positionLabel, { color: isDark ? '#aaa' : '#666' }]}>Cost Basis</Text>
                           <Text style={[styles.positionValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
-                            {formatCurrency(convertCurrency(existingHolding.costBasis || 0, currency, exchangeRates), currency)}
+                            {formatCurrency(existingHolding.costBasis || 0, (existingHolding.currency || 'USD') as any)}
                           </Text>
                         </View>
                         <View style={styles.positionItem}>
                           <Text style={[styles.positionLabel, { color: isDark ? '#aaa' : '#666' }]}>Value</Text>
                           <Text style={[styles.positionValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
-                            {formatCurrency(convertCurrency((realTimePrice || 0) * existingHolding.shares, currency, exchangeRates), currency)}
+                            {formatCurrency((realTimePrice || 0) * existingHolding.shares, (stockQuote?.currency || 'USD') as any)}
                           </Text>
                         </View>
                         <View style={styles.positionItem}>
@@ -745,7 +744,7 @@ const SearchResultsScreen: React.FC = () => {
                             const profitPercent = cost > 0 ? (profit / cost) * 100 : 0;
                             return (
                               <Text style={[styles.positionValue, profit >= 0 ? styles.positiveText : styles.negativeText]}>
-                                {profit >= 0 ? '+' : '-'}{formatCurrency(convertCurrency(Math.abs(profit), currency, exchangeRates), currency)}
+                                {profit >= 0 ? '+' : '-'}{formatCurrency(Math.abs(profit), (existingHolding.currency || 'USD') as any)}
                                 {"\n"}
                                 <Text style={styles.positionSubValue}>({profit >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%)</Text>
                               </Text>
@@ -865,7 +864,7 @@ const SearchResultsScreen: React.FC = () => {
               <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <View style={styles.modalOverlay}>
                   <TouchableWithoutFeedback>
-                    <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
+                    <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff', shadowOpacity: isDark ? 0.4 : 0.2 }]}>
                       <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>
                         {existingHolding ? `Manage ${stockSymbol}` : `Add ${stockSymbol} to Portfolio`}
                       </Text>
@@ -897,10 +896,10 @@ const SearchResultsScreen: React.FC = () => {
                         autoFocus
                       />
 
-                      <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666' }]}>{portfolioMode === 'buy' ? 'Purchase Price' : 'Sale Price'} ({currency})</Text>
+                      <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666' }]}>{portfolioMode === 'buy' ? 'Purchase Price' : 'Sale Price'} ({stockQuote?.currency || 'USD'})</Text>
                       <TextInput
                         style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
-                        placeholder={`Price per share in ${currency}`}
+                        placeholder={`Price per share in ${stockQuote?.currency || 'USD'}`}
                         keyboardType="numeric"
                         value={purchasePrice}
                         onChangeText={setPurchasePrice}
@@ -978,14 +977,14 @@ const SearchResultsScreen: React.FC = () => {
                             try {
                               const sharesChange = portfolioMode === 'buy' ? shares : -shares;
                               // Convert back to USD for storage
-                              const exchangeRate = exchangeRates[currency] || 1;
-                              const priceInUsd = priceInLocal / exchangeRate;
+                              const priceInUsd = priceInLocal;
 
                               await addHolding({
                                 symbol: stockSymbol,
                                 companyName: stockInfo?.companyName || stockSymbol,
                                 shares: sharesChange,
                                 price: priceInUsd,
+                                currency: stockQuote?.currency || 'USD',
                                 lastTransactionDate: transactionDate.toISOString()
                               });
 
@@ -1409,13 +1408,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
     width: '85%',
     borderRadius: 16,
     padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 10,
   },

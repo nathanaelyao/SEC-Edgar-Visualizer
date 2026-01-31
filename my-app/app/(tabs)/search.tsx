@@ -100,9 +100,21 @@ const HomeScreen: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const totalPortfolioValue = portfolio.reduce((acc: number, curr: PortfolioHolding) => acc + (curr.shares * (curr.price || 0)), 0);
-  const totalCostBasis = portfolio.reduce((acc: number, curr: PortfolioHolding) => acc + (curr.shares * (curr.costBasis || curr.price || 0)), 0);
-  const totalRealizedProfit = portfolio.reduce((acc: number, curr: PortfolioHolding) => acc + (curr.realizedProfit || 0), 0);
+  const totalPortfolioValue = portfolio.reduce((acc: number, curr: PortfolioHolding) => {
+    const nativeValue = curr.shares * (curr.price || 0);
+    return acc + convertCurrency(nativeValue, curr.currency || 'USD', currency, exchangeRates);
+  }, 0);
+
+  const totalCostBasis = portfolio.reduce((acc: number, curr: PortfolioHolding) => {
+    const nativeCost = curr.shares * (curr.costBasis || curr.price || 0);
+    return acc + convertCurrency(nativeCost, curr.currency || 'USD', currency, exchangeRates);
+  }, 0);
+
+  const totalRealizedProfit = portfolio.reduce((acc: number, curr: PortfolioHolding) => {
+    const nativeRealized = curr.realizedProfit || 0;
+    return acc + convertCurrency(nativeRealized, curr.currency || 'USD', currency, exchangeRates);
+  }, 0);
+
   const currentTotalProfit = (totalPortfolioValue - totalCostBasis) + totalRealizedProfit;
 
   const lastSnapshot = history[history.length - 1];
@@ -111,7 +123,7 @@ const HomeScreen: React.FC = () => {
   // Day change should compare current total profit against previous DAY'S snapshot total profit
   // This ensures real-time updates are reflected as gains/losses throughout the day.
   const dayChange = secondLastSnapshot
-    ? currentTotalProfit - secondLastSnapshot.totalProfit
+    ? currentTotalProfit - convertCurrency(secondLastSnapshot.totalProfit, 'USD', currency, exchangeRates)
     : 0;
 
   const dayChangePercent = secondLastSnapshot && secondLastSnapshot.totalValue > 0
@@ -119,8 +131,8 @@ const HomeScreen: React.FC = () => {
     : 0;
 
   // Convert values for display
-  const displayTotalValue = formatCurrency(convertCurrency(totalPortfolioValue, currency, exchangeRates), currency);
-  const displayDayChange = formatCurrency(convertCurrency(Math.abs(dayChange), currency, exchangeRates), currency);
+  const displayTotalValue = formatCurrency(totalPortfolioValue, currency);
+  const displayDayChange = formatCurrency(Math.abs(dayChange), currency);
 
   if (loading && portfolio.length === 0) {
     return (

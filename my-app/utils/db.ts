@@ -11,11 +11,12 @@ export interface PortfolioHolding {
     symbol: string;
     companyName: string;
     shares: number;
-    price?: number; // Last known price
-    priceChange?: number; // Daily dollar change
+    price?: number; // Last known price (in native currency)
+    priceChange?: number; // Daily dollar change (in native currency)
     pricePercent?: number; // Daily percentage change
-    costBasis?: number; // Average purchase price
-    realizedProfit?: number; // Total profit/loss realized from sales
+    costBasis?: number; // Average purchase price (in native currency)
+    currency?: string; // Native currency of the stock (e.g., 'USD', 'CNY', 'EUR')
+    realizedProfit?: number; // Total profit/loss realized from sales (in native currency)
     lastTransactionDate?: string; // Date of the last buy/sell (ISO string)
 }
 
@@ -42,6 +43,7 @@ export const initDb = async () => {
             shares REAL NOT NULL,
             price REAL,
             costBasis REAL,
+            currency TEXT DEFAULT 'USD',
             realizedProfit REAL DEFAULT 0,
             lastTransactionDate TEXT
         );
@@ -85,6 +87,10 @@ export const initDb = async () => {
         const hasLastTransactionDate = tableInfo.some(col => col.name === 'lastTransactionDate');
         if (!hasLastTransactionDate) {
             await db.execAsync('ALTER TABLE portfolio ADD COLUMN lastTransactionDate TEXT;');
+        }
+        const hasCurrency = tableInfo.some(col => col.name === 'currency');
+        if (!hasCurrency) {
+            await db.execAsync("ALTER TABLE portfolio ADD COLUMN currency TEXT DEFAULT 'USD';");
         }
 
         const historyInfo = await db.getAllAsync<{ name: string }>('PRAGMA table_info(portfolio_history);');
@@ -145,15 +151,37 @@ export const addHolding = async (holding: PortfolioHolding) => {
         }
 
         const updateResult = await database.runAsync(
-            'UPDATE portfolio SET shares = ?, price = ?, costBasis = ?, realizedProfit = ?, lastTransactionDate = ? WHERE symbol = ?;',
-            [newShares, purchasePrice, newCostBasis, newRealized, holding.lastTransactionDate || new Date().toISOString(), holding.symbol.toUpperCase()]
+            'UPDATE portfolio SET shares = ?, price = ?, costBasis = ?, realizedProfit = ?, lastTransactionDate = ?, currency = ? WHERE symbol = ?;',
+            [newShares, purchasePrice, newCostBasis, newRealized, holding.lastTransactionDate || new Date().toISOString(), holding.currency || 'USD', holding.symbol.toUpperCase()]
         );
 
         // Snapshot if past date
         if (holding.lastTransactionDate) {
             const txDate = new Date(holding.lastTransactionDate);
             if (txDate.getTime() < new Date().getTime() - (1000 * 60 * 60 * 2)) {
-                await addPortfolioSnapshot(Math.max(0, newShares) * purchasePrice, 0, holding.lastTransactionDate);
+                const { fetchExchangeRates, convertCurrency } = require('./currency');
+                const rates = await fetchExchangeRates();
+                const allHoldings = await getPortfolio();
+
+                let totalValueUsd = 0;
+                let totalProfitUsd = 0;
+
+                for (const h of allHoldings) {
+                    const h_is_curr = h.symbol.toUpperCase() === holding.symbol.toUpperCase();
+                    const h_shares = h_is_curr ? newShares : h.shares;
+                    // Note: price might be stale in allHoldings, so we use purchasePrice for current
+                    const h_price = h_is_curr ? purchasePrice : (h.price || 0);
+                    const h_cost = h_is_curr ? newCostBasis : (h.costBasis || h.price || 0);
+                    const h_realized = h_is_curr ? newRealized : (h.realizedProfit || 0);
+
+                    const nativeValue = h_shares * h_price;
+                    const nativeProfit = (nativeValue - (h_shares * h_cost)) + h_realized;
+
+                    totalValueUsd += convertCurrency(nativeValue, h.currency || 'USD', 'USD', rates);
+                    totalProfitUsd += convertCurrency(nativeProfit, h.currency || 'USD', 'USD', rates);
+                }
+
+                await addPortfolioSnapshot(totalValueUsd, totalProfitUsd, holding.lastTransactionDate);
             }
         }
 
@@ -161,23 +189,31 @@ export const addHolding = async (holding: PortfolioHolding) => {
     }
 
     const result = await database.runAsync(
-        'INSERT INTO portfolio (symbol, companyName, shares, price, costBasis, realizedProfit, lastTransactionDate) VALUES (?, ?, ?, ?, ?, ?, ?);',
-        [holding.symbol.toUpperCase(), holding.companyName, holding.shares, holding.price || 0, holding.price || 0, 0, holding.lastTransactionDate || new Date().toISOString()]
+        'INSERT INTO portfolio (symbol, companyName, shares, price, costBasis, realizedProfit, lastTransactionDate, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?);',
+        [holding.symbol.toUpperCase(), holding.companyName, holding.shares, holding.price || 0, holding.price || 0, 0, holding.lastTransactionDate || new Date().toISOString(), holding.currency || 'USD']
     );
 
     // Snapshot if past date
     if (holding.lastTransactionDate) {
         const txDate = new Date(holding.lastTransactionDate);
         if (txDate.getTime() < new Date().getTime() - (1000 * 60 * 60 * 2)) {
-            // Fetch all holdings to get current total profit for snapshot
+            const { fetchExchangeRates, convertCurrency } = require('./currency');
+            const rates = await fetchExchangeRates();
             const allHoldings = await getPortfolio();
-            const totalValue = allHoldings.reduce((acc, curr) => acc + (curr.shares * (curr.price || 0)), 0);
-            const totalCostBasis = allHoldings.reduce((acc, curr) => acc + (curr.shares * (curr.costBasis || curr.price || 0)), 0);
-            const unrealizedProfit = totalValue - totalCostBasis;
-            const realizedProfit = allHoldings.reduce((acc, curr) => acc + (curr.realizedProfit || 0), 0);
-            const totalProfit = unrealizedProfit + realizedProfit;
 
-            await addPortfolioSnapshot(totalValue, totalProfit, holding.lastTransactionDate);
+            let totalValueUsd = 0;
+            let totalProfitUsd = 0;
+
+            for (const h of allHoldings) {
+                const nativeValue = h.shares * (h.price || 0);
+                const nativeCost = h.shares * (h.costBasis || h.price || 0);
+                const nativeProfit = (nativeValue - nativeCost) + (h.realizedProfit || 0);
+
+                totalValueUsd += convertCurrency(nativeValue, h.currency || 'USD', 'USD', rates);
+                totalProfitUsd += convertCurrency(nativeProfit, h.currency || 'USD', 'USD', rates);
+            }
+
+            await addPortfolioSnapshot(totalValueUsd, totalProfitUsd, holding.lastTransactionDate);
         }
     }
 
@@ -277,11 +313,24 @@ export const refreshPortfolioPrices = async (): Promise<PortfolioHolding[]> => {
         }
     }
 
-    const totalValue = updatedHoldings.reduce((acc, curr) => acc + (curr.shares * (curr.price || 0)), 0);
-    const totalCostBasis = updatedHoldings.reduce((acc, curr) => acc + (curr.shares * (curr.costBasis || curr.price || 0)), 0);
-    const totalProfit = (totalValue - totalCostBasis) + updatedHoldings.reduce((acc, curr) => acc + (curr.realizedProfit || 0), 0);
+    // We must convert each holding to USD for consistent snapshot tracking
+    const { fetchExchangeRates, convertCurrency } = require('./currency');
+    const rates = await fetchExchangeRates();
 
-    await addPortfolioSnapshot(totalValue, totalProfit);
+    let totalValueUsd = 0;
+    let totalProfitUsd = 0;
+
+    for (const h of updatedHoldings) {
+        const nativeValue = h.shares * (h.price || 0);
+        const nativeCost = h.shares * (h.costBasis || h.price || 0);
+        const nativeRealized = h.realizedProfit || 0;
+        const nativeProfit = (nativeValue - nativeCost) + nativeRealized;
+
+        totalValueUsd += convertCurrency(nativeValue, h.currency || 'USD', 'USD', rates);
+        totalProfitUsd += convertCurrency(nativeProfit, h.currency || 'USD', 'USD', rates);
+    }
+
+    await addPortfolioSnapshot(totalValueUsd, totalProfitUsd);
 
     return updatedHoldings;
 };

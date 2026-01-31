@@ -271,7 +271,7 @@ const HoldingsScreen: React.FC = () => {
     const changeData = calculatePercentageChange(parseFloat(item.shrsOrPrnAmt?.sshPrnamt), item.nameOfIssuer);
     const change = changeData.change;
     const color = changeData.color;
-    const displayValue = formatCurrency(convertCurrency(parseFloat(item.value), currency, exchangeRates), currency);
+    const displayValue = formatCurrency(parseFloat(item.value), 'USD');
 
     return (
       <TouchableOpacity style={[styles.item, { backgroundColor: isDark ? '#1e1e1e' : '#fafafa', borderColor: isDark ? '#333' : '#ddd' }]}
@@ -320,7 +320,7 @@ const HoldingsScreen: React.FC = () => {
           <Text style={[styles.institutionName, { color: isDark ? '#aaa' : 'gray' }]}>{institution}</Text>
           {quarter && <Text style={[styles.quarterText, { color: isDark ? '#888' : 'gray' }]}>{quarter}</Text>}
           <Text style={[styles.portfolioValue, { color: isDark ? '#fff' : '#000' }]}>
-            Total Portfolio Value: {formatCurrency(convertCurrency(totalPortfolioValue, currency, exchangeRates), currency)}
+            Total Portfolio Value: {formatCurrency(totalPortfolioValue, 'USD')}
           </Text>
         </View>
       </View>
