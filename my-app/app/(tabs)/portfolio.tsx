@@ -165,16 +165,10 @@ const PortfolioScreen: React.FC = () => {
                     <View style={styles.symbolHeader}>
                         <Text style={styles.symbol}>{item.symbol}</Text>
                         <View style={styles.itemPriceRow}>
-                            <Text style={styles.itemCurrentPrice}>${currentPrice.toFixed(2)}</Text>
-                            {item.priceChange !== undefined && (
-                                <Text style={[styles.itemPriceChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
-                                    {item.priceChange >= 0 ? '+' : ''}{item.priceChange.toFixed(2)} ({item.pricePercent?.toFixed(2)}%)
-                                </Text>
-                            )}
                         </View>
                     </View>
-                    <Text style={styles.companyName} numberOfLines={1}>{item.companyName}</Text>
                     <View style={styles.holdingFooter}>
+                        <Text style={styles.companyName} numberOfLines={1}>{item.companyName}</Text>
                         {(item.realizedProfit || 0) !== 0 && (
                             <Text style={[styles.realizedBadge, (item.realizedProfit || 0) > 0 ? styles.positiveBadge : styles.negativeBadge]}>
                                 Realized: {(item.realizedProfit || 0) >= 0 ? '+' : '-'}${Math.abs(item.realizedProfit || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -185,12 +179,11 @@ const PortfolioScreen: React.FC = () => {
                 <View style={styles.sharesContainer}>
                     <Text style={styles.shares}>{item.shares.toLocaleString()} shares</Text>
                     <View style={styles.profitContainer}>
-                        <Text style={[styles.profitText, profit >= 0 ? styles.positive : styles.negative]}>
-                            {profit >= 0 ? '+' : ''}${Math.abs(profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </Text>
-                        <Text style={[styles.profitPercent, profit >= 0 ? styles.positiveIcon : styles.negativeIcon]}>
-                            ({profit >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%)
-                        </Text>
+                        {item.priceChange !== undefined && (
+                            <Text style={[styles.itemPriceChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
+                                {item.priceChange >= 0 ? '+' : ''}{item.priceChange.toFixed(2)} ({item.pricePercent?.toFixed(2)}%)
+                            </Text>
+                        )}
                     </View>
                     <Text style={styles.value}>${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
                 </View>
@@ -272,10 +265,12 @@ const PortfolioScreen: React.FC = () => {
                                 </View>
                                 <PortfolioLineChart data={filteredHistory} range={selectedRange} />
                                 {filteredHistory.length > 1 && (() => {
-                                    const startVal = filteredHistory[0].totalValue;
-                                    const endVal = filteredHistory[filteredHistory.length - 1].totalValue;
-                                    const changeAmount = endVal - startVal;
-                                    const changePercent = startVal > 0 ? (changeAmount / startVal) * 100 : 0;
+                                    const startProfit = filteredHistory[0].totalProfit;
+                                    const endProfit = filteredHistory[filteredHistory.length - 1].totalProfit;
+                                    const startValue = filteredHistory[0].totalValue;
+
+                                    const changeAmount = endProfit - startProfit;
+                                    const changePercent = startValue > 0 ? (changeAmount / startValue) * 100 : 0;
                                     const isPositive = changeAmount >= 0;
                                     const rangeLabel = {
                                         '1D': 'Today',
@@ -421,7 +416,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f8f9fa',
-        paddingTop: 60,
+        paddingTop: 80,
     },
     title: {
         fontSize: 28,
@@ -490,7 +485,7 @@ const styles = StyleSheet.create({
         color: '#1a1a1a',
     },
     itemPriceChange: {
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: '600',
     },
     symbol: {
@@ -626,9 +621,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     holdingFooter: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 6,
+        marginTop: 4,
     },
     dateLabel: {
         fontSize: 10,

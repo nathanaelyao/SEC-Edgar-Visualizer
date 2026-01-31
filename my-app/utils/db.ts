@@ -23,6 +23,7 @@ export interface PortfolioSnapshot {
     id?: number;
     timestamp: string;
     totalValue: number;
+    totalProfit: number;
 }
 
 let db: SQLite.SQLiteDatabase | null = null;
@@ -48,7 +49,8 @@ export const initDb = async () => {
         CREATE TABLE IF NOT EXISTS portfolio_history (
             id INTEGER PRIMARY KEY NOT NULL,
             timestamp TEXT NOT NULL,
-            totalValue REAL NOT NULL
+            totalValue REAL NOT NULL,
+            totalProfit REAL DEFAULT 0
         );
     `);
 
@@ -72,6 +74,12 @@ export const initDb = async () => {
         const hasLastTransactionDate = tableInfo.some(col => col.name === 'lastTransactionDate');
         if (!hasLastTransactionDate) {
             await db.execAsync('ALTER TABLE portfolio ADD COLUMN lastTransactionDate TEXT;');
+        }
+
+        const historyInfo = await db.getAllAsync<{ name: string }>('PRAGMA table_info(portfolio_history);');
+        const hasTotalProfit = historyInfo.some(col => col.name === 'totalProfit');
+        if (!hasTotalProfit) {
+            await db.execAsync('ALTER TABLE portfolio_history ADD COLUMN totalProfit REAL DEFAULT 0;');
         }
     } catch (e) {
         console.error('Migration error:', e);
@@ -134,7 +142,7 @@ export const addHolding = async (holding: PortfolioHolding) => {
         if (holding.lastTransactionDate) {
             const txDate = new Date(holding.lastTransactionDate);
             if (txDate.getTime() < new Date().getTime() - (1000 * 60 * 60 * 2)) {
-                await addPortfolioSnapshot(Math.max(0, newShares) * purchasePrice, holding.lastTransactionDate);
+                await addPortfolioSnapshot(Math.max(0, newShares) * purchasePrice, 0, holding.lastTransactionDate);
             }
         }
 
@@ -150,14 +158,22 @@ export const addHolding = async (holding: PortfolioHolding) => {
     if (holding.lastTransactionDate) {
         const txDate = new Date(holding.lastTransactionDate);
         if (txDate.getTime() < new Date().getTime() - (1000 * 60 * 60 * 2)) {
-            await addPortfolioSnapshot(holding.shares * (holding.price || 0), holding.lastTransactionDate);
+            // Fetch all holdings to get current total profit for snapshot
+            const allHoldings = await getPortfolio();
+            const totalValue = allHoldings.reduce((acc, curr) => acc + (curr.shares * (curr.price || 0)), 0);
+            const totalCostBasis = allHoldings.reduce((acc, curr) => acc + (curr.shares * (curr.costBasis || curr.price || 0)), 0);
+            const unrealizedProfit = totalValue - totalCostBasis;
+            const realizedProfit = allHoldings.reduce((acc, curr) => acc + (curr.realizedProfit || 0), 0);
+            const totalProfit = unrealizedProfit + realizedProfit;
+
+            await addPortfolioSnapshot(totalValue, totalProfit, holding.lastTransactionDate);
         }
     }
 
     return result;
 };
 
-export const addPortfolioSnapshot = async (totalValue: number, customTimestamp?: string) => {
+export const addPortfolioSnapshot = async (totalValue: number, totalProfit: number = 0, customTimestamp?: string) => {
     const database = await initDb();
     const timestamp = customTimestamp || new Date().toISOString();
 
@@ -171,14 +187,14 @@ export const addPortfolioSnapshot = async (totalValue: number, customTimestamp?:
     if (existing) {
         // Update the snapshot for that day instead of adding new one
         return await database.runAsync(
-            'UPDATE portfolio_history SET totalValue = ?, timestamp = ? WHERE id = ?;',
-            [totalValue, timestamp, existing.id]
+            'UPDATE portfolio_history SET totalValue = ?, totalProfit = ?, timestamp = ? WHERE id = ?;',
+            [totalValue, totalProfit, timestamp, existing.id]
         );
     }
 
     return await database.runAsync(
-        'INSERT INTO portfolio_history (timestamp, totalValue) VALUES (?, ?);',
-        [timestamp, totalValue]
+        'INSERT INTO portfolio_history (timestamp, totalValue, totalProfit) VALUES (?, ?, ?);',
+        [timestamp, totalValue, totalProfit]
     );
 };
 
@@ -251,9 +267,10 @@ export const refreshPortfolioPrices = async (): Promise<PortfolioHolding[]> => {
     }
 
     const totalValue = updatedHoldings.reduce((acc, curr) => acc + (curr.shares * (curr.price || 0)), 0);
-    if (totalValue > 0) {
-        await addPortfolioSnapshot(totalValue);
-    }
+    const totalCostBasis = updatedHoldings.reduce((acc, curr) => acc + (curr.shares * (curr.costBasis || curr.price || 0)), 0);
+    const totalProfit = (totalValue - totalCostBasis) + updatedHoldings.reduce((acc, curr) => acc + (curr.realizedProfit || 0), 0);
+
+    await addPortfolioSnapshot(totalValue, totalProfit);
 
     return updatedHoldings;
 };

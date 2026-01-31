@@ -25,18 +25,23 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
         );
     }
 
-    const values = data.map(d => d.totalValue);
-    const min = Math.min(...values) * 0.95;
-    const max = Math.max(...values) * 1.05;
-    const vRange = max - min || 1;
+    const values = data.map(d => d.totalProfit);
+    const firstVal = values[0];
+    const lastVal = values[values.length - 1];
+
+    // For gains, we want to see the fluctuation relative to 0 or relative to the start
+    // Let's stick to absolute dollar gain as requested "gains compared to assets"
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const vRange = Math.max(Math.abs(max - min), 1);
 
     const points = data.map((d, i) => {
         const x = padding + (i / (data.length - 1)) * chartWidth;
-        const y = padding + chartHeight - ((d.totalValue - min) / vRange) * chartHeight;
-        return `${x},${y}`;
+        const y = padding + chartHeight - ((d.totalProfit - min) / vRange) * chartHeight;
+        return `${x},${y} `;
     }).join(' ');
 
-    const isProfit = data[data.length - 1].totalValue >= data[0].totalValue;
+    const isProfit = lastVal >= firstVal;
     const color = isProfit ? '#34C759' : '#FF3B30';
 
     const handleTouch = (event: any) => {
@@ -52,13 +57,18 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
     };
 
     const activePoint = activeIndex !== null ? data[activeIndex] : null;
-    const firstPointValue = data[0].totalValue;
+    const firstPointProfit = data[0].totalProfit;
     const activeX = activeIndex !== null ? padding + (activeIndex / (data.length - 1)) * chartWidth : 0;
-    const activeY = activeIndex !== null ? padding + chartHeight - ((data[activeIndex].totalValue - min) / vRange) * chartHeight : 0;
+    const activeY = activeIndex !== null ? padding + chartHeight - ((data[activeIndex].totalProfit - min) / vRange) * chartHeight : 0;
 
-    // Calculate change
-    const changeAmount = activePoint ? activePoint.totalValue - firstPointValue : 0;
-    const changePercent = activePoint && firstPointValue > 0 ? (changeAmount / firstPointValue) * 100 : 0;
+    // Calculate change relative to start of period
+    const changeAmount = activePoint ? activePoint.totalProfit - firstPointProfit : 0;
+    // For percentage, it's tricky on profit. Let's use % of total value at that time if possible, 
+    // or just % change in profit relative to initial value.
+    // Usually % change on a gain chart is (Gain - InitialGain) / InitialValue? 
+    // Let's use (CurrentProfit - StartProfit) / StartValue
+    const startValue = data[0].totalValue;
+    const changePercent = activePoint && startValue > 0 ? (changeAmount / startValue) * 100 : 0;
     const isPositive = changeAmount >= 0;
 
     return (
@@ -75,7 +85,7 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
                 <View style={styles.hud}>
                     <View style={styles.hudHeader}>
                         <Text style={styles.hudValue}>
-                            ${activePoint.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            {activePoint.totalProfit >= 0 ? '+' : ''}${activePoint.totalProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </Text>
                         <View style={[styles.hudChangeBadge, isPositive ? styles.positiveBadge : styles.negativeBadge]}>
                             <Text style={styles.hudChangeText}>
@@ -83,6 +93,7 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
                             </Text>
                         </View>
                     </View>
+                    <Text style={styles.hudValueSmall}> Assets: ${activePoint.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                     <Text style={styles.hudDate}>
                         {new Date(activePoint.timestamp).toLocaleDateString(undefined, {
                             month: 'short',
@@ -204,9 +215,15 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     hudValue: {
-        fontSize: 14,
-        fontWeight: '700',
+        fontSize: 16,
+        fontWeight: '800',
         color: '#1a1a1a',
+    },
+    hudValueSmall: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#666',
+        marginTop: 1,
     },
     hudHeader: {
         flexDirection: 'row',
@@ -231,7 +248,8 @@ const styles = StyleSheet.create({
     },
     hudDate: {
         fontSize: 10,
-        color: '#666',
+        color: '#999',
+        marginTop: 2,
     },
 });
 
