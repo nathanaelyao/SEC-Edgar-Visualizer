@@ -5,6 +5,8 @@ import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { secFetch, yahooSearch } from '@/utils/secApi';
 import { error as logError } from '@/utils/logger';
 import { getPortfolio, PortfolioHolding, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices } from '@/utils/db';
+import { useTheme } from '@/context/ThemeContext';
+import { formatCurrency, convertCurrency } from '@/utils/currency';
 
 interface Company {
   name: string;
@@ -16,6 +18,7 @@ interface Company {
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { isDark, currency, exchangeRates } = useTheme();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
@@ -115,21 +118,25 @@ const HomeScreen: React.FC = () => {
     ? (dayChange / secondLastSnapshot.totalValue) * 100
     : 0;
 
+  // Convert values for display
+  const displayTotalValue = formatCurrency(convertCurrency(totalPortfolioValue, currency, exchangeRates), currency);
+  const displayDayChange = formatCurrency(convertCurrency(Math.abs(dayChange), currency, exchangeRates), currency);
+
   if (loading && portfolio.length === 0) {
     return (
-      <View style={[styles.container, styles.centered]}>
+      <View style={[styles.container, styles.centered, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
         <ActivityIndicator size="large" color="#007AFF" />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <View style={styles.topRow}>
           <View>
-            <Text style={styles.greeting}>Welcome back</Text>
-            <Text style={styles.homeTitle}>Stock Trends</Text>
+            <Text style={[styles.greeting, { color: isDark ? '#8e8e93' : '#8e8e93' }]}>Welcome back</Text>
+            <Text style={[styles.homeTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Stock Trends</Text>
           </View>
           <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('portfolio')}>
             <Ionicons name="pie-chart-outline" size={32} color="#007AFF" />
@@ -138,18 +145,25 @@ const HomeScreen: React.FC = () => {
 
         <View style={styles.searchSection}>
           <TextInput
-            style={styles.searchBar}
+            style={[styles.searchBar, {
+              backgroundColor: isDark ? '#1e1e1e' : '#fff',
+              borderColor: isDark ? '#333' : '#e0e0e0',
+              color: isDark ? '#fff' : '#000'
+            }]}
             placeholder="Search stocks or companies"
-            placeholderTextColor="gray"
+            placeholderTextColor={isDark ? '#666' : 'gray'}
             onChangeText={setSearchQuery}
             value={searchQuery}
           />
           {suggestions.length > 0 && (
-            <View style={styles.suggestionsContainer}>
+            <View style={[styles.suggestionsContainer, {
+              backgroundColor: isDark ? '#1e1e1e' : '#fff',
+              borderColor: isDark ? '#333' : '#eee'
+            }]}>
               {suggestions.map((s, index) => (
                 <TouchableOpacity
                   key={`${s.ticker}-${index}`}
-                  style={styles.suggestionItem}
+                  style={[styles.suggestionItem, { borderBottomColor: isDark ? '#333' : '#f0f0f0' }]}
                   onPress={() => {
                     navigation.navigate('SearchResultsScreen', { stockSymbol: s.ticker });
                     setSearchQuery('');
@@ -157,7 +171,7 @@ const HomeScreen: React.FC = () => {
                   }}
                 >
                   <View>
-                    <Text style={styles.suggestionText}>{s.name}</Text>
+                    <Text style={[styles.suggestionText, { color: isDark ? '#fff' : '#1a1a1a' }]}>{s.name}</Text>
                     <Text style={styles.suggestionSubtext}>
                       {s.ticker} • {s.exchange} • {s.type}
                     </Text>
@@ -170,19 +184,22 @@ const HomeScreen: React.FC = () => {
 
         {portfolio.length > 0 && (
           <TouchableOpacity
-            style={styles.portfolioCard}
+            style={[styles.portfolioCard, {
+              backgroundColor: isDark ? '#1e1e1e' : '#fff',
+              borderColor: isDark ? '#333' : '#eee'
+            }]}
             onPress={() => navigation.navigate('portfolio')}
           >
             <View style={styles.cardTop}>
               <Text style={styles.cardLabel}>Personal Portfolio</Text>
               <MaterialIcons name="chevron-right" size={20} color="#8e8e93" />
             </View>
-            <Text style={styles.portfolioValue}>
-              ${totalPortfolioValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            <Text style={[styles.portfolioValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+              {displayTotalValue}
             </Text>
             <View style={styles.cardBottom}>
               <Text style={[styles.cardChange, dayChange >= 0 ? styles.positiveText : styles.negativeText]}>
-                {dayChange >= 0 ? '+' : ''}${Math.abs(dayChange).toLocaleString(undefined, { maximumFractionDigits: 0 })} ({dayChangePercent.toFixed(1)}%)
+                {dayChange >= 0 ? '+' : '-'}{displayDayChange} ({dayChangePercent.toFixed(1)}%)
               </Text>
               <Text style={styles.cardTime}>Today</Text>
             </View>
@@ -191,15 +208,18 @@ const HomeScreen: React.FC = () => {
 
         {topMovers.length > 0 && (
           <View style={styles.moversSection}>
-            <Text style={styles.sectionTitle}>Portfolio Movers</Text>
+            <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Portfolio Movers</Text>
             <View style={styles.moversGrid}>
               {topMovers.map((mover: any) => (
                 <TouchableOpacity
                   key={mover.symbol}
-                  style={styles.moverItem}
+                  style={[styles.moverItem, {
+                    backgroundColor: isDark ? '#1e1e1e' : '#fff',
+                    borderColor: isDark ? '#333' : '#eee'
+                  }]}
                   onPress={() => navigation.navigate('SearchResultsScreen', { stockSymbol: mover.symbol })}
                 >
-                  <Text style={styles.moverSymbol}>{mover.symbol}</Text>
+                  <Text style={[styles.moverSymbol, { color: isDark ? '#fff' : '#1a1a1a' }]}>{mover.symbol}</Text>
                   <Text style={[styles.moverValue, mover.profitPercent >= 0 ? styles.positiveText : styles.negativeText]}>
                     {mover.profitPercent >= 0 ? '+' : ''}{mover.profitPercent.toFixed(1)}%
                   </Text>
@@ -210,9 +230,12 @@ const HomeScreen: React.FC = () => {
         )}
 
         {portfolio.length === 0 && (
-          <View style={styles.emptyPortfolioCard}>
-            <Text style={styles.emptyTitle}>Start your portfolio</Text>
-            <Text style={styles.emptySubtext}>Search for a stock and add it to your portfolio to see its performance here.</Text>
+          <View style={[styles.emptyPortfolioCard, {
+            backgroundColor: isDark ? '#1e1e1e' : '#f1f1f6',
+            borderColor: isDark ? '#444' : '#c7c7cc'
+          }]}>
+            <Text style={[styles.emptyTitle, { color: isDark ? '#fff' : '#333' }]}>Start your portfolio</Text>
+            <Text style={[styles.emptySubtext, { color: isDark ? '#8e8e93' : '#8e8e93' }]}>Search for a stock and add it to your portfolio to see its performance here.</Text>
           </View>
         )}
       </View>

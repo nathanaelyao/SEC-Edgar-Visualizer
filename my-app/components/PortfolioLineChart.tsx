@@ -8,9 +8,11 @@ interface PortfolioLineChartProps {
     data: PortfolioSnapshot[];
     height?: number;
     range?: '1D' | '1W' | '1M' | '1Y' | '5Y' | 'ALL';
+    isDark?: boolean;
+    formatValue?: (val: number) => string;
 }
 
-const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 180, range = 'ALL' }) => {
+const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 180, range = 'ALL', isDark, formatValue }) => {
     const [activeIndex, setActiveIndex] = useState<number | null>(null);
     const screenWidth = Dimensions.get('window').width - 64; // Horizontal margin in PortfolioScreen
     const padding = 20;
@@ -82,18 +84,21 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({ data, height = 
             onResponderTerminate={() => setActiveIndex(null)}
         >
             {activeIndex !== null && activePoint && (
-                <View style={styles.hud}>
+                <View style={[styles.hud, {
+                    backgroundColor: isDark ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.9)',
+                    borderColor: isDark ? '#444' : '#eee'
+                }]}>
                     <View style={styles.hudHeader}>
-                        <Text style={styles.hudValue}>
-                            {activePoint.totalProfit >= 0 ? '+' : ''}${activePoint.totalProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        <Text style={[styles.hudValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                            {formatValue ? formatValue(activePoint.totalProfit) : (`${activePoint.totalProfit >= 0 ? '+' : ''}$${activePoint.totalProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`)}
                         </Text>
-                        <View style={[styles.hudChangeBadge, isPositive ? styles.positiveBadge : styles.negativeBadge]}>
-                            <Text style={styles.hudChangeText}>
-                                {isPositive ? '+' : ''}{changeAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({changePercent.toFixed(1)}%)
+                        <View style={[styles.hudChangeBadge, isPositive ? (isDark ? styles.positiveBadgeDark : styles.positiveBadge) : (isDark ? styles.negativeBadgeDark : styles.negativeBadge)]}>
+                            <Text style={[styles.hudChangeText, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                                {isPositive ? '+' : ''}{formatValue ? formatValue(changeAmount) : changeAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({changePercent.toFixed(1)}%)
                             </Text>
                         </View>
                     </View>
-                    <Text style={styles.hudValueSmall}> Assets: ${activePoint.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                    <Text style={[styles.hudValueSmall, { color: isDark ? '#aaa' : '#666' }]}> Assets: {formatValue ? formatValue(activePoint.totalValue) : `$${activePoint.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}</Text>
                     <Text style={styles.hudDate}>
                         {new Date(activePoint.timestamp).toLocaleDateString(undefined, {
                             month: 'short',
@@ -240,6 +245,12 @@ const styles = StyleSheet.create({
     },
     negativeBadge: {
         backgroundColor: '#FFEBEE',
+    },
+    positiveBadgeDark: {
+        backgroundColor: '#1B5E20',
+    },
+    negativeBadgeDark: {
+        backgroundColor: '#B71C1C',
     },
     hudChangeText: {
         fontSize: 10,

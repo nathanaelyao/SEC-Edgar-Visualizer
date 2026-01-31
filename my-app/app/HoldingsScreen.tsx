@@ -6,12 +6,15 @@ import cheerio from 'react-native-cheerio'; // Import cheerio
 import { useNavigation } from '@react-navigation/native';
 import { secFetch } from '@/utils/secApi';
 import { debug, info, warn, error as logError } from '@/utils/logger';
+import { useTheme } from '@/context/ThemeContext';
+import { formatCurrency, convertCurrency } from '@/utils/currency';
 
 type RootStackParamList = {
   HoldingsScreen: { investorName: string; cik: string, institution: string };
 };
 const HoldingsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { isDark, currency, exchangeRates } = useTheme();
 
   const [totalPortfolioValue, setTotalPortfolioValue] = useState(0);
   const route = useRoute<RouteProp<RootStackParamList, 'HoldingsScreen'>>();
@@ -255,6 +258,7 @@ const HoldingsScreen: React.FC = () => {
     const n = typeof number === 'string' ? parseFloat(number) : number;
     return n.toLocaleString();
   };
+
   const calculatePercentage = (value: number): string => {
     if (totalPortfolioValue === 0 || isNaN(value)) {
       return "0.00%";
@@ -262,39 +266,39 @@ const HoldingsScreen: React.FC = () => {
     const percentage = (value / totalPortfolioValue) * 100;
     return percentage.toFixed(2) + "%";
   };
+
   const renderItem = ({ item }: { item: any }) => {
     const changeData = calculatePercentageChange(parseFloat(item.shrsOrPrnAmt?.sshPrnamt), item.nameOfIssuer);
     const change = changeData.change;
     const color = changeData.color;
+    const displayValue = formatCurrency(convertCurrency(parseFloat(item.value), currency, exchangeRates), currency);
 
     return (
-
-
-      <TouchableOpacity style={styles.item}
+      <TouchableOpacity style={[styles.item, { backgroundColor: isDark ? '#1e1e1e' : '#fafafa', borderColor: isDark ? '#333' : '#ddd' }]}
         onPress={() => {
           navigation.navigate('SearchResultsScreen', {
             stockSymbol: item.nameOfIssuer,
           });
         }}>
         <View style={styles.row}>
-          <Text style={styles.boldText}>{item.nameOfIssuer}</Text>
+          <Text style={[styles.boldText, { color: isDark ? '#fff' : '#000' }]}>{item.nameOfIssuer}</Text>
         </View>
 
 
         <View style={styles.row}>
-          <Text style={styles.label}>Shares:</Text>
-          <Text>{formatNumberWithCommas(item.shrsOrPrnAmt?.sshPrnamt)}</Text>
+          <Text style={[styles.label, { color: isDark ? '#aaa' : '#000' }]}>Shares:</Text>
+          <Text style={{ color: isDark ? '#eee' : '#333' }}>{formatNumberWithCommas(item.shrsOrPrnAmt?.sshPrnamt)}</Text>
         </View>
         <View style={styles.row}>
-          <Text style={styles.label}>Value:</Text>
-          <Text>${formatNumberWithCommas(item.value)}</Text>
+          <Text style={[styles.label, { color: isDark ? '#aaa' : '#000' }]}>Value:</Text>
+          <Text style={{ color: isDark ? '#eee' : '#333' }}>{displayValue}</Text>
         </View>
         <View style={styles.row}>
-          <Text style={styles.label}>% of Portfolio:</Text>
-          <Text>{calculatePercentage(parseFloat(item.value))}</Text>
+          <Text style={[styles.label, { color: isDark ? '#aaa' : '#000' }]}>% of Portfolio:</Text>
+          <Text style={{ color: isDark ? '#eee' : '#333' }}>{calculatePercentage(parseFloat(item.value))}</Text>
         </View>
         <View style={styles.row}>
-          <Text style={styles.label}>Change in Shares:</Text>
+          <Text style={[styles.label, { color: isDark ? '#aaa' : '#000' }]}>Change in Shares:</Text>
           <Text style={{ color }}>{change}</Text>
         </View>
       </TouchableOpacity>
@@ -303,25 +307,25 @@ const HoldingsScreen: React.FC = () => {
 
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#121212' : '#fff' }]}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Text style={[styles.backButtonText, { color: isDark ? '#fff' : '#007AFF' }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerContent}>
 
-          <Text style={styles.investorName}> {investorName}</Text>
-          <Text style={styles.institutionName}>{institution}</Text>
-          {quarter && <Text style={styles.quarterText}>{quarter}</Text>}
-          <Text style={styles.portfolioValue}>
-            Total Portfolio Value: ${formatNumberWithCommas(totalPortfolioValue)}
+          <Text style={[styles.investorName, { color: isDark ? '#fff' : '#000' }]}> {investorName}</Text>
+          <Text style={[styles.institutionName, { color: isDark ? '#aaa' : 'gray' }]}>{institution}</Text>
+          {quarter && <Text style={[styles.quarterText, { color: isDark ? '#888' : 'gray' }]}>{quarter}</Text>}
+          <Text style={[styles.portfolioValue, { color: isDark ? '#fff' : '#000' }]}>
+            Total Portfolio Value: {formatCurrency(convertCurrency(totalPortfolioValue, currency, exchangeRates), currency)}
           </Text>
         </View>
       </View>
-      {loading && <ActivityIndicator size="large" color="#0000ff" />}
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {loading && <ActivityIndicator size="large" color="#007AFF" />}
+      {error && <Text style={[styles.errorText, { color: '#FF3B30' }]}>{error}</Text>}
 
       <FlatList
         data={filings}
@@ -330,7 +334,6 @@ const HoldingsScreen: React.FC = () => {
         ListEmptyComponent={() => !loading && !error && <Text></Text>}
       />
     </View>
-
   );
 };
 

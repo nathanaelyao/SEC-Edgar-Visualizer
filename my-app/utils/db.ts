@@ -52,6 +52,17 @@ export const initDb = async () => {
             totalValue REAL NOT NULL,
             totalProfit REAL DEFAULT 0
         );
+
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY NOT NULL,
+            value TEXT NOT NULL
+        );
+    `);
+
+    // Initialize default settings if they don't exist
+    await db.execAsync(`
+        INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', 'system');
+        INSERT OR IGNORE INTO settings (key, value) VALUES ('currency', 'USD');
     `);
 
     // Migration: Add price column if it doesn't exist (for existing tables)
@@ -273,4 +284,22 @@ export const refreshPortfolioPrices = async (): Promise<PortfolioHolding[]> => {
     await addPortfolioSnapshot(totalValue, totalProfit);
 
     return updatedHoldings;
+};
+
+export const getSettings = async (): Promise<Record<string, string>> => {
+    const database = await initDb();
+    const rows = await database.getAllAsync<{ key: string, value: string }>('SELECT * FROM settings;');
+    const settings: Record<string, string> = {};
+    rows.forEach(row => {
+        settings[row.key] = row.value;
+    });
+    return settings;
+};
+
+export const updateSetting = async (key: string, value: string) => {
+    const database = await initDb();
+    return await database.runAsync(
+        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?);',
+        [key, value]
+    );
 };

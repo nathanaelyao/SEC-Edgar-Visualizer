@@ -16,9 +16,10 @@ interface PieChartDataItem {
 interface PieChartProps {
     data: PieChartDataItem[];
     size?: number;
+    isDark?: boolean;
 }
 
-const PieChart: React.FC<PieChartProps> = ({ data, size: propSize }) => {
+const PieChart: React.FC<PieChartProps> = ({ data, size: propSize, isDark }) => {
     const { width: SCREEN_WIDTH } = Dimensions.get('window');
     const size = propSize || Math.min(SCREEN_WIDTH - 64, 300);
     const radius = size / 2;
@@ -104,7 +105,7 @@ const PieChart: React.FC<PieChartProps> = ({ data, size: propSize }) => {
                 {data.map((item, index) => (
                     <View key={`legend-${index}`} style={styles.legendItem}>
                         <View style={[styles.colorBox, { backgroundColor: item.color }]} />
-                        <Text style={styles.legendText}>
+                        <Text style={[styles.legendText, { color: isDark ? '#eee' : '#333' }]}>
                             {item.label}: {((item.value / total) * 100).toFixed(1)}%
                         </Text>
                     </View>

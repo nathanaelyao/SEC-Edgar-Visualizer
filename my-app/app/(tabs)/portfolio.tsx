@@ -7,8 +7,11 @@ import PortfolioLineChart from '@/components/PortfolioLineChart';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { fetchStockPrice } from '@/utils/secApi';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useTheme } from '@/context/ThemeContext';
+import { formatCurrency, convertCurrency } from '@/utils/currency';
 
 const PortfolioScreen: React.FC = () => {
+    const { isDark, currency, exchangeRates } = useTheme();
     const navigation = useNavigation<any>();
     const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
     const [history, setHistory] = useState<PortfolioSnapshot[]>([]);
@@ -86,6 +89,12 @@ const PortfolioScreen: React.FC = () => {
     const totalProfitPercent = totalCostBasis > 0 ? (totalProfit / totalCostBasis) * 100 : 0;
 
     const totalRealizedProfit = portfolio.reduce((acc, curr) => acc + (curr.realizedProfit || 0), 0);
+    const totalTotalProfit = totalProfit + totalRealizedProfit;
+
+    // Currency conversion for display
+    const displayTotalValue = formatCurrency(convertCurrency(totalPortfolioValue, currency, exchangeRates), currency);
+    const displayUnrealized = formatCurrency(convertCurrency(totalProfit, currency, exchangeRates), currency);
+    const displayRealized = formatCurrency(convertCurrency(totalRealizedProfit, currency, exchangeRates), currency);
 
     const getFilteredHistory = () => {
         if (!history || history.length === 0) return [];
@@ -159,9 +168,13 @@ const PortfolioScreen: React.FC = () => {
         const profit = (currentPrice - costBasis) * item.shares;
         const profitPercent = costBasis > 0 ? ((currentPrice - costBasis) / costBasis) * 100 : 0;
 
+        const displayValue = formatCurrency(convertCurrency(value, currency, exchangeRates), currency);
+        const displayProfit = formatCurrency(convertCurrency(Math.abs(profit), currency, exchangeRates), currency);
+        const displayRealizedProfitItem = formatCurrency(convertCurrency(Math.abs(item.realizedProfit || 0), currency, exchangeRates), currency);
+
         return (
             <TouchableOpacity
-                style={styles.holdingItem}
+                style={[styles.holdingItem, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}
                 onPress={() => navigation.navigate('SearchResultsScreen', { stockSymbol: item.symbol })}
             >
                 <View style={[styles.colorIndicator, { backgroundColor: colors[index % colors.length] }]} />
@@ -172,10 +185,10 @@ const PortfolioScreen: React.FC = () => {
                         </View>
                     </View>
                     <View style={styles.holdingFooter}>
-                        <Text style={styles.companyName} numberOfLines={1}>{item.companyName}</Text>
+                        <Text style={[styles.companyName, { color: isDark ? '#aaa' : '#666' }]} numberOfLines={1}>{item.companyName}</Text>
                         {(item.realizedProfit || 0) !== 0 && (
-                            <Text style={[styles.realizedBadge, (item.realizedProfit || 0) > 0 ? styles.positiveBadge : styles.negativeBadge]}>
-                                Realized: {(item.realizedProfit || 0) >= 0 ? '+' : '-'}${Math.abs(item.realizedProfit || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            <Text style={[styles.realizedBadge, (item.realizedProfit || 0) > 0 ? (isDark ? styles.positiveBadgeDark : styles.positiveBadge) : (isDark ? styles.negativeBadgeDark : styles.negativeBadge)]}>
+                                Realized: {(item.realizedProfit || 0) >= 0 ? '+' : '-'}{displayRealizedProfitItem}
                             </Text>
                         )}
                     </View>
@@ -185,11 +198,11 @@ const PortfolioScreen: React.FC = () => {
                     <View style={styles.profitContainer}>
                         {item.priceChange !== undefined && (
                             <Text style={[styles.itemPriceChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
-                                {item.priceChange >= 0 ? '+' : ''}{item.priceChange.toFixed(2)} ({item.pricePercent?.toFixed(2)}%)
+                                {item.priceChange >= 0 ? '+' : ''}{formatCurrency(convertCurrency(Math.abs(item.priceChange), currency, exchangeRates), currency)} ({item.pricePercent?.toFixed(2)}%)
                             </Text>
                         )}
                     </View>
-                    <Text style={styles.value}>${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                    <Text style={[styles.value, { color: isDark ? '#fff' : '#1a1a1a' }]}>{displayValue}</Text>
                 </View>
                 <TouchableOpacity
                     style={styles.manageButton}
@@ -214,28 +227,28 @@ const PortfolioScreen: React.FC = () => {
     };
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.title}>My Portfolio</Text>
+        <View style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
+            <Text style={[styles.title, { color: isDark ? '#fff' : '#1a1a1a' }]}>My Portfolio</Text>
 
-            <View style={styles.headerStats}>
+            <View style={[styles.headerStats, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
                 <View style={styles.totalValueContainer}>
                     <Text style={styles.totalValueLabel}>Total Value</Text>
-                    <Text style={styles.totalValue}>${totalPortfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                    <Text style={[styles.totalValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>{displayTotalValue}</Text>
                 </View>
 
-                <View style={styles.statDivider} />
+                <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#eee' }]} />
 
                 <View style={styles.statsColumn}>
                     <View style={styles.statRow}>
                         <Text style={styles.statLabel}>Unrealized</Text>
                         <Text style={[styles.statValue, totalProfit >= 0 ? styles.positive : styles.negative]}>
-                            {totalProfit >= 0 ? '+' : '-'}${Math.abs(totalProfit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {totalProfit >= 0 ? '+' : '-'}{displayUnrealized}
                         </Text>
                     </View>
                     <View style={styles.statRow}>
                         <Text style={styles.statLabel}>Realized</Text>
                         <Text style={[styles.statValue, totalRealizedProfit >= 0 ? styles.positive : styles.negative]}>
-                            {totalRealizedProfit >= 0 ? '+' : '-'}${Math.abs(totalRealizedProfit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {totalRealizedProfit >= 0 ? '+' : '-'}{displayRealized}
                         </Text>
                     </View>
                 </View>
@@ -250,14 +263,14 @@ const PortfolioScreen: React.FC = () => {
                     renderItem={renderItem}
                     ListHeaderComponent={
                         <View>
-                            <View style={styles.chartContainer}>
+                            <View style={[styles.chartContainer, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
                                 <View style={styles.chartHeader}>
-                                    <Text style={styles.chartSectionTitle}>Historical Performance</Text>
-                                    <View style={styles.rangeContainer}>
+                                    <Text style={[styles.chartSectionTitle, { color: isDark ? '#fff' : '#333' }]}>Historical Performance</Text>
+                                    <View style={[styles.rangeContainer, { backgroundColor: isDark ? '#000' : '#f0f0f0' }]}>
                                         {(['1D', '1W', '1M', '1Y', '5Y', 'ALL'] as const).map((range) => (
                                             <TouchableOpacity
                                                 key={range}
-                                                style={[styles.rangeChip, selectedRange === range && styles.rangeChipActive]}
+                                                style={[styles.rangeChip, selectedRange === range && (isDark ? styles.rangeChipActiveDark : styles.rangeChipActive)]}
                                                 onPress={() => setSelectedRange(range)}
                                             >
                                                 <Text style={[styles.rangeText, selectedRange === range && styles.rangeTextActive]}>
@@ -267,13 +280,20 @@ const PortfolioScreen: React.FC = () => {
                                         ))}
                                     </View>
                                 </View>
-                                <PortfolioLineChart data={filteredHistory} range={selectedRange} />
+                                <PortfolioLineChart
+                                    data={filteredHistory}
+                                    range={selectedRange}
+                                    isDark={isDark}
+                                    formatValue={(val) => formatCurrency(convertCurrency(val, currency, exchangeRates), currency)}
+                                />
                                 {filteredHistory.length > 1 && (() => {
                                     const startProfit = filteredHistory[0].totalProfit;
                                     const endProfit = filteredHistory[filteredHistory.length - 1].totalProfit;
                                     const startValue = filteredHistory[0].totalValue;
 
                                     const changeAmount = endProfit - startProfit;
+                                    const displayChangeAmount = formatCurrency(convertCurrency(Math.abs(changeAmount), currency, exchangeRates), currency);
+
                                     const changePercent = startValue > 0 ? (changeAmount / startValue) * 100 : 0;
                                     const isPositive = changeAmount >= 0;
                                     const rangeLabel = {
@@ -286,18 +306,18 @@ const PortfolioScreen: React.FC = () => {
                                     }[selectedRange];
 
                                     return (
-                                        <View style={styles.rangeSummary}>
+                                        <View style={[styles.rangeSummary, { borderTopColor: isDark ? '#333' : '#f1f1f1' }]}>
                                             <Text style={styles.rangeLabel}>{rangeLabel}</Text>
                                             <Text style={[styles.rangeChange, isPositive ? styles.positiveText : styles.negativeText]}>
-                                                {isPositive ? '+' : ''}${Math.abs(changeAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })} ({isPositive ? '+' : ''}{changePercent.toFixed(1)}%)
+                                                {isPositive ? '+' : '-'}{displayChangeAmount} ({isPositive ? '+' : ''}{changePercent.toFixed(1)}%)
                                             </Text>
                                         </View>
                                     );
                                 })()}
                             </View>
-                            <View style={styles.chartContainer}>
-                                <Text style={styles.chartSectionTitle}>Allocation (%)</Text>
-                                <PieChart data={chartData} />
+                            <View style={[styles.chartContainer, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
+                                <Text style={[styles.chartSectionTitle, { color: isDark ? '#fff' : '#333' }]}>Allocation (%)</Text>
+                                <PieChart data={chartData} isDark={isDark} />
                             </View>
                         </View>
                     }
@@ -611,6 +631,22 @@ const styles = StyleSheet.create({
     },
     negativeText: {
         color: '#FF3B30',
+    },
+    positiveBadgeDark: {
+        backgroundColor: '#064e1c',
+        color: '#81c784',
+    },
+    negativeBadgeDark: {
+        backgroundColor: '#4a0e0e',
+        color: '#e57373',
+    },
+    rangeChipActiveDark: {
+        backgroundColor: '#333',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.3,
+        shadowRadius: 1,
+        elevation: 1,
     },
     listContent: {
         paddingBottom: 100,
