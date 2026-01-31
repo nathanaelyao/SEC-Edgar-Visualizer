@@ -1,30 +1,47 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding } from '../utils/db';
+import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot } from '../utils/db';
 import PieChart from '../../components/PieChart';
+import PortfolioLineChart from '../../components/PortfolioLineChart';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { fetchStockPrice } from '../utils/secApi';
 
 const PortfolioScreen: React.FC = () => {
     const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
+    const [history, setHistory] = useState<PortfolioSnapshot[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Management Modal State
     const [isManageModalVisible, setIsManageModalVisible] = useState(false);
     const [selectedHolding, setSelectedHolding] = useState<PortfolioHolding | null>(null);
     const [sharesAmount, setSharesAmount] = useState('');
+    const [priceAmount, setPriceAmount] = useState('');
     const [manageMode, setManageMode] = useState<'buy' | 'sell'>('buy');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const loadPortfolio = async () => {
         try {
             setLoading(true);
-            const data = await getPortfolio();
-            setPortfolio(data);
+            const [holdings, historyData] = await Promise.all([
+                getPortfolio(),
+                getPortfolioHistory()
+            ]);
+
+            setPortfolio(holdings);
+            setHistory(historyData);
+
+            // Calculate total value for snapshot
+            const totalValue = holdings.reduce((acc, curr) => acc + (curr.shares * (curr.price || 0)), 0);
+            if (totalValue > 0) {
+                await addPortfolioSnapshot(totalValue);
+                // Refresh history after snapshot
+                const updatedHistory = await getPortfolioHistory();
+                setHistory(updatedHistory);
+            }
 
             // Background refresh prices
-            refreshPrices(data);
+            refreshPrices(holdings);
         } catch (err) {
             console.error("Error loading portfolio:", err);
         } finally {
@@ -43,7 +60,6 @@ const PortfolioScreen: React.FC = () => {
                 console.error(`Failed to refresh price for ${holding.symbol}:`, err);
             }
         }
-        // Final reload to show fresh prices from DB
         const data = await getPortfolio();
         setPortfolio(data);
     };
@@ -78,7 +94,7 @@ const PortfolioScreen: React.FC = () => {
 
     const colors = [
         '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
-        '#FF9F40', '#E7E9ED', '#8AC249', '#009688', '#607D8B'
+        '#FF9F40', '#E7E9ED', '#8AC249', '#019688', '#607D8B'
     ];
 
     // Chart Data based on Dollar Value
@@ -89,11 +105,21 @@ const PortfolioScreen: React.FC = () => {
     }));
 
     const totalPortfolioValue = portfolio.reduce((acc, curr) => acc + (curr.shares * (curr.price || 0)), 0);
+    const totalCostBasis = portfolio.reduce((acc, curr) => acc + (curr.shares * (curr.costBasis || curr.price || 0)), 0);
+    const totalProfit = totalPortfolioValue - totalCostBasis;
+    const totalProfitPercent = totalCostBasis > 0 ? (totalProfit / totalCostBasis) * 100 : 0;
 
     const handleManageSave = async () => {
         const shares = parseFloat(sharesAmount);
+        const price = parseFloat(priceAmount);
+
         if (isNaN(shares) || shares <= 0) {
             Alert.alert("Invalid input", "Please enter a valid number of shares.");
+            return;
+        }
+
+        if (isNaN(price) || price <= 0) {
+            Alert.alert("Invalid input", "Please enter a valid price.");
             return;
         }
 
@@ -103,19 +129,16 @@ const PortfolioScreen: React.FC = () => {
         try {
             const sharesChange = manageMode === 'buy' ? shares : -shares;
 
-            // Re-fetch price for accuracy
-            const quote = await fetchStockPrice(selectedHolding.symbol);
-            const currentPrice = quote.price > 0 ? quote.price : (selectedHolding.price || 150.00);
-
             await addHolding({
                 symbol: selectedHolding.symbol,
                 companyName: selectedHolding.companyName,
                 shares: sharesChange,
-                price: currentPrice
+                price: price // Use the user-entered price
             });
 
             setIsManageModalVisible(false);
             setSharesAmount('');
+            setPriceAmount('');
             loadPortfolio();
             Alert.alert("Success", "Portfolio updated successfully.");
         } catch (err) {
@@ -127,7 +150,12 @@ const PortfolioScreen: React.FC = () => {
     };
 
     const renderItem = ({ item, index }: { item: PortfolioHolding, index: number }) => {
-        const value = item.shares * (item.price || 0);
+        const currentPrice = item.price || 0;
+        const value = item.shares * currentPrice;
+        const costBasis = item.costBasis || currentPrice;
+        const profit = (currentPrice - costBasis) * item.shares;
+        const profitPercent = costBasis > 0 ? ((currentPrice - costBasis) / costBasis) * 100 : 0;
+
         return (
             <View style={styles.holdingItem}>
                 <View style={[styles.colorIndicator, { backgroundColor: colors[index % colors.length] }]} />
@@ -137,6 +165,14 @@ const PortfolioScreen: React.FC = () => {
                 </View>
                 <View style={styles.sharesContainer}>
                     <Text style={styles.shares}>{item.shares.toLocaleString()} shares</Text>
+                    <View style={styles.profitContainer}>
+                        <Text style={[styles.profitText, profit >= 0 ? styles.positive : styles.negative]}>
+                            {profit >= 0 ? '+' : ''}${Math.abs(profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Text>
+                        <Text style={[styles.profitPercent, profit >= 0 ? styles.positiveIcon : styles.negativeIcon]}>
+                            ({profit >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%)
+                        </Text>
+                    </View>
                     <Text style={styles.value}>${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
                 </View>
                 <TouchableOpacity
@@ -144,6 +180,7 @@ const PortfolioScreen: React.FC = () => {
                     onPress={() => {
                         setSelectedHolding(item);
                         setManageMode('buy');
+                        setPriceAmount((item.price || 0).toString());
                         setIsManageModalVisible(true);
                     }}
                 >
@@ -162,12 +199,27 @@ const PortfolioScreen: React.FC = () => {
     return (
         <View style={styles.container}>
             <Text style={styles.title}>My Portfolio</Text>
-            <View style={styles.totalValueContainer}>
-                <Text style={styles.totalValueLabel}>Total Value</Text>
-                <Text style={styles.totalValue}>${totalPortfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+
+            <View style={styles.headerStats}>
+                <View style={styles.totalValueContainer}>
+                    <Text style={styles.totalValueLabel}>Total Value</Text>
+                    <Text style={styles.totalValue}>${totalPortfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                </View>
+
+                {portfolio.length > 0 && (
+                    <View style={styles.overallProfitContainer}>
+                        <Text style={styles.totalValueLabel}>Total Return</Text>
+                        <Text style={[styles.overallProfit, totalProfit >= 0 ? styles.positive : styles.negative]}>
+                            {totalProfit >= 0 ? '+' : '-'}${Math.abs(totalProfit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Text>
+                        <Text style={[styles.overallProfitPercent, totalProfit >= 0 ? styles.positive : styles.negative]}>
+                            ({totalProfit >= 0 ? '+' : ''}{totalProfitPercent.toFixed(2)}%)
+                        </Text>
+                    </View>
+                )}
             </View>
 
-            {loading ? (
+            {loading && portfolio.length === 0 ? (
                 <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
             ) : portfolio.length > 0 ? (
                 <FlatList
@@ -175,8 +227,15 @@ const PortfolioScreen: React.FC = () => {
                     keyExtractor={(item) => item.symbol}
                     renderItem={renderItem}
                     ListHeaderComponent={
-                        <View style={styles.chartContainer}>
-                            <PieChart data={chartData} />
+                        <View>
+                            <View style={styles.chartContainer}>
+                                <Text style={styles.chartSectionTitle}>Historical Performance</Text>
+                                <PortfolioLineChart data={history} />
+                            </View>
+                            <View style={styles.chartContainer}>
+                                <Text style={styles.chartSectionTitle}>Allocation (%)</Text>
+                                <PieChart data={chartData} />
+                            </View>
                         </View>
                     }
                     contentContainerStyle={styles.listContent}
@@ -196,63 +255,82 @@ const PortfolioScreen: React.FC = () => {
                 visible={isManageModalVisible}
                 onRequestClose={() => setIsManageModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Manage {selectedHolding?.symbol}</Text>
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                    <View style={styles.modalOverlay}>
+                        <TouchableWithoutFeedback>
+                            <View style={styles.modalContent}>
+                                <Text style={styles.modalTitle}>Manage {selectedHolding?.symbol}</Text>
 
-                        <View style={styles.modeTabs}>
-                            <TouchableOpacity
-                                style={[styles.modeTab, manageMode === 'buy' && styles.modeTabActive]}
-                                onPress={() => setManageMode('buy')}
-                            >
-                                <Text style={[styles.modeTabText, manageMode === 'buy' && styles.modeTabTextActive]}>Buy</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.modeTab, manageMode === 'sell' && styles.modeTabActive]}
-                                onPress={() => setManageMode('sell')}
-                            >
-                                <Text style={[styles.modeTabText, manageMode === 'sell' && styles.modeTabTextActive]}>Sell</Text>
-                            </TouchableOpacity>
-                        </View>
+                                <View style={styles.modeTabs}>
+                                    <TouchableOpacity
+                                        style={[styles.modeTab, manageMode === 'buy' && styles.modeTabActive]}
+                                        onPress={() => setManageMode('buy')}
+                                    >
+                                        <Text style={[styles.modeTabText, manageMode === 'buy' && styles.modeTabTextActive]}>Buy</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.modeTab, manageMode === 'sell' && styles.modeTabActive]}
+                                        onPress={() => setManageMode('sell')}
+                                    >
+                                        <Text style={[styles.modeTabText, manageMode === 'sell' && styles.modeTabTextActive]}>Sell</Text>
+                                    </TouchableOpacity>
+                                </View>
 
-                        <Text style={styles.currentPositionText}>
-                            Current Position: {selectedHolding?.shares.toLocaleString()} shares
-                        </Text>
+                                <Text style={styles.currentPositionText}>
+                                    Current Position: {selectedHolding?.shares.toLocaleString()} shares
+                                </Text>
 
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder={manageMode === 'buy' ? "Number of shares to add" : "Number of shares to sell"}
-                            keyboardType="numeric"
-                            value={sharesAmount}
-                            onChangeText={setSharesAmount}
-                            placeholderTextColor="#999"
-                            autoFocus
-                        />
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.inputLabel}>Shares</Text>
+                                    <TextInput
+                                        style={styles.modalInput}
+                                        placeholder="0"
+                                        keyboardType="numeric"
+                                        value={sharesAmount}
+                                        onChangeText={setSharesAmount}
+                                        placeholderTextColor="#999"
+                                    />
+                                </View>
 
-                        <View style={styles.modalButtons}>
-                            <TouchableOpacity
-                                style={[styles.modalButton, styles.cancelButton]}
-                                onPress={() => {
-                                    setIsManageModalVisible(false);
-                                    setSharesAmount('');
-                                }}
-                            >
-                                <Text style={styles.cancelButtonText}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.modalButton, styles.saveButton]}
-                                onPress={handleManageSave}
-                                disabled={isSubmitting}
-                            >
-                                {isSubmitting ? (
-                                    <ActivityIndicator size="small" color="#fff" />
-                                ) : (
-                                    <Text style={styles.saveButtonText}>Confirm</Text>
-                                )}
-                            </TouchableOpacity>
-                        </View>
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.inputLabel}>Price per share ($)</Text>
+                                    <TextInput
+                                        style={styles.modalInput}
+                                        placeholder="0.00"
+                                        keyboardType="numeric"
+                                        value={priceAmount}
+                                        onChangeText={setPriceAmount}
+                                        placeholderTextColor="#999"
+                                    />
+                                </View>
+
+                                <View style={styles.modalButtons}>
+                                    <TouchableOpacity
+                                        style={[styles.modalButton, styles.cancelButton]}
+                                        onPress={() => {
+                                            setIsManageModalVisible(false);
+                                            setSharesAmount('');
+                                            setPriceAmount('');
+                                        }}
+                                    >
+                                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.modalButton, styles.saveButton]}
+                                        onPress={handleManageSave}
+                                        disabled={isSubmitting}
+                                    >
+                                        {isSubmitting ? (
+                                            <ActivityIndicator size="small" color="#fff" />
+                                        ) : (
+                                            <Text style={styles.saveButtonText}>Confirm</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </TouchableWithoutFeedback>
                     </View>
-                </View>
+                </TouchableWithoutFeedback>
             </Modal>
         </View>
     );
@@ -271,19 +349,40 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 8,
     },
-    totalValueContainer: {
+    headerStats: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
         alignItems: 'center',
         marginBottom: 20,
+        paddingHorizontal: 16,
+    },
+    totalValueContainer: {
+        alignItems: 'center',
     },
     totalValueLabel: {
-        fontSize: 14,
+        fontSize: 12,
         color: '#666',
-        fontWeight: '500',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 4,
     },
     totalValue: {
-        fontSize: 32,
+        fontSize: 24,
         fontWeight: '800',
         color: '#1a1a1a',
+    },
+    overallProfitContainer: {
+        alignItems: 'center',
+    },
+    overallProfit: {
+        fontSize: 20,
+        fontWeight: '700',
+    },
+    overallProfitPercent: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginTop: -2,
     },
     loader: {
         flex: 1,
@@ -299,6 +398,12 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
+    },
+    chartSectionTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#333',
+        marginBottom: 12,
     },
     listContent: {
         paddingBottom: 100,
@@ -319,7 +424,7 @@ const styles = StyleSheet.create({
     },
     colorIndicator: {
         width: 4,
-        height: 30,
+        height: 60,
         borderRadius: 2,
         marginRight: 12,
     },
@@ -341,15 +446,40 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     shares: {
-        fontSize: 16,
+        fontSize: 13,
         fontWeight: '600',
-        color: '#333',
+        color: '#666',
     },
-    value: {
+    profitContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 2,
+    },
+    profitText: {
         fontSize: 14,
         fontWeight: '700',
+    },
+    profitPercent: {
+        fontSize: 11,
+        fontWeight: '600',
+        marginLeft: 4,
+    },
+    positive: {
         color: '#34C759',
-        marginTop: 2,
+    },
+    negative: {
+        color: '#FF3B30',
+    },
+    positiveIcon: {
+        color: '#34C759',
+    },
+    negativeIcon: {
+        color: '#FF3B30',
+    },
+    value: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#1a1a1a',
     },
     manageButton: {
         padding: 8,
@@ -436,8 +566,18 @@ const styles = StyleSheet.create({
     currentPositionText: {
         fontSize: 14,
         color: '#666',
-        marginBottom: 12,
+        marginBottom: 20,
         textAlign: 'center',
+    },
+    inputGroup: {
+        marginBottom: 16,
+    },
+    inputLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#666',
+        marginBottom: 8,
+        marginLeft: 4,
     },
     modalInput: {
         backgroundColor: '#f5f5f5',
@@ -445,12 +585,12 @@ const styles = StyleSheet.create({
         padding: 16,
         fontSize: 18,
         color: '#1a1a1a',
-        marginBottom: 24,
         textAlign: 'center',
     },
     modalButtons: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        marginTop: 10,
     },
     modalButton: {
         flex: 1,

@@ -9,6 +9,8 @@ import {
   Platform,
   TouchableOpacity,
   FlatList,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { error as logError } from '../utils/logger';
@@ -70,43 +72,46 @@ const Home: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
       >
-        <View style={styles.content}>
-          <Text style={styles.title}>Stock Search</Text>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.content}>
+            <Text style={styles.title}>Stock Search</Text>
 
-        <TextInput
-          style={styles.searchBar}
-          placeholder="Search Company (e.g., Apple, MSFT)"
-          placeholderTextColor="#aaa"
-          onChangeText={setSearchText}
-          value={searchText}
-          autoCapitalize="characters"
-          returnKeyType="search"
-          onSubmitEditing={() => {
-            if (suggestions.length > 0) {
-              handleSelect(suggestions[0]); // Navigate to first suggestion
-            }
-          }}
-        />
-
-
-          {suggestions.length > 0 && (
-            <FlatList
-              data={suggestions}
-              keyExtractor={(item) => String(item.cik)}
-              style={styles.suggestionsList}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.suggestionItem}
-                  onPress={() => handleSelect(item)}
-                >
-                  <Text style={styles.suggestionText}>
-                    {item.name || 'N/A'} ({item.ticker || 'N/A'})
-                  </Text>
-                </TouchableOpacity>
-              )}
+            <TextInput
+              style={styles.searchBar}
+              placeholder="Search Company (e.g., Apple, MSFT)"
+              placeholderTextColor="#aaa"
+              onChangeText={setSearchText}
+              value={searchText}
+              autoCapitalize="characters"
+              returnKeyType="search"
+              onSubmitEditing={() => {
+                if (suggestions.length > 0) {
+                  handleSelect(suggestions[0]); // Navigate to first suggestion
+                }
+              }}
             />
-          )}
-        </View>
+
+
+            {suggestions.length > 0 && (
+              <FlatList
+                data={suggestions}
+                keyExtractor={(item) => String(item.cik)}
+                style={styles.suggestionsList}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.suggestionItem}
+                    onPress={() => handleSelect(item)}
+                  >
+                    <Text style={styles.suggestionText}>
+                      {item.name || 'N/A'} ({item.ticker || 'N/A'})
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </View>
+        </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

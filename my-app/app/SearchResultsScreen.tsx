@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Modal, TextInput, Alert } from 'react-native';
+import {
+  View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Modal, TextInput, Alert,
+  TouchableWithoutFeedback,
+  Keyboard,
+} from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { Animated, Easing } from 'react-native';
 import BarChart from '../components/BarChart';
@@ -78,6 +82,7 @@ const SearchResultsScreen: React.FC = () => {
 
   const [isPortfolioModalVisible, setIsPortfolioModalVisible] = useState(false);
   const [sharesToAdd, setSharesToAdd] = useState('');
+  const [purchasePrice, setPurchasePrice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingHolding, setExistingHolding] = useState<PortfolioHolding | null>(null);
   const [portfolioMode, setPortfolioMode] = useState<'buy' | 'sell'>('buy');
@@ -659,7 +664,9 @@ const SearchResultsScreen: React.FC = () => {
                   <TouchableOpacity
                     style={[styles.addToPortfolioButton, existingHolding ? styles.managePortfolioButton : null]}
                     onPress={() => {
-                      setPortfolioMode('buy');
+                      const buyMode = existingHolding ? 'buy' : 'buy';
+                      setPortfolioMode(buyMode);
+                      setPurchasePrice(realTimePrice?.toString() || '');
                       setIsPortfolioModalVisible(true);
                     }}
                   >
@@ -762,97 +769,118 @@ const SearchResultsScreen: React.FC = () => {
               </View>
             )}
             <Modal
-              visible={isPortfolioModalVisible}
-              transparent={true}
               animationType="slide"
+              transparent={true}
+              visible={isPortfolioModalVisible}
+              onRequestClose={() => setIsPortfolioModalVisible(false)}
             >
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>{existingHolding ? 'Update Portfolio' : 'Add to Portfolio'}</Text>
-                  <Text style={styles.modalSubtitle}>{stockInfo?.companyName} ({stockSymbol})</Text>
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View style={styles.modalOverlay}>
+                  <TouchableWithoutFeedback>
+                    <View style={styles.modalContent}>
+                      <Text style={styles.modalTitle}>
+                        {existingHolding ? `Manage ${stockSymbol}` : `Add ${stockSymbol} to Portfolio`}
+                      </Text>
 
-                  {existingHolding && (
-                    <View style={styles.modeTabs}>
-                      <TouchableOpacity
-                        style={[styles.modeTab, portfolioMode === 'buy' && styles.modeTabActive]}
-                        onPress={() => setPortfolioMode('buy')}
-                      >
-                        <Text style={[styles.modeTabText, portfolioMode === 'buy' && styles.modeTabTextActive]}>Buy</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.modeTab, portfolioMode === 'sell' && styles.modeTabActive]}
-                        onPress={() => setPortfolioMode('sell')}
-                      >
-                        <Text style={[styles.modeTabText, portfolioMode === 'sell' && styles.modeTabTextActive]}>Sell</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder={portfolioMode === 'buy' ? "Number of shares to add" : "Number of shares to sell"}
-                    keyboardType="numeric"
-                    value={sharesToAdd}
-                    onChangeText={setSharesToAdd}
-                    placeholderTextColor="#999"
-                  />
-
-                  <View style={styles.modalButtons}>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.cancelButton]}
-                      onPress={() => {
-                        setIsPortfolioModalVisible(false);
-                        setSharesToAdd('');
-                      }}
-                    >
-                      <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.saveButton]}
-                      disabled={isSubmitting}
-                      onPress={async () => {
-                        const shares = parseFloat(sharesToAdd);
-                        if (isNaN(shares) || shares <= 0) {
-                          Alert.alert("Invalid input", "Please enter a valid number of shares.");
-                          return;
-                        }
-
-                        setIsSubmitting(true);
-                        try {
-                          const sharesChange = portfolioMode === 'buy' ? shares : -shares;
-
-                          // Fetch real price from our new GitHub-based service
-                          const quote = await fetchStockPrice(stockSymbol);
-                          const currentPrice = quote.price > 0 ? quote.price : 150.00; // Fallback to 150 only if fetch fails completely
-
-                          await addHolding({
-                            symbol: stockSymbol,
-                            companyName: stockInfo?.companyName || stockSymbol,
-                            shares: sharesChange,
-                            price: currentPrice
-                          });
-
-                          Alert.alert("Success", existingHolding ? "Portfolio updated." : `${stockSymbol} added to your portfolio.`);
-                          setIsPortfolioModalVisible(false);
-                          setSharesToAdd('');
-                        } catch (err) {
-                          console.error("Error updating portfolio:", err);
-                          Alert.alert("Error", "Could not save. Please try again.");
-                        } finally {
-                          setIsSubmitting(false);
-                        }
-                      }}
-                    >
-                      {isSubmitting ? (
-                        <ActivityIndicator color="#fff" size="small" />
-                      ) : (
-                        <Text style={styles.saveButtonText}>Confirm</Text>
+                      {existingHolding && (
+                        <View style={styles.modeTabs}>
+                          <TouchableOpacity
+                            style={[styles.modeTab, portfolioMode === 'buy' && styles.modeTabActive]}
+                            onPress={() => setPortfolioMode('buy')}
+                          >
+                            <Text style={[styles.modeTabText, portfolioMode === 'buy' && styles.modeTabTextActive]}>Buy</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.modeTab, portfolioMode === 'sell' && styles.modeTabActive]}
+                            onPress={() => setPortfolioMode('sell')}
+                          >
+                            <Text style={[styles.modeTabText, portfolioMode === 'sell' && styles.modeTabTextActive]}>Sell</Text>
+                          </TouchableOpacity>
+                        </View>
                       )}
-                    </TouchableOpacity>
-                  </View>
+
+                      <TextInput
+                        style={styles.modalInput}
+                        placeholder={portfolioMode === 'buy' ? "Number of shares to add" : "Number of shares to sell"}
+                        keyboardType="numeric"
+                        value={sharesToAdd}
+                        onChangeText={setSharesToAdd}
+                        placeholderTextColor="#999"
+                        autoFocus
+                      />
+
+                      <Text style={styles.inputLabel}>Price per share ($)</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        placeholder="0.00"
+                        keyboardType="numeric"
+                        value={purchasePrice}
+                        onChangeText={setPurchasePrice}
+                        placeholderTextColor="#999"
+                      />
+
+                      <View style={styles.modalButtons}>
+                        <TouchableOpacity
+                          style={[styles.modalButton, styles.cancelButton]}
+                          onPress={() => {
+                            setIsPortfolioModalVisible(false);
+                            setSharesToAdd('');
+                          }}
+                        >
+                          <Text style={styles.cancelButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.modalButton, styles.saveButton]}
+                          disabled={isSubmitting}
+                          onPress={async () => {
+                            const shares = parseFloat(sharesToAdd);
+                            const price = parseFloat(purchasePrice);
+
+                            if (isNaN(shares) || shares <= 0) {
+                              Alert.alert("Invalid input", "Please enter a valid number of shares.");
+                              return;
+                            }
+
+                            if (isNaN(price) || price <= 0) {
+                              Alert.alert("Invalid input", "Please enter a valid price.");
+                              return;
+                            }
+
+                            setIsSubmitting(true);
+                            try {
+                              const sharesChange = portfolioMode === 'buy' ? shares : -shares;
+
+                              await addHolding({
+                                symbol: stockSymbol,
+                                companyName: stockInfo?.companyName || stockSymbol,
+                                shares: sharesChange,
+                                price: price
+                              });
+
+                              Alert.alert("Success", existingHolding ? "Portfolio updated." : `${stockSymbol} added to your portfolio.`);
+                              setIsPortfolioModalVisible(false);
+                              setSharesToAdd('');
+                              setPurchasePrice('');
+                            } catch (err) {
+                              console.error("Error updating portfolio:", err);
+                              Alert.alert("Error", "Could not save. Please try again.");
+                            } finally {
+                              setIsSubmitting(false);
+                            }
+                          }}
+                        >
+                          {isSubmitting ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <Text style={styles.saveButtonText}>Confirm</Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </TouchableWithoutFeedback>
                 </View>
-              </View>
+              </TouchableWithoutFeedback>
             </Modal>
           </>
         }
@@ -1167,6 +1195,16 @@ const styles = StyleSheet.create({
   },
   modeTabTextActive: {
     color: '#007AFF',
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    width: '100%',
+    paddingLeft: 4,
   },
   modalOverlay: {
     flex: 1,
