@@ -16,25 +16,28 @@ interface BarChartItem {
 
 interface BarChartProps {
   data: BarChartItem[];
+  globalMin?: number;
+  globalMax?: number;
 }
 
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
-const BarChart: React.FC<BarChartProps> = ({ data }) => {
+const BarChart: React.FC<BarChartProps> = ({ data, globalMin, globalMax }) => {
   const { isDark } = useTheme();
   const animatedHeights = useRef<Animated.Value[]>([]);
   const [selectedValue, setSelectedValue] = useState<number | null>(null);
 
-  // Move calculations that hooks depend on to the top, ensuring safety for empty data
   const hasData = data && data.length > 0;
-  const minValue = hasData ? Math.min(0, ...data.map(item => item.value)) : 0;
-  const maxValue = hasData ? Math.max(0, ...data.map(item => item.value)) : 0;
+
+  // Use global bounds if provided to maintain scale across pages
+  const minValue = globalMin !== undefined ? globalMin : (hasData ? Math.min(0, ...data.map(item => item.value)) : 0);
+  const maxValue = globalMax !== undefined ? globalMax : (hasData ? Math.max(0, ...data.map(item => item.value)) : 0);
+
   const range = maxValue - minValue;
   const availableHeight = 200;
   const scale = range === 0 ? 1 : availableHeight / range;
   const zeroY = maxValue * scale;
 
-  // Always call hooks
   useEffect(() => {
     setSelectedValue(null);
   }, [data]);
@@ -42,15 +45,19 @@ const BarChart: React.FC<BarChartProps> = ({ data }) => {
   useEffect(() => {
     if (!hasData) return;
 
-    if (animatedHeights.current.length !== data.length) {
-      animatedHeights.current = data.map(() => new Animated.Value(0));
+    // Expand animated values array if needed
+    if (animatedHeights.current.length < data.length) {
+      const needed = data.length - animatedHeights.current.length;
+      for (let i = 0; i < needed; i++) {
+        animatedHeights.current.push(new Animated.Value(0));
+      }
     }
 
     data.forEach((item, index) => {
       Animated.timing(animatedHeights.current[index], {
         toValue: item.value,
-        duration: 1000,
-        easing: Easing.elastic(1),
+        duration: 400,
+        easing: Easing.out(Easing.quad),
         useNativeDriver: false,
       }).start();
     });
@@ -60,12 +67,13 @@ const BarChart: React.FC<BarChartProps> = ({ data }) => {
     };
   }, [data, scale, hasData]);
 
-  if (!hasData) {
-    return <Text>Loading...</Text>;
-  }
-
-  const gap = 10;
-  const barWidth = (CHART_WIDTH - (data.length - 1) * gap) / data.length;
+  // Adaptive Layout: Fill the full CHART_WIDTH.
+  // Fewer bars = larger barWidth and gap.
+  const gapRatio = 0.2; // Gap will be 20% of bar width
+  const count = data.length || 1;
+  const barWidth = CHART_WIDTH / (count + (count - 1) * gapRatio);
+  const gap = barWidth * gapRatio;
+  const safeBarWidth = barWidth;
 
   const handleBarPress = (value: number) => {
     setSelectedValue(value);
@@ -74,61 +82,67 @@ const BarChart: React.FC<BarChartProps> = ({ data }) => {
   return (
     <View style={[styles.card, { backgroundColor: isDark ? '#1e1e1e' : '#FFFFFF' }]}>
       <View style={styles.container}>
-        <Svg height="220" width={CHART_WIDTH}>
-          <Defs>
-            <LinearGradient id="grad" x1="0" y1="0" x2="0" y2="100%">
-              <Stop offset="0" stopColor="#6a11cb" />
-              <Stop offset="1" stopColor="#2575fc" />
-            </LinearGradient>
-            <LinearGradient id="gradNeg" x1="0" y1="0" x2="0" y2="100%">
-              <Stop offset="0" stopColor="#ff4b1f" />
-              <Stop offset="1" stopColor="#ff9068" />
-            </LinearGradient>
-          </Defs>
-          <G>
-            {data.map((item, index) => {
-              let inputRange = [minValue, 0, maxValue];
-              let outputRangeY = [zeroY, zeroY, zeroY - maxValue * scale];
-              let outputRangeH = [Math.abs(minValue * scale), 0, maxValue * scale];
+        {hasData ? (
+          <Svg height="220" width={CHART_WIDTH}>
+            <Defs>
+              <LinearGradient id="grad" x1="0" y1="0" x2="0" y2="100%">
+                <Stop offset="0" stopColor="#6a11cb" />
+                <Stop offset="1" stopColor="#2575fc" />
+              </LinearGradient>
+              <LinearGradient id="gradNeg" x1="0" y1="0" x2="0" y2="100%">
+                <Stop offset="0" stopColor="#ff4b1f" />
+                <Stop offset="1" stopColor="#ff9068" />
+              </LinearGradient>
+            </Defs>
+            <G>
+              {data.map((item, index) => {
+                let inputRange = [minValue, 0, maxValue];
+                let outputRangeY = [zeroY, zeroY, zeroY - maxValue * scale];
+                let outputRangeH = [Math.abs(minValue * scale), 0, maxValue * scale];
 
-              if (minValue === 0 && maxValue === 0) {
-                inputRange = [0, 1];
-                outputRangeY = [zeroY, zeroY];
-                outputRangeH = [0, 0];
-              } else if (minValue === 0) {
-                inputRange = [0, maxValue];
-                outputRangeY = [zeroY, zeroY - maxValue * scale];
-                outputRangeH = [0, maxValue * scale];
-              } else if (maxValue === 0) {
-                inputRange = [minValue, 0];
-                outputRangeY = [zeroY, zeroY];
-                outputRangeH = [Math.abs(minValue * scale), 0];
-              }
+                if (minValue === 0 && maxValue === 0) {
+                  inputRange = [0, 1];
+                  outputRangeY = [zeroY, zeroY];
+                  outputRangeH = [0, 0];
+                } else if (minValue === 0) {
+                  inputRange = [0, maxValue];
+                  outputRangeY = [zeroY, zeroY - maxValue * scale];
+                  outputRangeH = [0, maxValue * scale];
+                } else if (maxValue === 0) {
+                  inputRange = [minValue, 0];
+                  outputRangeY = [zeroY, zeroY];
+                  outputRangeH = [Math.abs(minValue * scale), 0];
+                }
 
-              return (
-                <AnimatedRect
-                  key={`bar-${index}-${item.label}`}
-                  x={index * (barWidth + gap)}
-                  y={animatedHeights.current[index]?.interpolate({
-                    inputRange,
-                    outputRange: outputRangeY,
-                    extrapolate: 'clamp',
-                  })}
-                  width={barWidth}
-                  height={animatedHeights.current[index]?.interpolate({
-                    inputRange,
-                    outputRange: outputRangeH,
-                    extrapolate: 'clamp',
-                  })}
-                  fill={item.value >= 0 ? "url(#grad)" : "url(#gradNeg)"}
-                  rx="4"
-                  opacity={selectedValue === item.value ? 1 : 0.7}
-                  onPress={() => handleBarPress(item.value)}
-                />
-              );
-            })}
-          </G>
-        </Svg>
+                return (
+                  <AnimatedRect
+                    key={`bar-${item.label}`}
+                    x={index * (barWidth + gap)}
+                    y={animatedHeights.current[index]?.interpolate({
+                      inputRange,
+                      outputRange: outputRangeY,
+                      extrapolate: 'clamp',
+                    })}
+                    width={safeBarWidth}
+                    height={animatedHeights.current[index]?.interpolate({
+                      inputRange,
+                      outputRange: outputRangeH,
+                      extrapolate: 'clamp',
+                    })}
+                    fill={item.value >= 0 ? "url(#grad)" : "url(#gradNeg)"}
+                    rx="4"
+                    opacity={selectedValue === item.value ? 1 : 0.7}
+                    onPress={() => handleBarPress(item.value)}
+                  />
+                );
+              })}
+            </G>
+          </Svg>
+        ) : (
+          <View style={{ height: 220, width: CHART_WIDTH, justifyContent: 'center', alignItems: 'center' }}>
+            <Text style={{ color: isDark ? '#aaa' : '#666' }}>No data available for this range</Text>
+          </View>
+        )}
         {selectedValue !== null && (
           <View style={styles.valueDisplay}>
             <Text style={styles.valueText}>{selectedValue.toLocaleString()}</Text>
@@ -137,13 +151,13 @@ const BarChart: React.FC<BarChartProps> = ({ data }) => {
         <View style={styles.labels}>
           {data.map((item, index) => (
             <Text
-              key={`label-${index}-${item.label}`}
+              key={`label-${item.label}`}
               numberOfLines={1}
               adjustsFontSizeToFit
               style={[
                 styles.label,
                 {
-                  width: barWidth,
+                  width: safeBarWidth,
                   left: index * (barWidth + gap),
                   color: isDark ? '#aaa' : '#000',
                 },
@@ -181,7 +195,7 @@ const styles = StyleSheet.create({
   labels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 0, // Removed padding as calculations handle it
+    paddingHorizontal: 0,
     marginTop: 5,
     position: 'absolute',
     width: CHART_WIDTH,
@@ -189,8 +203,8 @@ const styles = StyleSheet.create({
   },
   label: {
     textAlign: 'center',
-    fontSize: 12, // Slightly smaller font for better fit
-    fontFamily: 'Arial', // Generic font family
+    fontSize: 12,
+    fontFamily: 'Arial',
     position: 'absolute',
   },
   valueDisplay: {

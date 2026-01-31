@@ -99,7 +99,7 @@ const SearchResultsScreen: React.FC = () => {
   const [transactionDate, setTransactionDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [page, setPage] = useState(0);
-  const itemsPerPage = 8;
+  const itemsPerPage = 12;
 
   const dynamicStyles = StyleSheet.create({
     centered: {
@@ -274,49 +274,55 @@ const SearchResultsScreen: React.FC = () => {
     const filled: GraphDataItem[] = [];
     const seenLabels = new Set<string>();
 
-    for (let i = 0; i < data.length; i++) {
-      // Only add if we haven't seen this label before
-      if (!seenLabels.has(data[i].label)) {
-        filled.push(data[i]);
-        seenLabels.add(data[i].label);
+    const sortedData = [...data].sort((a, b) => {
+      if (interval === 'yearly') return parseInt(a.label) - parseInt(b.label);
+      const m1 = a.label.match(/^(\d{4})Q(\d)$/);
+      const m2 = b.label.match(/^(\d{4})Q(\d)$/);
+      if (m1 && m2) {
+        const y1 = parseInt(m1[1]);
+        const q1 = parseInt(m1[2]);
+        const y2 = parseInt(m2[1]);
+        const q2 = parseInt(m2[2]);
+        return y1 !== y2 ? y1 - y2 : q1 - q2;
+      }
+      return 0;
+    });
+
+    for (let i = 0; i < sortedData.length; i++) {
+      if (!seenLabels.has(sortedData[i].label)) {
+        filled.push(sortedData[i]);
+        seenLabels.add(sortedData[i].label);
       }
 
-      if (i < data.length - 1) {
-        const current = data[i];
-        const next = data[i + 1];
-        if (interval === 'yearly') {
-          const currentYear = parseInt(current.label);
-          const nextYear = parseInt(next.label);
-          if (!isNaN(currentYear) && !isNaN(nextYear)) {
-            for (let y = currentYear + 1; y < nextYear; y++) {
-              const label = y.toString();
-              if (!seenLabels.has(label)) {
-                filled.push({ label, value: 0 });
-                seenLabels.add(label);
-              }
+      if (i < sortedData.length - 1) {
+        const current = sortedData[i];
+        const next = sortedData[i + 1];
+        const regex = /^(\d{4})(?:Q(\d))?$/;
+        const m1 = current.label.match(regex);
+        const m2 = next.label.match(regex);
+
+        if (m1 && m2) {
+          let y = parseInt(m1[1]);
+          let q = m1[2] ? parseInt(m1[2]) : 0;
+          const targetY = parseInt(m2[1]);
+          const targetQ = m2[2] ? parseInt(m2[2]) : 0;
+
+          let safety = 0;
+          while (safety < 40) {
+            if (interval === 'yearly') {
+              y++;
+            } else {
+              q++;
+              if (q > 4) { q = 1; y++; }
             }
-          }
-        } else {
-          const regex = /^(\d{4})Q(\d)$/;
-          const currMatch = current.label.match(regex);
-          const nextMatch = next.label.match(regex);
-          if (currMatch && nextMatch) {
-            let cYear = parseInt(currMatch[1]);
-            let cQuarter = parseInt(currMatch[2]);
-            const nYear = parseInt(nextMatch[1]);
-            const nQuarter = parseInt(nextMatch[2]);
-            let safety = 0;
-            while (safety < 20) {
-              cQuarter++;
-              if (cQuarter > 4) { cQuarter = 1; cYear++; }
-              if (cYear > nYear || (cYear === nYear && cQuarter >= nQuarter)) break;
-              const label = `${cYear}Q${cQuarter}`;
-              if (!seenLabels.has(label)) {
-                filled.push({ label, value: 0 });
-                seenLabels.add(label);
-              }
-              safety++;
+
+            if (y > targetY || (y === targetY && q >= targetQ)) break;
+            const label = interval === 'yearly' ? y.toString() : `${y}Q${q}`;
+            if (!seenLabels.has(label)) {
+              filled.push({ label, value: 0 });
+              seenLabels.add(label);
             }
+            safety++;
           }
         }
       }
@@ -324,136 +330,78 @@ const SearchResultsScreen: React.FC = () => {
     return filled;
   };
 
-  const getInfo = (currentData: any, interval: 'yearly' | 'quarterly'): GraphDataItem[] => {
+  const getInfo = (currentData: any, interval: 'yearly' | 'quarterly', isFlow?: boolean): GraphDataItem[] => {
+    if (!currentData || !Array.isArray(currentData)) return [];
+
+    const entriesMap = new Map<string, any[]>();
+    currentData.forEach(item => {
+      if (!item.fy || !item.fp) return;
+      const key = `${item.fy}-${item.fp}`;
+      if (!entriesMap.has(key)) entriesMap.set(key, []);
+      entriesMap.get(key)!.push(item);
+    });
+
+    const is3Mo = (item: any) => {
+      if (!item.start || !item.end) return true;
+      const d1 = new Date(item.start);
+      const d2 = new Date(item.end);
+      const m = Math.abs((d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth()));
+      return m >= 2 && m <= 4;
+    };
+
     const graphData: GraphDataItem[] = [];
-    const seen: string[] = [];
+    const sortedYears = Array.from(new Set(currentData.map(i => parseInt(i.fy)).filter(y => !isNaN(y)))).sort((a, b) => a - b);
 
-    if (currentData && Array.isArray(currentData)) {
-      // Sort data by date just in case, though usually it comes sorted
-      // Actually, relying on index might be safer if source is reliable, but let's stick to existing reverse loop
-      const limit = 60;
-      for (let i = currentData.length - 1; i >= 0 && graphData.length < limit; i--) {
-        const item = currentData[i];
+    sortedYears.forEach(year => {
+      const getLatest = (fp: string) => {
+        const items = entriesMap.get(`${year}-${fp}`) || [];
+        return items.sort((a, b) => {
+          if (a.end && b.end) return new Date(b.end).getTime() - new Date(a.end).getTime();
+          return 0;
+        })[0];
+      };
 
-        let isMatch = false;
-        let label = "";
-        let uniqueKey = "";
+      if (interval === 'yearly') {
+        const fy = getLatest('FY');
+        if (fy) graphData.push({ label: year.toString(), value: fy.val });
+      } else {
+        const q1 = getLatest('Q1');
+        const q2 = getLatest('Q2');
+        const q3 = getLatest('Q3');
+        const fy = getLatest('FY');
 
-        if (interval === 'yearly') {
-          if (item?.fp === "FY" && item?.fy) {
-            isMatch = true;
-            label = item.fy.toString();
-            uniqueKey = item.fy;
-          }
-        } else {
-          // Quarterly logic - include Q1, Q2, Q3, and Q4 (which may be labeled as FY)
-          if (item?.fp?.startsWith("Q") || item?.fp === "FY") {
-            let period = "";
+        if (q1) graphData.push({ label: `${year}Q1`, value: q1.val });
 
-            // Prefer frame but strip CY and handle FY conversion
-            if (item.frame) {
-              period = item.frame.startsWith('CY') ? item.frame.substring(2) : item.frame;
-              // If this is an FY entry and frame doesn't contain Q4, convert it
-              if (item.fp === "FY" && !period.includes('Q4') && item.fy) {
-                period = `${item.fy}Q4`;
-              }
-            } else if (item.fy && item.fp) {
-              // Construct from fy+fp
-              if (item.fp === "FY") {
-                period = `${item.fy}Q4`;
-              } else {
-                period = `${item.fy}${item.fp}`;
-              }
-            }
-
-            if (period) {
-              isMatch = true;
-              label = period;
-              uniqueKey = period;
-            }
-          }
+        if (q2) {
+          let val = q2.val;
+          if (isFlow && !is3Mo(q2) && q1) val = q2.val - q1.val;
+          graphData.push({ label: `${year}Q2`, value: val });
         }
 
-        if (isMatch && !seen.includes(uniqueKey)) {
-          let value = typeof item.val === 'number' ? item.val : 0; // Allow 0/negative
-          // Logic for value correction if needed (e.g. < 1 check removed as we support negatives now)
-
-          if (item.start && item.end && interval === 'yearly') {
-            // Existing months check for yearly?
-            const date1 = new Date(item.start);
-            const date2 = new Date(item.end);
-            const diffInMonths = Math.abs((date2.getFullYear() - date1.getFullYear()) * 12 + (date2.getMonth() - date1.getMonth())) > 10;
-            if (diffInMonths) {
-              graphData.push({ label, value });
-              seen.push(uniqueKey);
-            }
-          } else {
-            graphData.push({ label, value });
-            seen.push(uniqueKey);
+        if (q3) {
+          let val = q3.val;
+          if (isFlow && !is3Mo(q3)) {
+            if (q2) val = q3.val - q2.val; // Subtract 6mo YTD from 9mo YTD
+            else if (q1) val = q3.val - q1.val;
           }
+          graphData.push({ label: `${year}Q3`, value: val });
+        }
+
+        if (fy) {
+          let val = fy.val;
+          if (isFlow && !is3Mo(fy)) {
+            if (q3) val = fy.val - q3.val; // Subtract 9mo YTD from 12mo FY
+            else if (q2) val = fy.val - q2.val;
+            else if (q1) val = fy.val - q1.val;
+          }
+          graphData.push({ label: `${year}Q4`, value: val });
         }
       }
-    }
-    // graphData was collected Newest->Oldest. Reverse to get Oldest->Newest, then fill gaps.
-    const ascendingData = graphData.reverse();
+    });
 
-    // Post-process to calculate actual Q4 values (Q4 = FY - Q1 - Q2 - Q3)
-    if (interval === 'quarterly') {
-      // First pass: collect all data by year and quarter
-      const yearData = new Map<string, { q1?: number, q2?: number, q3?: number, q4?: number, fy?: number }>();
-
-      // Scan the original data to find FY and quarterly values
-      if (currentData && Array.isArray(currentData)) {
-        currentData.forEach((item: any) => {
-          if (item?.fy) {
-            const year = item.fy.toString();
-            if (!yearData.has(year)) {
-              yearData.set(year, {});
-            }
-            const data = yearData.get(year)!;
-
-            if (item.fp === 'FY') {
-              data.fy = typeof item.val === 'number' ? item.val : 0;
-            } else if (item.fp === 'Q1') {
-              data.q1 = typeof item.val === 'number' ? item.val : 0;
-            } else if (item.fp === 'Q2') {
-              data.q2 = typeof item.val === 'number' ? item.val : 0;
-            } else if (item.fp === 'Q3') {
-              data.q3 = typeof item.val === 'number' ? item.val : 0;
-            } else if (item.fp === 'Q4') {
-              data.q4 = typeof item.val === 'number' ? item.val : 0;
-            }
-          }
-        });
-      }
-
-      // Second pass: update Q4 values in ascendingData
-      ascendingData.forEach(item => {
-        const match = item.label.match(/^(\d{4})Q4$/);
-        if (match) {
-          const year = match[1];
-          const data = yearData.get(year);
-          if (data && data.fy !== undefined) {
-            // Only calculate Q4 from FY if we have at least one of Q1, Q2, or Q3
-            // Otherwise, we'd just be showing the full FY value which is incorrect
-            const hasQuarterlyData = data.q1 !== undefined || data.q2 !== undefined || data.q3 !== undefined;
-            if (hasQuarterlyData) {
-              const q1 = data.q1 || 0;
-              const q2 = data.q2 || 0;
-              const q3 = data.q3 || 0;
-              item.value = data.fy - q1 - q2 - q3;
-            }
-            // If no quarterly data, keep the original value (which came from FY)
-          } else if (data && data.q4 !== undefined) {
-            // Use actual Q4 value if available
-            item.value = data.q4;
-          }
-          // If no data at all, keep the original value from graphData
-        }
-      });
-    }
-
-    return fillDataGaps(ascendingData, interval);
+    const filledData = fillDataGaps(graphData, interval);
+    // Limit history to 8 years (32 quarters) or 10 years (10 FY) to keep UI focused
+    return interval === 'quarterly' ? filledData.slice(-32) : filledData.slice(-10);
   };
 
   useEffect(() => {
@@ -681,9 +629,9 @@ const SearchResultsScreen: React.FC = () => {
         currentData = sharesData;
       } else if (filter === "roic") {
         if (currentLiabilities && assetsData && incomeData) {
-          const liabilities = getInfo(currentLiabilities, dataInterval); // Pass dataInterval
-          const assets = getInfo(assetsData, dataInterval); // Pass dataInterval
-          const income = getInfo(incomeData, dataInterval); // Pass dataInterval
+          const liabilities = getInfo(currentLiabilities, dataInterval);
+          const assets = getInfo(assetsData, dataInterval);
+          const income = getInfo(incomeData, dataInterval, true);
           const investedCapital = getIntersectionAndSumByLabel(assets, liabilities, '-');
           roicData = getIntersectionAndSumByLabel(income, investedCapital, '/');
           skip = true;
@@ -694,7 +642,11 @@ const SearchResultsScreen: React.FC = () => {
 
       let graphData: GraphDataItem[] = [];
       if (!skip && currentData) {
-        graphData = getInfo(currentData, dataInterval); // Pass dataInterval
+        let isFlow = false;
+        if (['eps', 'revenue', 'net income', 'dividends'].includes(filter || "")) {
+          isFlow = true;
+        }
+        graphData = getInfo(currentData, dataInterval, isFlow);
       }
 
       return { roicData, liabilities: currentLiabilities, companyName: compName, cik: cik_str, graphData, epsData, revData, incomeData, assetsData, sharesData, eps: epsData ?? null } as StockInfo;
@@ -914,6 +866,7 @@ const SearchResultsScreen: React.FC = () => {
 
                 {stockInfo.graphData && stockInfo.graphData.length > 0 && (
                   <>
+                    <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#1a1a1a', marginTop: 30 }]}> Trends</Text>
                     <View style={styles.controlsContainer}>
                       <View style={[styles.dropdownContainer, { backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: isDark ? '#333' : '#e0e0e0' }]}>
                         <Dropdown
@@ -936,18 +889,18 @@ const SearchResultsScreen: React.FC = () => {
                         />
                       </View>
 
-                      <View style={[styles.toggleContainer, { backgroundColor: isDark ? '#2c2c2e' : '#f0f0f0' }]}>
+                      <View style={[styles.toggleContainer, { backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7' }]}>
                         <TouchableOpacity
-                          style={[styles.toggleButton, dataInterval === 'yearly' && [styles.toggleButtonActive, { backgroundColor: isDark ? '#636366' : '#fff' }]]}
+                          style={[styles.toggleButton, dataInterval === 'yearly' && [styles.toggleButtonActive, { backgroundColor: isDark ? '#3A3A3C' : '#fff' }]]}
                           onPress={() => setDataInterval('yearly')}
                         >
-                          <Text style={[styles.toggleText, { color: isDark ? '#8e8e93' : '#666' }, dataInterval === 'yearly' && [styles.toggleTextActive, { color: isDark ? '#fff' : '#000' }]]}>Yearly</Text>
+                          <Text style={[styles.toggleText, { color: isDark ? '#8E8E93' : '#8E8E93' }, dataInterval === 'yearly' && [styles.toggleTextActive, { color: isDark ? '#fff' : '#000' }]]}>Yearly</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={[styles.toggleButton, dataInterval === 'quarterly' && [styles.toggleButtonActive, { backgroundColor: isDark ? '#636366' : '#fff' }]]}
+                          style={[styles.toggleButton, dataInterval === 'quarterly' && [styles.toggleButtonActive, { backgroundColor: isDark ? '#3A3A3C' : '#fff' }]]}
                           onPress={() => setDataInterval('quarterly')}
                         >
-                          <Text style={[styles.toggleText, { color: isDark ? '#8e8e93' : '#666' }, dataInterval === 'quarterly' && [styles.toggleTextActive, { color: isDark ? '#fff' : '#000' }]]}>Quarterly</Text>
+                          <Text style={[styles.toggleText, { color: isDark ? '#8E8E93' : '#666' }, dataInterval === 'quarterly' && [styles.toggleTextActive, { color: isDark ? '#fff' : '#000' }]]}>Quarterly</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -957,7 +910,7 @@ const SearchResultsScreen: React.FC = () => {
                     </Text>
                     {(() => {
                       const allData = stockInfo.graphData!;
-                      const itemsPerPage = 8;
+                      // Using consistent itemsPerPage from component scope
                       const totalItems = allData.length;
                       const totalPages = Math.ceil(totalItems / itemsPerPage);
 
@@ -966,9 +919,16 @@ const SearchResultsScreen: React.FC = () => {
                       const start = Math.max(0, end - itemsPerPage);
                       const visibleData = allData.slice(start, end);
 
+                      const globalMin = Math.min(0, ...allData.map(d => d.value));
+                      const globalMax = Math.max(0, ...allData.map(d => d.value));
+
                       return (
                         <>
-                          <BarChart data={visibleData} />
+                          <BarChart
+                            data={visibleData}
+                            globalMin={globalMin}
+                            globalMax={globalMax}
+                          />
                           <View style={styles.paginationContainer}>
                             <TouchableOpacity
                               style={[styles.pageButton, start <= 0 && styles.pageButtonDisabled]}
@@ -1284,7 +1244,8 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 8,
-    marginTop: 30, // Added spacing between chart and holdings list
+    marginTop: 30,
+    marginLeft: 16,
   },
 
   loadingContainer: {
@@ -1327,12 +1288,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   graphTitle: {
-    marginTop: 30,
-
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
+    marginTop: 10, // Significantly reduced
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
     textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: '#8E8E93',
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'left',
+    width: SCREEN_WIDTH - 32,
+    alignSelf: 'center',
+    marginBottom: 5,
   },
 
   container: {
@@ -1420,38 +1391,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    width: SCREEN_WIDTH - 30, // Wider container
-    marginTop: 20,
-    marginBottom: 20,
+    width: SCREEN_WIDTH - 32,
+    marginTop: 15,
+    marginBottom: 10, // Reduced from 20 to be closer to graph
+    gap: 12,
   },
   toggleContainer: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 2,
-    height: 44, // Slightly shorter for a modern look
-    alignItems: 'center',
+    height: 44,
     width: '48%',
+    backgroundColor: '#F2F2F7',
   },
   toggleButton: {
-    flex: 1, // Distribute space evenly
-    borderRadius: 6,
+    flex: 1,
+    borderRadius: 10,
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  dropdownContainer: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    height: 44,
-    width: '48%',
+  toggleButtonActive: {
     backgroundColor: '#fff',
-    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  dropdownContainer: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    height: 44,
+    width: '46%',
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    marginLeft: 16,
   },
   dropdown: {
-    height: 50,
-    paddingHorizontal: 10,
+    height: 44,
+    paddingHorizontal: 12,
   },
   dropdownItem: {
     fontSize: 16,
@@ -1479,13 +1459,6 @@ const styles = StyleSheet.create({
   toggleTextActive: {
     color: '#000',
     fontWeight: '700',
-  },
-  toggleButtonActive: {
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
   },
   paginationContainer: {
     flexDirection: 'row',

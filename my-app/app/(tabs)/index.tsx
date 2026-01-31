@@ -258,7 +258,7 @@ const HomeScreen: React.FC = () => {
 
   return (
     <View style={dynamicStyles.container}>
-      <Text style={dynamicStyles.title}>Institutional 13Fs</Text>
+      <Text style={dynamicStyles.title}>13F Filings</Text>
       <TextInput
         style={dynamicStyles.searchBar}
         placeholder="Search by name or institution"
