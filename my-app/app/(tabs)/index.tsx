@@ -27,6 +27,20 @@ const HomeScreen: React.FC = () => {
   const [isFocus, setIsFocus] = useState(false);
 
 
+  // Initialize daily prefetch for popular endpoints on app startup
+  useEffect(() => {
+    const { scheduleDailyPrefetch } = require('../utils/secApi');
+
+    // Prefetch the most popular investor CIK submissions (top 10 by activity)
+    const popularEndpoints = investorsData.slice(0, 10).map(
+      investor => `https://data.sec.gov/submissions/CIK${investor.cik}.json`
+    );
+
+    // Schedule daily prefetch and store cleanup function
+    const cleanup = scheduleDailyPrefetch(popularEndpoints);
+
+    return cleanup; // cleanup on unmount
+  }, []);
 
   useEffect(() => {
 

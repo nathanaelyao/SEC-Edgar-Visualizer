@@ -14,8 +14,8 @@ type SecFetchOptions = {
 const USER_AGENT = 'SEC_APP (nathanael.yao123@gmail.com)';
 const DEFAULT_DELAY_MS = 100; // delay between requests for rate limiting per worker (raised to be safer)
 const DEFAULT_CONCURRENCY = 5; // safer default concurrency for initial release
-// Default persistent cache TTL: 6 hours
-const DEFAULT_PERSISTENT_TTL_MS = 6 * 60 * 60 * 1000;
+// Default persistent cache TTL: 24 hours (increased from 6 hours for better multi-user performance)
+const DEFAULT_PERSISTENT_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_RETRIES = 5;
 const PERSISTENT_CACHE_PREFIX = '@secapi:cache:';
 
@@ -80,7 +80,7 @@ async function writePersistentCache(key: string, entry: CachedEntry) {
 async function removePersistentCache(key: string) {
   try {
     await AsyncStorage.removeItem(PERSISTENT_CACHE_PREFIX + key);
-  } catch (e) {}
+  } catch (e) { }
 }
 
 async function clearAllPersistentCache() {
@@ -88,7 +88,7 @@ async function clearAllPersistentCache() {
     const keys = await AsyncStorage.getAllKeys();
     const secKeys = keys.filter(k => k.startsWith(PERSISTENT_CACHE_PREFIX));
     if (secKeys.length) await AsyncStorage.multiRemove(secKeys);
-  } catch (e) {}
+  } catch (e) { }
 }
 
 async function processQueue() {
@@ -215,7 +215,7 @@ export async function secFetch(url: string, opts?: SecFetchOptions) {
             const headersObj: Record<string, string> = {};
             try {
               res.headers && (res.headers as any).forEach((v: string, k: string) => (headersObj[k.toLowerCase()] = v));
-            } catch (e) {}
+            } catch (e) { }
 
             // handle 429 Rate Limit responses by honoring Retry-After
             if (res.status === 429) {
