@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text,TouchableOpacity, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { XMLParser } from 'fast-xml-parser';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import cheerio from 'react-native-cheerio'; // Import cheerio
@@ -19,13 +19,13 @@ const HoldingsScreen: React.FC = () => {
   const [filings, setFilings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previousFilings, setPreviousFilings] = useState<any[]>([]); 
-  const [quarter, setQuarter] = useState<string | null>(null); 
+  const [previousFilings, setPreviousFilings] = useState<any[]>([]);
+  const [quarter, setQuarter] = useState<string | null>(null);
   const headers = {
     'User-Agent': 'SEC_APP (nathanael.yao123@gmail.com)',
     // 'Content-Type': 'application/json'
   };
-  
+
   useEffect(() => {
     fetchFilings();
   }, [cik]);
@@ -45,11 +45,11 @@ const HoldingsScreen: React.FC = () => {
         try {
           const errJson = await response.json();
           errorMsg = errJson.message || errorMsg;
-        } catch (e) {}
+        } catch (e) { }
         throw new Error(errorMsg);
       }
 
-      
+
 
       const data = await response.json();
       debug("Company Name:", data.name);
@@ -66,9 +66,9 @@ const HoldingsScreen: React.FC = () => {
           const accessionNumber = recentFilings.accessionNumber[i];
           const filingDate = recentFilings.filingDate[i];
           const formType = recentFilings.form[i];
-          const primaryDocument =  recentFilings.primaryDocument[i];
+          const primaryDocument = recentFilings.primaryDocument[i];
           const filename = primaryDocument.substring(primaryDocument.lastIndexOf('/') + 1);
-          if ( formType == '13F-HR' && first) {
+          if (formType == '13F-HR' && first) {
             first = false;
             debug(`  Accession Number: ${accessionNumber}`);
             debug(filename);
@@ -78,7 +78,7 @@ const HoldingsScreen: React.FC = () => {
             const filingDateObj = new Date(filingDate);
             const month = filingDateObj.getMonth() + 1; // Month is 0-indexed
             let quarterString = "";
-    
+
             if (month >= 1 && month <= 3) {
               quarterString = "Q4 " + (filingDateObj.getFullYear() - 1);
             } else if (month >= 4 && month <= 6) {
@@ -88,7 +88,7 @@ const HoldingsScreen: React.FC = () => {
             } else if (month >= 10 && month <= 12) {
               quarterString = "Q3 " + filingDateObj.getFullYear();
             }
-            setQuarter(quarterString); 
+            setQuarter(quarterString);
 
             getHoldings(accessionNumber, data.cik).then(holdings => {
               debug(holdings);
@@ -100,16 +100,16 @@ const HoldingsScreen: React.FC = () => {
                 setTotalPortfolioValue(totalValue);
               }
             });
-            
+
           }
-          else if (formType == '13F-HR' && second) {  
+          else if (formType == '13F-HR' && second) {
             second = false;
             debug(`Second 13F-HR: ${accessionNumber}`);
             await getHoldings(accessionNumber, data.cik).then(previousHoldings => {
-                debug(previousHoldings,'prevvvv');
-              setPreviousFilings(combineSameIssuer(previousHoldings)); 
+              debug(previousHoldings, 'prevvvv');
+              setPreviousFilings(combineSameIssuer(previousHoldings));
             });
-            break; 
+            break;
           }
         }
       } else {
@@ -124,23 +124,23 @@ const HoldingsScreen: React.FC = () => {
   };
   const calculatePercentageChange = (currentShares: number, issuer: string): { change: string; color: string } => {
     if (previousFilings.length === 0) {
-      return { change: "N/A", color: 'black' }; 
+      return { change: "N/A", color: 'black' };
     }
 
     const previousHolding = previousFilings.find(item => item.nameOfIssuer === issuer);
 
     if (!previousHolding || !previousHolding.shrsOrPrnAmt?.sshPrnamt) {
-      return { change: "New Position", color: 'green' }; 
+      return { change: "New Position", color: 'green' };
     }
 
     const previousShares = parseFloat(previousHolding.shrsOrPrnAmt.sshPrnamt);
 
     if (isNaN(currentShares) || isNaN(previousShares) || previousShares === 0) {
-      return { change: "N/A", color: 'black' }; 
+      return { change: "N/A", color: 'black' };
     }
 
     const percentageChange = ((currentShares - previousShares) / previousShares) * 100;
-    const absPercentageChange = Math.abs(percentageChange); 
+    const absPercentageChange = Math.abs(percentageChange);
 
     let changeString = "";
     let prefix = "";
@@ -152,86 +152,86 @@ const HoldingsScreen: React.FC = () => {
       prefix = "Reduce ";
       changeString = absPercentageChange.toFixed(2) + "%";
     } else {
-      changeString = percentageChange.toFixed(2) + "%"; 
+      changeString = percentageChange.toFixed(2) + "%";
     }
 
     const color = percentageChange > 0 ? 'green' : percentageChange < 0 ? 'red' : 'black';
-    return { change: prefix + changeString, color }; 
+    return { change: prefix + changeString, color };
   };
   const sortHoldingsByValue = (holdings: any[]) => {
     return [...holdings].sort((a, b) => parseFloat(b.value) - parseFloat(a.value));
   };
   const combineSameIssuer = (holdings: any[]): any[] => {
     const combined: any[] = [];
-    const seen = new Set<string>(); 
+    const seen = new Set<string>();
 
     for (const item of holdings) {
-        if (!item?.nameOfIssuer || !item?.shrsOrPrnAmt?.sshPrnamt || !item?.value) continue; 
+      if (!item?.nameOfIssuer || !item?.shrsOrPrnAmt?.sshPrnamt || !item?.value) continue;
 
-        const issuer = item.nameOfIssuer;
-        const shares = parseFloat(item.shrsOrPrnAmt.sshPrnamt);
-        const value = parseFloat(item.value);
+      const issuer = item.nameOfIssuer;
+      const shares = parseFloat(item.shrsOrPrnAmt.sshPrnamt);
+      const value = parseFloat(item.value);
 
-        if (seen.has(issuer)) {
-            const existingItem = combined.find(h => h.nameOfIssuer === issuer);
-            if (existingItem) {
-                existingItem.shrsOrPrnAmt.sshPrnamt = (parseFloat(existingItem.shrsOrPrnAmt.sshPrnamt) + shares).toString(); // Add shares. Convert to string
-                existingItem.value = (parseFloat(existingItem.value) + value).toString(); // Add value. Convert to string
-            }
-        } else {
-            const newItem = JSON.parse(JSON.stringify(item));
-            combined.push(newItem);
-            seen.add(issuer);
+      if (seen.has(issuer)) {
+        const existingItem = combined.find(h => h.nameOfIssuer === issuer);
+        if (existingItem) {
+          existingItem.shrsOrPrnAmt.sshPrnamt = (parseFloat(existingItem.shrsOrPrnAmt.sshPrnamt) + shares).toString(); // Add shares. Convert to string
+          existingItem.value = (parseFloat(existingItem.value) + value).toString(); // Add value. Convert to string
         }
+      } else {
+        const newItem = JSON.parse(JSON.stringify(item));
+        combined.push(newItem);
+        seen.add(issuer);
+      }
     }
     return combined;
-};
+  };
   const getHoldings = async (accessionNumber: string, cik1: string): Promise<any[]> => {
     try {
-         const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
-  
-        
+      const accessionNumberNoHyphens = accessionNumber.replace(/-/g, '');
+
+
       const response = await secFetch(`https://www.sec.gov/Archives/edgar/data/${cik1}/${accessionNumberNoHyphens}/index.html`);
- 
-      
+
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.text();
 
-      const $ = cheerio.load(data); 
+      const $ = cheerio.load(data);
 
       const foundFiles: string[] = [];
 
-      $('a').each((i: number, el: any) => {  
-          const href = $(el).attr && $(el).attr('href'); 
-          if (href && href.endsWith('.xml')) {
-              foundFiles.push(href);
-          }
+      $('a').each((i: number, el: any) => {
+        const href = $(el).attr && $(el).attr('href');
+        if (href && href.endsWith('.xml')) {
+          foundFiles.push(href);
+        }
       });
 
       for (let i = 0; i < foundFiles.length; i++) {
-        if (!foundFiles[i].startsWith("primary")){
-            debug(foundFiles[i]);
-            const response1 = await secFetch(`https://www.sec.gov${foundFiles[i]}`);
-            const data1 = await response1.text();
-            debug(data1);
-            const parser = new XMLParser();
-            const json = removeNamespace(parser.parse(data1));
-            debug(json.infoTable);
-            debug( json['ns1:informationTable']?.['ns1:infoTable'], 'lassst');
-            
-            return json['informationTable']?.infoTable || 
+        if (!foundFiles[i].startsWith("primary")) {
+          debug(foundFiles[i]);
+          const response1 = await secFetch(`https://www.sec.gov${foundFiles[i]}`);
+          const data1 = await response1.text();
+          debug(data1);
+          const parser = new XMLParser();
+          const json = removeNamespace(parser.parse(data1));
+          debug(json.infoTable);
+          debug(json['ns1:informationTable']?.['ns1:infoTable'], 'lassst');
+
+          return json['informationTable']?.infoTable ||
             json['ns1:informationTable']?.['ns1:infoTable'] ||
-             [];
-                    }
+            [];
+        }
       }
       return [];
-      
+
     } catch (error: unknown) {
       logError("Error fetching holdings:", error);
-      return []; 
+      return [];
     }
   };
   function removeNamespace(data: any): any {
@@ -253,50 +253,50 @@ const HoldingsScreen: React.FC = () => {
       return "N/A";
     }
     const n = typeof number === 'string' ? parseFloat(number) : number;
-    return n.toLocaleString(); 
+    return n.toLocaleString();
   };
   const calculatePercentage = (value: number): string => {
     if (totalPortfolioValue === 0 || isNaN(value)) {
-        return "0.00%"; 
+      return "0.00%";
     }
     const percentage = (value / totalPortfolioValue) * 100;
     return percentage.toFixed(2) + "%";
-};
-const renderItem = ({ item }: { item: any }) => {
-     const changeData = calculatePercentageChange(parseFloat(item.shrsOrPrnAmt?.sshPrnamt), item.nameOfIssuer);
-     const change = changeData.change;
-     const color = changeData.color;
-  
-    return ( 
+  };
+  const renderItem = ({ item }: { item: any }) => {
+    const changeData = calculatePercentageChange(parseFloat(item.shrsOrPrnAmt?.sshPrnamt), item.nameOfIssuer);
+    const change = changeData.change;
+    const color = changeData.color;
+
+    return (
 
 
-        <TouchableOpacity style={styles.item}
+      <TouchableOpacity style={styles.item}
         onPress={() => {
-        navigation.navigate('SearchResultsScreen', {
-          stockSymbol: item.nameOfIssuer,
-        });
-      }}>
+          navigation.navigate('SearchResultsScreen', {
+            stockSymbol: item.nameOfIssuer,
+          });
+        }}>
         <View style={styles.row}>
           <Text style={styles.boldText}>{item.nameOfIssuer}</Text>
         </View>
-  
-  
+
+
         <View style={styles.row}>
           <Text style={styles.label}>Shares:</Text>
           <Text>{formatNumberWithCommas(item.shrsOrPrnAmt?.sshPrnamt)}</Text>
         </View>
         <View style={styles.row}>
-        <Text style={styles.label}>Value:</Text>
-        <Text>${formatNumberWithCommas(item.value)}</Text>
-      </View>
-      <View style={styles.row}>
-        <Text style={styles.label}>% of Portfolio:</Text>
-        <Text>{calculatePercentage(parseFloat(item.value))}</Text> 
-      </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Change in Shares:</Text>
-            <Text style={{ color }}>{change}</Text>
-          </View>
+          <Text style={styles.label}>Value:</Text>
+          <Text>${formatNumberWithCommas(item.value)}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>% of Portfolio:</Text>
+          <Text>{calculatePercentage(parseFloat(item.value))}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Change in Shares:</Text>
+          <Text style={{ color }}>{change}</Text>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -304,14 +304,21 @@ const renderItem = ({ item }: { item: any }) => {
 
   return (
     <View style={styles.container}>
-
-    <View style={styles.header}> 
-        <Text style={styles.investorName}>{investorName}</Text>
-        <Text style={styles.institutionName}>{institution}</Text> 
-        {quarter && <Text style={styles.quarterText}>{quarter}</Text>}
-        <Text style={styles.portfolioValue}>
-          Total Portfolio Value: ${formatNumberWithCommas(totalPortfolioValue)}
-        </Text> 
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>←</Text>
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={styles.investorName}>{investorName}</Text>
+          <Text style={styles.institutionName}>{institution}</Text>
+          {quarter && <Text style={styles.quarterText}>{quarter}</Text>}
+          <Text style={styles.portfolioValue}>
+            Total Portfolio Value: ${formatNumberWithCommas(totalPortfolioValue)}
+          </Text>
+        </View>
       </View>
       {loading && <ActivityIndicator size="large" color="#0000ff" />}
       {error && <Text style={styles.errorText}>{error}</Text>}
@@ -323,46 +330,51 @@ const renderItem = ({ item }: { item: any }) => {
         ListEmptyComponent={() => !loading && !error && <Text></Text>}
       />
     </View>
-    
+
   );
 };
 
 const styles = StyleSheet.create({
-container: {
+  container: {
     flex: 1,
     padding: 20,
-    marginTop:80,
-    justifyContent: 'flex-start', 
+    marginTop: 80,
+    justifyContent: 'flex-start',
 
-    },
-    header: { 
-    alignItems: 'center', 
-    marginBottom: 10, 
-    },
-    investorName: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 5,
-      },
-      institutionName: {
-        fontSize: 16,
-        color: 'gray',
-        marginBottom: 5, 
-      },
-      portfolioValue: { 
-        fontSize: 16,
-        fontWeight: 'bold',
-      },
-      quarterText: {
-        fontSize: 12,
-        color: 'gray',
-        marginBottom: 4,
-      },
-
-    companyName: {
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  headerContent: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  investorName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  institutionName: {
     fontSize: 16,
-    color: 'gray', 
-    },
+    color: 'gray',
+    marginBottom: 5,
+  },
+  portfolioValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  quarterText: {
+    fontSize: 12,
+    color: 'gray',
+    marginBottom: 4,
+  },
+
+  companyName: {
+    fontSize: 16,
+    color: 'gray',
+  },
   button: {
     marginVertical: 10,
   },
@@ -389,7 +401,23 @@ container: {
   },
   errorText: {
     color: 'red',
+    textAlign: 'center',
     marginTop: 10,
+  },
+  backButton: {
+    padding: 8,
+    marginTop: 4,
+  },
+  backButtonText: {
+    fontSize: 24,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 10,
   },
 });
 

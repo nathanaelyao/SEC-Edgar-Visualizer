@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Dropdown } from 'react-native-element-dropdown';
 import { investorsData } from '@/constants/investors'
@@ -220,16 +220,25 @@ const HomeScreen: React.FC = () => {
   );
 };
 
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CONTAINER_PADDING = SCREEN_WIDTH > 600 ? 32 : 16;
+const CARD_WIDTH = SCREEN_WIDTH - (CONTAINER_PADDING * 2);
+
 const styles = StyleSheet.create({
   dropdown: {
-    height: 30,
-    borderColor: 'gray',
-    borderWidth: 0.5,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    marginBottom: 16,
-    backgroundColor: '#fafafa'
-
+    height: 48,
+    borderColor: '#e0e0e0',
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   label: {
     position: 'absolute',
@@ -242,10 +251,12 @@ const styles = StyleSheet.create({
   },
   placeholderStyle: {
     fontSize: 16,
-    color: 'gray',
+    color: '#9e9e9e',
   },
   selectedTextStyle: {
     fontSize: 16,
+    color: '#1a1a1a',
+    fontWeight: '500',
   },
   inputSearchStyle: {
     height: 40,
@@ -261,58 +272,80 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   item: {
-    paddingVertical: 10,
+    paddingVertical: 14,
     paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
   itemText: {
     fontSize: 16,
+    color: '#333',
   },
   container: {
-    marginTop: 80,
+    marginTop: SCREEN_WIDTH > 600 ? 100 : 80,
     flex: 1,
-    padding: 16,
-    marginBottom: 70
+    padding: CONTAINER_PADDING,
+    marginBottom: 70,
+    backgroundColor: '#f8f9fa',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    fontSize: SCREEN_WIDTH > 600 ? 32 : 28,
+    fontWeight: '700',
+    marginBottom: 24,
     textAlign: 'center',
+    color: '#1a1a1a',
+    letterSpacing: -0.5,
   },
   searchBar: {
-    height: 40,
-    borderColor: 'gray',
-    borderWidth: 1,
-    marginBottom: 16,
-    paddingHorizontal: 8,
-    borderRadius: 5,
-    backgroundColor: '#fafafa'
+    height: 48,
+    borderColor: '#e0e0e0',
+    borderWidth: 1.5,
+    marginBottom: 20,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    fontSize: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   investorItem: {
-    backgroundColor: '#fafafa',
-    padding: 16,
-    marginBottom: 8,
-    borderRadius: 4,
+    backgroundColor: '#ffffff',
+    padding: 18,
+    marginBottom: 12,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#e8e8e8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
   investorNameContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   investorName: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    color: '#1a1a1a',
+    flex: 1,
   },
   filingInfo: {
     fontSize: 12,
-    color: 'gray',
+    color: '#666',
+    fontWeight: '500',
+    marginLeft: 8,
   },
   institutionName: {
     fontSize: 14,
-    color: 'gray',
+    color: '#757575',
+    marginTop: 2,
   },
 });
 

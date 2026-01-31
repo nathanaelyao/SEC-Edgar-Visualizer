@@ -608,7 +608,15 @@ const SearchResultsScreen: React.FC = () => {
             {stockInfo && (
               <View>
                 <View style={styles.card}>
-                  <Text style={styles.title}>{stockInfo.companyName} ({stockSymbol})</Text>
+                  <View style={styles.titleRow}>
+                    <TouchableOpacity
+                      style={styles.backButton}
+                      onPress={() => navigation.goBack()}
+                    >
+                      <Text style={styles.backButtonText}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.title}>{stockInfo.companyName} ({stockSymbol})</Text>
+                  </View>
                 </View>
 
                 <View style={styles.controlsContainer}>
@@ -879,6 +887,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   title: {
+    flex: 1,
     fontSize: 22,
     fontWeight: '700',
     color: '#1a1a1a',
@@ -935,7 +944,22 @@ const styles = StyleSheet.create({
   pageIndicator: {
     fontSize: 14,
     color: '#666',
-    marginHorizontal: 10,
+    marginHorizontal: 15,
+  },
+
+  backButton: {
+    paddingLeft: 8
+  },
+  backButtonText: {
+    fontSize: 24,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  titleRow: {
+    marginRight: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
