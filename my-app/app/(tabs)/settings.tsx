@@ -92,27 +92,6 @@ const SettingsScreen: React.FC = () => {
                         thumbColor={Platform.OS === 'ios' ? '#fff' : isDark ? '#fff' : '#fff'}
                     />
                 </View>
-                <View style={[dynamicStyles.row, { marginTop: 8 }]}>
-                    <Text style={dynamicStyles.label}>Theme Mode</Text>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                        {(['light', 'dark', 'system'] as const).map((m) => (
-                            <TouchableOpacity
-                                key={m}
-                                onPress={() => setTheme(m)}
-                                style={{
-                                    paddingHorizontal: 12,
-                                    paddingVertical: 6,
-                                    borderRadius: 8,
-                                    backgroundColor: theme === m ? '#007AFF' : (isDark ? '#333' : '#f0f0f0'),
-                                }}
-                            >
-                                <Text style={{ color: theme === m ? '#fff' : (isDark ? '#bbb' : '#666'), fontSize: 12, fontWeight: '700' }}>
-                                    {m.charAt(0).toUpperCase() + m.slice(1)}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
             </View>
 
             <Text style={dynamicStyles.sectionTitle}>Portfolio Currency</Text>

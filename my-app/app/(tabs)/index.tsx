@@ -9,6 +9,8 @@ import { XMLParser } from 'fast-xml-parser';
 import { secFetch } from '@/utils/secApi';
 import { debug, info, warn, error as logError } from '@/utils/logger';
 import { getPortfolio, PortfolioHolding } from '@/utils/db';
+import { useTheme } from '@/context/ThemeContext';
+import { formatCurrency, convertCurrency } from '@/utils/currency';
 
 interface Investor {
   name: string;
@@ -18,6 +20,7 @@ interface Investor {
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { isDark, currency, exchangeRates } = useTheme();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filteredInvestors, setFilteredInvestors] = useState<Investor[]>(investorsData);
   const [filingDates, setFilingDates] = useState<Record<string, { date: string; quarter: string }>>({});
@@ -166,7 +169,7 @@ const HomeScreen: React.FC = () => {
 
   const renderItem = ({ item }: { item: Investor }) => (
     <TouchableOpacity
-      style={styles.investorItem}
+      style={[styles.investorItem, { backgroundColor: isDark ? '#1e1e1e' : '#ffffff', borderColor: isDark ? '#333' : '#e8e8e8' }]}
       onPress={() => {
         navigation.navigate('HoldingsScreen', {
           investorName: item.name,
@@ -176,32 +179,101 @@ const HomeScreen: React.FC = () => {
       }}
     >
       <View style={styles.investorNameContainer}>
-        <Text style={styles.investorName}>{item.name}</Text>
-        <Text style={styles.filingInfo}>
+        <Text style={[styles.investorName, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.name}</Text>
+        <Text style={[styles.filingInfo, { color: isDark ? '#aaa' : '#666' }]}>
           {filingDates[item.cik]?.date} ({filingDates[item.cik]?.quarter})
         </Text>
       </View>
-      <Text style={styles.institutionName}>{item.institution}</Text>
+      <Text style={[styles.institutionName, { color: isDark ? '#888' : '#757575' }]}>{item.institution}</Text>
     </TouchableOpacity>
   );
 
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      paddingTop: 80,
+      flex: 1,
+      padding: CONTAINER_PADDING,
+      marginBottom: 0,
+      backgroundColor: isDark ? '#121212' : '#f8f9fa',
+    },
+    title: {
+      fontSize: SCREEN_WIDTH > 600 ? 32 : 28,
+      fontWeight: '700',
+      marginBottom: 24,
+      textAlign: 'center',
+      color: isDark ? '#fff' : '#1a1a1a',
+      letterSpacing: -0.5,
+    },
+    searchBar: {
+      height: 48,
+      borderColor: isDark ? '#333' : '#e0e0e0',
+      borderWidth: 1.5,
+      marginBottom: 20,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
+      color: isDark ? '#fff' : '#000',
+      fontSize: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    dropdown: {
+      height: 48,
+      borderColor: isDark ? '#333' : '#e0e0e0',
+      borderWidth: 1.5,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      marginBottom: 20,
+      backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    placeholderStyle: {
+      fontSize: 16,
+      color: isDark ? '#888' : '#9e9e9e',
+    },
+    selectedTextStyle: {
+      fontSize: 16,
+      color: isDark ? '#fff' : '#1a1a1a',
+      fontWeight: '500',
+    },
+    item: {
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? '#333' : '#f0f0f0',
+      backgroundColor: isDark ? '#1e1e1e' : '#fff',
+    },
+    itemText: {
+      fontSize: 16,
+      color: isDark ? '#eee' : '#333',
+    },
+  });
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Institutional 13Fs</Text>
+    <View style={dynamicStyles.container}>
+      <Text style={dynamicStyles.title}>Institutional 13Fs</Text>
       <TextInput
-        style={styles.searchBar}
+        style={dynamicStyles.searchBar}
         placeholder="Search by name or institution"
-        placeholderTextColor="gray"
+        placeholderTextColor={isDark ? '#888' : 'gray'}
         onChangeText={setSearchQuery}
         value={searchQuery}
       />
 
       <Dropdown
         data={sortOptions}
-        style={[styles.dropdown, isFocus && { borderColor: 'blue' }]}
-        placeholderStyle={styles.placeholderStyle}
-        selectedTextStyle={styles.selectedTextStyle}
+        style={[dynamicStyles.dropdown, isFocus && { borderColor: '#007AFF' }]}
+        placeholderStyle={dynamicStyles.placeholderStyle}
+        selectedTextStyle={dynamicStyles.selectedTextStyle}
         inputSearchStyle={styles.inputSearchStyle}
+        containerStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', borderBlockColor: isDark ? '#333' : '#eee' }}
         iconStyle={styles.iconStyle}
         labelField="label"
         valueField="value"
@@ -216,14 +288,14 @@ const HomeScreen: React.FC = () => {
           setIsFocus(false); // ensures dropdown closes
         }}
         renderItem={item => (
-          <TouchableOpacity onPress={() => handleSortChange(item)} style={styles.item}>
-            <Text style={styles.itemText}>{item.label}</Text>
+          <TouchableOpacity onPress={() => handleSortChange(item)} style={dynamicStyles.item}>
+            <Text style={dynamicStyles.itemText}>{item.label}</Text>
           </TouchableOpacity>
         )}
       />
 
       {loading ? (
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size="large" color="#007AFF" />
       ) : (
         <FlatList
           data={filteredInvestors}

@@ -158,7 +158,7 @@ const HoldingsScreen: React.FC = () => {
       changeString = percentageChange.toFixed(2) + "%";
     }
 
-    const color = percentageChange > 0 ? 'green' : percentageChange < 0 ? 'red' : 'black';
+    const color = percentageChange > 0 ? '#34C759' : percentageChange < 0 ? '#FF3B30' : (isDark ? '#aaa' : '#000');
     return { change: prefix + changeString, color };
   };
   const sortHoldingsByValue = (holdings: any[]) => {
@@ -341,9 +341,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    marginTop: 80,
+    paddingTop: 80,
     justifyContent: 'flex-start',
-
   },
   header: {
     flexDirection: 'row',
