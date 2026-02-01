@@ -158,6 +158,20 @@ export const initDb = async () => {
             await db.execAsync("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_version', '3');");
         }
 
+        if (currentVersion < 4) {
+            console.log("Migrating DB to version 4 (Portfolio price change fields)");
+            const tableInfo = await db.getAllAsync<{ name: string }>('PRAGMA table_info(portfolio);');
+            const hasChange = tableInfo.some(col => col.name === 'priceChange');
+            if (!hasChange) {
+                await db.execAsync("ALTER TABLE portfolio ADD COLUMN priceChange REAL;");
+            }
+            const hasPercent = tableInfo.some(col => col.name === 'pricePercent');
+            if (!hasPercent) {
+                await db.execAsync("ALTER TABLE portfolio ADD COLUMN pricePercent REAL;");
+            }
+            await db.execAsync("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_version', '4');");
+        }
+
     } catch (e) {
         console.error('Migration error:', e);
     }
@@ -901,11 +915,11 @@ export const updateShares = async (symbol: string, shares: number) => {
 };
 
 
-export const updatePrice = async (symbol: string, price: number) => {
+export const updatePrice = async (symbol: string, price: number, change?: number, percent?: number) => {
     const database = await initDb();
     const result = await database.runAsync(
-        'UPDATE portfolio SET price = ? WHERE symbol = ?;',
-        [price, symbol.toUpperCase()]
+        'UPDATE portfolio SET price = ?, priceChange = ?, pricePercent = ? WHERE symbol = ?;',
+        [price, change ?? null, percent ?? null, symbol.toUpperCase()]
     );
     return result;
 };
@@ -921,7 +935,7 @@ export const refreshPortfolioPrices = async (): Promise<PortfolioHolding[]> => {
         try {
             const quote = await fetchStockPrice(holding.symbol);
             if (quote.price > 0) {
-                await updatePrice(holding.symbol, quote.price);
+                await updatePrice(holding.symbol, quote.price, quote.change, quote.percent);
                 updatedHoldings.push({
                     ...holding,
                     price: quote.price,

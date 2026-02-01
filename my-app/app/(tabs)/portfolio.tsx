@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, Platform, Switch } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices, Transaction, getTransactions, getAllTransactions, updateTransaction, deleteTransaction, addTransaction, getCashBalances, triggerPortfolioSnapshot } from '@/utils/db';
+import { CURRENCY_SYMBOLS } from '@/utils/currency';
 import PieChart from '@/components/PieChart';
 import PortfolioLineChart from '@/components/PortfolioLineChart';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -589,31 +590,33 @@ const PortfolioScreen: React.FC = () => {
                     <View style={styles.symbolHeader}>
                         <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
                             <Text style={[styles.symbol, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.symbol}</Text>
-                            <Text style={[styles.shares, { marginLeft: 8, color: isDark ? '#aaa' : '#666', fontSize: 12 }]}>
-                                • {item.shares} {item.shares === 1 ? 'share' : 'shares'}
-                            </Text>
+
                         </View>
+
+                    </View>
+                    <Text style={[styles.companyName, { color: isDark ? '#aaa' : '#666' }]} numberOfLines={1}>{item.companyName}</Text>
+
+                    <Text style={[styles.shares, { color: isDark ? '#aaa' : '#666', fontSize: 12 }]}>
+                        {item.shares} {item.shares === 1 ? 'share' : 'shares'}
+                    </Text>
+
+                </View>
+                <View style={styles.sharesContainer}>
+                    <Text style={[styles.value, { color: isDark ? '#fff' : '#1a1a1a' }]}>{displayValue}</Text>
+                    <View style={styles.profitContainer}>
+                        {item.priceChange !== undefined ? (
+                            <Text style={[styles.itemPriceChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
+                                {item.priceChange >= 0 ? '+' : ''}{formatCurrency(convertCurrency(Math.abs((item.priceChange || 0) * item.shares), item.currency || 'USD', currency, exchangeRates), currency).replace(CURRENCY_SYMBOLS[currency] || '$', '')} ({item.pricePercent?.toFixed(2)}%)
+                            </Text>
+                        ) : (
+                            <Text style={[styles.itemPriceChange, { color: '#8e8e93' }]}>--</Text>
+                        )}
                     </View>
                     <View style={styles.holdingFooter}>
-                        <Text style={[styles.companyName, { color: isDark ? '#aaa' : '#666' }]} numberOfLines={1}>{item.companyName}</Text>
                         {(item.realizedProfit || 0) !== 0 && (
                             <Text style={[styles.realizedBadge, (item.realizedProfit || 0) > 0 ? (isDark ? styles.positiveBadgeDark : styles.positiveBadge) : (isDark ? styles.negativeBadgeDark : styles.negativeBadge)]}>
                                 Realized: {(item.realizedProfit || 0) >= 0 ? '+' : '-'}{displayRealizedProfitItem}
                             </Text>
-                        )}
-                    </View>
-                </View>
-                <View style={styles.sharesContainer}>
-
-                    <Text style={[styles.value, { color: isDark ? '#fff' : '#1a1a1a' }]}>{displayValue}</Text>
-                    <View style={styles.profitContainer}>
-                        {/* Day Change Only */}
-                        {item.priceChange !== undefined ? (
-                            <Text style={[styles.itemPriceChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
-                                {item.priceChange >= 0 ? '+' : ''}{formatCurrency(convertCurrency(Math.abs((item.priceChange || 0) * item.shares), item.currency || 'USD', currency, exchangeRates), currency)} ({item.pricePercent?.toFixed(2)}%)
-                            </Text>
-                        ) : (
-                            <Text style={[styles.itemPriceChange, { color: '#999' }]}>--</Text>
                         )}
                     </View>
                 </View>
@@ -669,13 +672,13 @@ const PortfolioScreen: React.FC = () => {
                 <View style={styles.statsColumn}>
 
                     <View style={styles.statRow}>
-                        <Text style={styles.statLabel}>Unrealized</Text>
+                        <Text style={styles.statLabel}>Unrealized:</Text>
                         <Text style={[styles.statValue, totalProfit >= 0 ? styles.positive : styles.negative]}>
                             {totalProfit >= 0 ? '+' : '-'}{displayUnrealized}
                         </Text>
                     </View>
                     <View style={styles.statRow}>
-                        <Text style={styles.statLabel}>Realized</Text>
+                        <Text style={styles.statLabel}>Realized:</Text>
                         <Text style={[styles.statValue, totalRealizedProfit >= 0 ? styles.positive : styles.negative]}>
                             {totalRealizedProfit >= 0 ? '+' : '-'}{displayRealized}
                         </Text>
@@ -1070,13 +1073,13 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f8f9fa',
-        paddingTop: 60,
+        paddingTop: Platform.OS === 'ios' ? 50 : 20,
     },
     headerRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
         marginBottom: 8,
     },
     historyButton: {
@@ -1102,92 +1105,162 @@ const styles = StyleSheet.create({
         color: '#1a1a1a',
         textAlign: 'center',
         marginBottom: 8,
+        marginTop: 30,
     },
     headerStats: {
         flexDirection: 'row',
-        justifyContent: 'center',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
-        paddingHorizontal: 16,
+        paddingHorizontal: 20,
         backgroundColor: '#fff',
         marginHorizontal: 16,
-        paddingVertical: 16,
-        borderRadius: 16,
+        marginBottom: 20,
+        paddingVertical: 20,
+        borderRadius: 20,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 4,
     },
     totalValueContainer: {
-        alignItems: 'center',
-        flex: 1,
+        alignItems: 'flex-start',
+        flex: 1.4,
     },
     totalValueLabel: {
-        fontSize: 11,
-        color: '#888',
+        fontSize: 10,
+        color: '#8e8e93',
         fontWeight: '700',
         textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        marginBottom: 4,
+        letterSpacing: 1,
+        marginBottom: 2,
     },
     totalValue: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: '800',
         color: '#1a1a1a',
+        letterSpacing: -0.5,
     },
     statDivider: {
         width: 1,
-        height: 40,
-        backgroundColor: '#eee',
-        marginHorizontal: 15,
+        height: 50,
+        backgroundColor: '#f2f2f7',
+        marginHorizontal: 10,
     },
     statsColumn: {
         flex: 1,
         justifyContent: 'center',
     },
-    symbolHeader: {
+    statRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'baseline',
+        alignItems: 'center',
+        marginVertical: 2,
+    },
+    statLabel: {
+        fontSize: 11,
+        color: '#8e8e93',
+        fontWeight: '600',
+    },
+    statValue: {
+        fontSize: 12,
+        fontWeight: '700',
+        marginLeft: 3,
+    },
+    symbolHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
         marginBottom: 2,
     },
-    itemPriceRow: {
+    holdingItem: {
         flexDirection: 'row',
-        alignItems: 'baseline',
-        gap: 6,
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        marginHorizontal: 16,
+        marginBottom: 8,
+        padding: 16,
+        borderRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 2,
     },
-    itemCurrentPrice: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#1a1a1a',
+    colorIndicator: {
+        width: 4,
+        height: 60,
+        borderRadius: 2,
+        marginRight: 12,
     },
-    itemPriceChange: {
-        fontSize: 13,
-        fontWeight: '600',
+    holdingInfo: {
+        flex: 1,
+        minWidth: 0,
     },
     symbol: {
         fontSize: 18,
         fontWeight: '800',
         color: '#007AFF',
     },
-    statRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginVertical: 1,
+    shares: {
+        fontSize: 12,
+        fontWeight: '500',
+        color: '#8e8e93',
     },
-    statLabel: {
+    companyName: {
         fontSize: 12,
         color: '#666',
-        fontWeight: '500',
+        marginTop: 2,
     },
-    statValue: {
-        fontSize: 13,
+    holdingFooter: {
+        marginTop: 4,
+    },
+    realizedBadge: {
+        fontSize: 10,
         fontWeight: '700',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        overflow: 'hidden',
+        marginTop: 4,
+        alignSelf: 'flex-start',
+    },
+    sharesContainer: {
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+        width: 120,
+        marginLeft: 8,
+    },
+    value: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#1a1a1a',
+    },
+    profitContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 2,
+    },
+    itemPriceChange: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    positive: {
+        color: '#34C759',
+    },
+    negative: {
+        color: '#FF3B30',
+    },
+    manageButton: {
+        padding: 8,
+        marginLeft: 4,
+    },
+    deleteButton: {
+        padding: 8,
     },
     loader: {
         flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     chartContainer: {
         backgroundColor: '#fff',
@@ -1232,13 +1305,21 @@ const styles = StyleSheet.create({
         shadowRadius: 1,
         elevation: 1,
     },
-    rangeTextActive: {
-        color: '#007AFF',
+    rangeChipActiveDark: {
+        backgroundColor: '#333',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.3,
+        shadowRadius: 1,
+        elevation: 1,
     },
     rangeText: {
         fontSize: 11,
         fontWeight: '600',
         color: '#888',
+    },
+    rangeTextActive: {
+        color: '#007AFF',
     },
     rangeSummary: {
         flexDirection: 'row',
@@ -1264,64 +1345,6 @@ const styles = StyleSheet.create({
     negativeText: {
         color: '#FF3B30',
     },
-    positiveBadgeDark: {
-        backgroundColor: '#064e1c',
-        color: '#81c784',
-    },
-    negativeBadgeDark: {
-        backgroundColor: '#4a0e0e',
-        color: '#e57373',
-    },
-    rangeChipActiveDark: {
-        backgroundColor: '#333',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.3,
-        shadowRadius: 1,
-        elevation: 1,
-    },
-    listContent: {
-        paddingBottom: 100,
-    },
-    holdingItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        marginHorizontal: 16,
-        marginBottom: 8,
-        padding: 16,
-        borderRadius: 12,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 2,
-    },
-    colorIndicator: {
-        width: 4,
-        height: 60,
-        borderRadius: 2,
-        marginRight: 12,
-    },
-    holdingInfo: {
-        flex: 1,
-    },
-    realizedBadge: {
-        fontSize: 10,
-        fontWeight: '700',
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-        overflow: 'hidden',
-    },
-    holdingFooter: {
-        marginTop: 4,
-    },
-    dateLabel: {
-        fontSize: 10,
-        color: '#999',
-        marginLeft: 8,
-    },
     positiveBadge: {
         backgroundColor: '#E8F5E9',
         color: '#2E7D32',
@@ -1330,57 +1353,16 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFEBEE',
         color: '#C62828',
     },
-    companyName: {
-        fontSize: 12,
-        color: '#666',
-        marginTop: 2,
+    positiveBadgeDark: {
+        backgroundColor: '#064e1c',
+        color: '#81c784',
     },
-    sharesContainer: {
-        alignItems: 'flex-end',
-        marginRight: 12,
+    negativeBadgeDark: {
+        backgroundColor: '#4a0e0e',
+        color: '#e57373',
     },
-    shares: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#666',
-    },
-    profitContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginVertical: 2,
-    },
-    profitText: {
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    profitPercent: {
-        fontSize: 11,
-        fontWeight: '600',
-        marginLeft: 4,
-    },
-    positive: {
-        color: '#34C759',
-    },
-    negative: {
-        color: '#FF3B30',
-    },
-    positiveIcon: {
-        color: '#34C759',
-    },
-    negativeIcon: {
-        color: '#FF3B30',
-    },
-    value: {
-        fontSize: 16,
-        fontWeight: '800',
-        color: '#1a1a1a',
-    },
-    manageButton: {
-        padding: 8,
-        marginRight: 4,
-    },
-    deleteButton: {
-        padding: 8,
+    listContent: {
+        paddingBottom: 100,
     },
     emptyContainer: {
         flex: 1,
@@ -1408,7 +1390,6 @@ const styles = StyleSheet.create({
         borderTopColor: '#eee',
         marginBottom: 20,
     },
-    // Modal Styles
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1463,41 +1444,22 @@ const styles = StyleSheet.create({
     modeTabTextActive: {
         color: '#007AFF',
     },
-    datePickerOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20
+    inputGroup: {
+        marginBottom: 16,
     },
-    datePickerContent: {
-        backgroundColor: '#fff',
-        borderRadius: 14,
-        padding: 10,
-        width: '100%',
-        maxWidth: 340,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5
-    },
-    benchmarkToggleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        marginBottom: 10,
-        justifyContent: 'flex-end'
-    },
-    benchmarkLabel: {
-        fontSize: 12,
-        marginRight: 8,
-        fontWeight: '600'
-    },
-    currentPositionText: {
+    inputLabel: {
         fontSize: 14,
+        fontWeight: '600',
         color: '#666',
-        marginBottom: 20,
+        marginLeft: 4,
+        marginBottom: 8,
+    },
+    modalInput: {
+        backgroundColor: '#f5f5f5',
+        borderRadius: 12,
+        padding: 16,
+        fontSize: 18,
+        color: '#1a1a1a',
         textAlign: 'center',
     },
     dateRow: {
@@ -1513,22 +1475,27 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
-    inputGroup: {
-        marginBottom: 16,
+    calendarIcon: {
+        marginRight: 8,
     },
-    inputLabel: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#666',
-        marginLeft: 4,
-    },
-    modalInput: {
-        backgroundColor: '#f5f5f5',
-        borderRadius: 12,
-        padding: 16,
-        fontSize: 18,
+    datePickerText: {
+        fontSize: 16,
         color: '#1a1a1a',
-        textAlign: 'center',
+        fontWeight: '500',
+    },
+    datePickerOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    datePickerContent: {
+        backgroundColor: '#fff',
+        borderRadius: 14,
+        padding: 10,
+        width: '100%',
+        maxWidth: 340,
     },
     modalButtons: {
         flexDirection: 'row',
@@ -1559,22 +1526,23 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#fff',
     },
-    datePickerButton: {
+    benchmarkToggleRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#f5f5f5',
-        borderRadius: 12,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: '#eee',
+        paddingHorizontal: 20,
+        marginBottom: 10,
+        justifyContent: 'flex-end',
     },
-    calendarIcon: {
+    benchmarkLabel: {
+        fontSize: 12,
         marginRight: 8,
+        fontWeight: '600',
     },
-    datePickerText: {
-        fontSize: 16,
-        color: '#1a1a1a',
-        fontWeight: '500',
+    currentPositionText: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 20,
+        textAlign: 'center',
     },
 });
 

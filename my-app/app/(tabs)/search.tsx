@@ -276,7 +276,6 @@ const HomeScreen: React.FC = () => {
               <Text style={[styles.cardChange, dayChange >= 0 ? styles.positiveText : styles.negativeText]}>
                 {dayChange >= 0 ? '+' : '-'}{displayDayChange} ({dayChangePercent.toFixed(1)}%)
               </Text>
-              <Text style={styles.cardTime}>1D</Text>
             </View>
           </TouchableOpacity>
         )}
