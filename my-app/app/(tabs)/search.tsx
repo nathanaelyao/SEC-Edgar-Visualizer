@@ -345,7 +345,7 @@ const HomeScreen: React.FC = () => {
 
           {!marketLoading && marketSummary.length > 0 && (
             <View style={{ marginBottom: 24 }}>
-              <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#1a1a1a', marginBottom: 16 }]}>Market Snapshot</Text>
+              <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Market Snapshot</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
                 {marketSummary.map((item, index) => (
                   <MarketSummaryCard
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
   portfolioCard: {
     padding: 24,
     borderRadius: 30,
-    marginBottom: 32,
+    marginBottom: 25,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 16 },
     shadowOpacity: 0.15,
@@ -540,13 +540,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   moversSection: {
-    marginBottom: 32,
+    marginBottom: 25,
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '800',
     color: '#1a1a1a',
-    marginBottom: 12,
+    marginBottom: 8,
     letterSpacing: -0.5,
   },
   moversGrid: {

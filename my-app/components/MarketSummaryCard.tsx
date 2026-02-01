@@ -121,11 +121,11 @@ const styles = StyleSheet.create({
         marginRight: 12,
         borderWidth: 1,
         justifyContent: 'space-between',
+        elevation: 4,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.08,
         shadowRadius: 12,
-        elevation: 4,
     },
     topInfo: {
         flexDirection: 'row',

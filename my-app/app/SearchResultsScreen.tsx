@@ -97,6 +97,7 @@ const SearchResultsScreen: React.FC = () => {
   const [priceHistory, setPriceHistory] = useState<HistoryPoint[]>([]);
   const [priceHistoryRange, setPriceHistoryRange] = useState<'1D' | '1W' | '1M' | 'YTD' | '1Y' | '5Y' | 'ALL'>('1M');
   const [priceHistoryLoading, setPriceHistoryLoading] = useState(false);
+  const [titleLines, setTitleLines] = useState(1);
 
   const [isPortfolioModalVisible, setIsPortfolioModalVisible] = useState(false);
   const [existingHolding, setExistingHolding] = useState<PortfolioHolding | null>(null);
@@ -867,14 +868,21 @@ const SearchResultsScreen: React.FC = () => {
             {stockInfo && (
               <View>
                 <View style={[styles.headerCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
-                  <View style={styles.headerTopRow}>
+                  <View style={[styles.headerTopRow, { marginBottom: titleLines > 1 ? 4 : -6 }]}>
                     <TouchableOpacity
                       style={[styles.backButton, { backgroundColor: isDark ? '#333' : '#fff', borderColor: isDark ? '#444' : '#eee', position: 'absolute', left: 0, zIndex: 10 }]}
                       onPress={() => navigation.goBack()}
                     >
                       <Ionicons name="chevron-back" size={24} color={isDark ? '#fff' : '#007AFF'} />
                     </TouchableOpacity>
-                    <Text style={[styles.screenTitle, { color: isDark ? '#fff' : '#1a1a1a' }]} numberOfLines={2} ellipsizeMode={'tail'}>{stockInfo.companyName}</Text>
+                    <Text
+                      onTextLayout={(e) => setTitleLines(e.nativeEvent.lines.length)}
+                      style={[styles.screenTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}
+                      numberOfLines={2}
+                      ellipsizeMode={'tail'}
+                    >
+                      {stockInfo.companyName}
+                    </Text>
                   </View>
 
 
@@ -1245,7 +1253,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center',
     width: '100%',
-    paddingHorizontal: 54, // Clear space for back button (44 width + margin)
+    paddingHorizontal: 50, // Clear space for back button (44 width + margin)
   },
   priceContainer: {
     marginBottom: 8,
