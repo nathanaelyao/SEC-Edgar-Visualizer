@@ -14,7 +14,7 @@ import { investorsData } from '@/constants/investors';
 import { FlatList } from 'react-native';
 import InvestorItem from '@/components/InvestorItem';
 import { useNavigation } from '@react-navigation/native';
-import { secFetch, fetchStockPrice, StockQuote, fetchStockHistory, HistoryPoint, fetchPriceForDate } from '@/utils/secApi';
+import { secFetch, fetchStockPrice, StockQuote, fetchStockHistory, HistoryPoint, fetchPriceForDate, fetchDividendHistory, DividendEvent } from '@/utils/secApi';
 import StockLineChart from '@/components/StockLineChart';
 import { debug, info, warn, error as logError } from '@/utils/logger';
 import * as SQLite from 'expo-sqlite';
@@ -57,6 +57,8 @@ interface StockInfo {
   sharesData: string | null;
   liabilities?: string | null;
   roicData?: any[] | null;
+  dividendsData?: GraphDataItem[] | null;
+  calculatedDividendRate?: number | null; // From scratch calculation
 }
 
 interface InvestorHolding {
@@ -233,7 +235,7 @@ const SearchResultsScreen: React.FC = () => {
       switch (priceHistoryRange) {
         case '1D': range = '1d'; interval = '2m'; break;
         case '1W': range = '5d'; interval = '15m'; break;
-        case '1M': range = '1mo'; interval = '1d'; break;
+        case '1M': range = '1mo'; interval = '60m'; break;
         case '1Y': range = '1y'; interval = '1d'; break;
         case '5Y': range = '5y'; interval = '1wk'; break;
         case 'ALL': range = 'max'; interval = '1mo'; break;
@@ -561,23 +563,14 @@ const SearchResultsScreen: React.FC = () => {
     if (stockInfo.incomeData) options.push({ label: 'Net Income', value: 'net income' });
     if (stockInfo.epsData) options.push({ label: 'EPS', value: 'eps' });
     if (stockInfo.assetsData) options.push({ label: 'Assets', value: 'assets' });
+    if (stockInfo.assetsData) options.push({ label: 'Assets', value: 'assets' });
     if (stockInfo.liabilities) options.push({ label: 'Liabilities', value: 'liabilities' });
-    // Dividends check - assuming it might be available if not explicitly null, or we can check a specific field if we had one. 
-    // The current type def implies these are strings or null. 
-    // Let's assume some are always "available" to try fetching, or check if we have data. 
-    // Actually, getStockInfo fetches them all. 
-    // Let's add them if they are not null.
-    // dividendData isn't on StockInfo interface explicitly in the view above (it has custom unknown props maybe?), 
-    // let's check interface. 
-    // Interface StockInfo has: eps, graphData, epsData, revData, incomeData, assetsData, sharesData, liabilities, roicData.
-    // dividendData is missing from StockInfo interface in the file view I saw earlier? 
-    // Let's check the file content from the last view_file.
-    // Line 45: liabilities?: string | null;
-    // Line 46: roicData?: any[] | null;
-    // It seems dividendData is NOT in the interface but was in the fetch logic. 
-    // I will stick to the ones in StockInfo for now or add them if needed. 
-    // The fetch logic has `let dividendData`. 
-    // But getStockInfo returns it? 
+    // Add Dividends option if we have Yahoo dividend data
+    if (stockInfo.dividendsData && stockInfo.dividendsData.length > 0) {
+      options.push({ label: 'Dividends', value: 'dividends' });
+    } else if (stockInfo.revData) { // Fallback to check if generic data loaded, maybe no divs
+      // Don't add if no divs
+    }
     // Return statement: { roicData, liabilities, ... sharesData, eps ... }
     // It does NOT return dividendData. So I should not add Dividends to options unless I add it to interface and return. 
     // For now I will filter based on what is returned.
@@ -655,6 +648,17 @@ const SearchResultsScreen: React.FC = () => {
 
 
   /* Restored getStockInfo */
+  const processDividends = (events: DividendEvent[]): GraphDataItem[] => {
+    const years: Record<string, number> = {};
+    events.forEach(e => {
+      const year = new Date(e.date).getFullYear();
+      const key = year.toString();
+      if (!years[key]) years[key] = 0;
+      years[key] += e.amount;
+    });
+    return Object.keys(years).sort().map(y => ({ label: y, value: years[y] }));
+  };
+
   const getStockInfo = async (ticker: string, filter: string | null): Promise<StockInfo> => {
     try {
       const tickersResponse = await secFetch(`https://www.sec.gov/files/company_tickers.json`);
@@ -697,6 +701,17 @@ const SearchResultsScreen: React.FC = () => {
         // Safe return for non-US stocks/crypto instead of throwing
         return { companyName: compName || ticker, cik: null, eps: null, graphData: null, epsData: null, revData: null, incomeData: null, assetsData: null, sharesData: null };
       }
+
+      // Fetch dividends from Yahoo in parallel to SEC data (or sequential if easier, but lets do logic here)
+      let dividendDataYahoo: GraphDataItem[] = [];
+      try {
+        // We can fetch dividends for the chart here
+        const divs = await fetchDividendHistory(ticker);
+        dividendDataYahoo = processDividends(divs);
+      } catch (e) {
+        console.warn("Failed to fetch dividend history", e);
+      }
+
       const factsResponse = await secFetch(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik_str}.json`);
 
       if (!factsResponse.ok) {
@@ -711,9 +726,54 @@ const SearchResultsScreen: React.FC = () => {
       let assetsData = factsData?.facts?.['us-gaap']?.Assets?.units?.['USD'];
       let sharesData = factsData?.facts?.['dei']?.EntityCommonStockSharesOutstanding?.units?.shares;
       let dividendData = factsData?.facts?.['us-gaap']?.PaymentsOfDividends?.units?.['USD'];
+      let paymentsOfDividendsCommon = factsData?.facts?.['us-gaap']?.PaymentsOfDividendsCommonStock?.units?.['USD']; // Alternative element
       let currentLiabilities = factsData?.facts?.['us-gaap']?.LiabilitiesCurrent?.units?.['USD'];
       let roicData: any[] | null = null;
+      let calculatedRate: number | null = null;
       let skip = false;
+
+      // --- Calculate Fundamentals-Based Dividend Yield (Requested User Method) ---
+      // Method: Total Dividends Paid (TTM) / Shares Outstanding
+      if (sharesData && (dividendData || paymentsOfDividendsCommon)) {
+        const divsToUse = dividendData || paymentsOfDividendsCommon;
+        // Get TTM Dividends (Sum of last 4 quarters)
+        const divPayments = getInfo(divsToUse, 'quarterly', true); // isFlow=true
+        // Sort by date/label to ensure we get latest
+        divPayments.sort((a, b) => { // a.label is YYYYQx
+          const aY = parseInt(a.label.substring(0, 4));
+          const bY = parseInt(b.label.substring(0, 4));
+          if (aY !== bY) return aY - bY;
+          const aQ = parseInt(a.label.substring(5, 6));
+          const bQ = parseInt(b.label.substring(5, 6));
+          return aQ - bQ;
+        });
+
+        // Get Shares Outstanding (Latest Point-in-Time)
+        const sharesPoints = getInfo(sharesData, 'quarterly', false); // isFlow=false (Balance Sheet)
+        sharesPoints.sort((a, b) => {
+          const aY = parseInt(a.label.substring(0, 4));
+          const bY = parseInt(b.label.substring(0, 4));
+          if (aY !== bY) return aY - bY;
+          // handle Q? or just sort by year? getInfo returns YYYYQX.
+          // Actually getInfo handles sorting mostly, explicitly sort to be safe
+          const aQ = parseInt(a.label.substring(5, 6));
+          const bQ = parseInt(b.label.substring(5, 6));
+          return aQ - bQ;
+        });
+
+        if (divPayments.length >= 4 && sharesPoints.length > 0) {
+          // Sum last 4 quarters
+          const last4 = divPayments.slice(-4);
+          const totalDivsTTM = last4.reduce((sum, item) => sum + item.value, 0);
+          const latestShares = sharesPoints[sharesPoints.length - 1].value;
+
+          if (latestShares > 0) {
+            calculatedRate = totalDivsTTM / latestShares;
+            // console.log(`Calculated Rate (Fundamental): ${calculatedRate} (Divs: ${totalDivsTTM}, Shares: ${latestShares})`);
+          }
+        }
+      }
+      // --------------------------------------------------------------------------
 
       if (filter === 'eps') {
         currentData = epsData;
@@ -748,10 +808,52 @@ const SearchResultsScreen: React.FC = () => {
         if (['eps', 'revenue', 'net income', 'dividends'].includes(filter || "")) {
           isFlow = true;
         }
+
+        // If filter is 'dividends' and we have Yahoo data, prefer that for "Per Share" view?
+        // But currentData is from SEC 'PaymentsOfDividends' (TOTAL $).
+        // User wants "Per Share" in bar chart per request. 
+        // Yahoo data `dividendDataYahoo` is Per Share.
+        // So if filter is dividends, use Yahoo data if available.
+        if (filter === 'dividends' && dividendDataYahoo.length > 0) {
+          return {
+            companyName: factsData.entityName,
+            cik: cik_str,
+            eps: null, // epsTTM is calculated later, so we can't use it here easily without duplicating logic. 
+            // SEC function returns 'eps', but we are returning early.
+            // We can leave it null or try to calculate it if we really need it.
+            // 'eps' field in StockInfo seems unused in UI except for debugging?
+            // UI uses 'stockQuote.peRatio' or calculates fallback from 'epsData'.
+            // 'epsData' string IS passed below.
+            graphData: dividendDataYahoo, // Use Yahoo Per Share Data
+            epsData: JSON.stringify(epsData),
+            revData: JSON.stringify(revData),
+            incomeData: JSON.stringify(incomeData),
+            assetsData: JSON.stringify(assetsData),
+            sharesData: JSON.stringify(sharesData),
+            liabilities: JSON.stringify(currentLiabilities),
+            roicData: roicData,
+            dividendsData: dividendDataYahoo, // Store for options
+            calculatedDividendRate: calculatedRate
+          };
+        }
         graphData = getInfo(currentData, dataInterval, isFlow);
       }
 
-      return { roicData, liabilities: currentLiabilities, companyName: compName, cik: cik_str, graphData, epsData, revData, incomeData, assetsData, sharesData, eps: epsData ?? null } as StockInfo;
+      return {
+        companyName: factsData.entityName,
+        cik: cik_str,
+        eps: epsData ? JSON.stringify(epsData) : null,
+        graphData,
+        epsData: JSON.stringify(epsData),
+        revData: JSON.stringify(revData),
+        incomeData: JSON.stringify(incomeData),
+        assetsData: JSON.stringify(assetsData),
+        sharesData: JSON.stringify(sharesData),
+        liabilities: JSON.stringify(currentLiabilities),
+        roicData,
+        dividendsData: dividendDataYahoo,
+        calculatedDividendRate: calculatedRate
+      };
     } catch (error: any) {
       logError("Error fetching stock info:", error);
       return { companyName: null, cik: null, eps: null, graphData: null, epsData: null, revData: null, incomeData: null, assetsData: null, sharesData: null };
@@ -907,8 +1009,23 @@ const SearchResultsScreen: React.FC = () => {
                           }
                         }
 
-                        // Strict PE display
                         const displayPE = (pe && pe > 0) ? pe : fallbackPE;
+
+                        // Dividend Logic: Prefer Yahoo v7 Quote, Fallback to "From Scratch" calculation
+                        let yieldVal = stockQuote?.dividendYield;
+                        let rateVal = stockQuote?.dividendRate;
+
+                        if (!rateVal && stockInfo?.calculatedDividendRate) {
+                          rateVal = stockInfo.calculatedDividendRate;
+                          if (realTimePrice && realTimePrice > 0) {
+                            yieldVal = (rateVal / realTimePrice) * 100;
+                            console.log('Using Calculated Rate:', rateVal, 'Price:', realTimePrice, 'Yield:', yieldVal);
+                          }
+                        }
+                        if (stockInfo?.calculatedDividendRate) console.log('Calculated Dividend Rate Available:', stockInfo.calculatedDividendRate);
+
+                        const displayYield = yieldVal;
+                        const displayRate = rateVal;
 
                         return (
                           <>
@@ -930,7 +1047,18 @@ const SearchResultsScreen: React.FC = () => {
                                 {displayPE ? displayPE.toFixed(1) : '-'}
                               </Text>
                             </View>
-
+                            <View style={styles.statItem}>
+                              <Text style={[styles.statLabel, { color: isDark ? '#aaa' : '#666' }]}>Yield</Text>
+                              <Text
+                                style={[styles.statValue, { color: isDark ? '#fff' : '#1a1a1a' }]}
+                                numberOfLines={1}
+                                adjustsFontSizeToFit
+                              >
+                                {displayRate && displayYield
+                                  ? `${displayRate.toFixed(2)} (${displayYield.toFixed(2)}%)`
+                                  : (displayYield ? `${displayYield.toFixed(2)}%` : '-')}
+                              </Text>
+                            </View>
                           </>
                         );
                       })()}
@@ -1111,13 +1239,16 @@ const SearchResultsScreen: React.FC = () => {
                   <Text style={[styles.cardTitle, { color: isDark ? '#fff' : '#000' }]}>Top Institutional Holders</Text>
                 )}
               </View>
-            )}
-            {!loading && !investorInfo && !error && (
-              <View style={styles.invLoading}>
-                <ActivityIndicator size="small" color={isDark ? '#eee' : '#999'} />
-                <Text style={[styles.noDataText, { color: isDark ? '#aaa' : '#666' }]}>Loading investor data...</Text>
-              </View>
-            )}
+            )
+            }
+            {
+              !loading && !investorInfo && !error && (
+                <View style={styles.invLoading}>
+                  <ActivityIndicator size="small" color={isDark ? '#eee' : '#999'} />
+                  <Text style={[styles.noDataText, { color: isDark ? '#aaa' : '#666' }]}>Loading investor data...</Text>
+                </View>
+              )
+            }
             <Modal
               animationType="slide"
               transparent={true}
@@ -1352,7 +1483,7 @@ const SearchResultsScreen: React.FC = () => {
         // }
         contentContainerStyle={styles.scrollViewContent}
       />
-    </View>
+    </View >
   );
 };
 import { Dimensions } from 'react-native';

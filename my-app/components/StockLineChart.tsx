@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import Svg, { Path, Polyline, G, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Path, Polyline, G, Line, Circle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { HistoryPoint } from '@/utils/secApi';
 
@@ -111,12 +111,6 @@ const StockLineChart: React.FC<StockLineChartProps> = ({ data, height = 180, ran
                 </View>
             )}
             <Svg width={screenWidth} height={height}>
-                <Defs>
-                    <LinearGradient id="baselineGradient" x1="0" y1="0" x2="0" y2="100%">
-                        <Stop offset={`${stopPercent}%`} stopColor="#34C759" stopOpacity="1" />
-                        <Stop offset={`${stopPercent}%`} stopColor="#FF3B30" stopOpacity="1" />
-                    </LinearGradient>
-                </Defs>
                 <G>
                     {/* Horizontal Baseline Indicator */}
                     {baselineY >= padding && baselineY <= padding + chartHeight && (
@@ -135,7 +129,7 @@ const StockLineChart: React.FC<StockLineChartProps> = ({ data, height = 180, ran
                     <Polyline
                         points={points}
                         fill="none"
-                        stroke="url(#baselineGradient)"
+                        stroke={chartColor}
                         strokeWidth="2.5"
                         strokeLinejoin="round"
                     />

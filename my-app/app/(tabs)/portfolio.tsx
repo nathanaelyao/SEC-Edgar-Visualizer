@@ -241,6 +241,14 @@ const PortfolioScreen: React.FC = () => {
     const totalProfit = totalPortfolioValue - totalCostBasis;
     const totalProfitPercent = totalCostBasis > 0 ? (totalProfit / totalCostBasis) * 100 : 0;
 
+    const totalDayChange = openPositions.reduce((acc, curr) => {
+        const nativeChange = curr.shares * (curr.priceChange || 0);
+        return acc + convertCurrency(nativeChange, curr.currency || 'USD', currency, exchangeRates);
+    }, 0);
+    // Denominator for day % change is Previous Close Value => (Current Value - Day Change)
+    const prevDayValue = totalPortfolioValue - totalDayChange;
+    const totalDayChangePercent = prevDayValue > 0 ? (totalDayChange / prevDayValue) * 100 : 0;
+
     const totalRealizedProfit = portfolio.reduce((acc, curr) => {
         const nativeRealized = curr.realizedProfit || 0;
         return acc + convertCurrency(nativeRealized, curr.currency || 'USD', currency, exchangeRates);
@@ -254,6 +262,7 @@ const PortfolioScreen: React.FC = () => {
     const displayTotalValue = formatCurrency(totalAccountValue, currency);
     const displayUnrealized = formatCurrency(Math.abs(totalProfit), currency);
     const displayRealized = formatCurrency(Math.abs(totalRealizedProfit), currency);
+    const displayDayChange = formatCurrency(Math.abs(totalDayChange), currency);
 
     // Fetch intraday/daily data when range is 1D, 1W, or 1M
     useEffect(() => {
@@ -583,15 +592,20 @@ const PortfolioScreen: React.FC = () => {
                     </View>
                 </View>
                 <View style={styles.sharesContainer}>
-                    <Text style={styles.shares}>{item.shares.toLocaleString()} shares</Text>
+
+                    <Text style={[styles.value, { color: isDark ? '#fff' : '#1a1a1a' }]}>{displayValue}</Text>
                     <View style={styles.profitContainer}>
+                        {/* Day Change */}
                         {item.priceChange !== undefined && (
                             <Text style={[styles.itemPriceChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
                                 {item.priceChange >= 0 ? '+' : ''}{formatCurrency(convertCurrency(Math.abs((item.priceChange || 0) * item.shares), item.currency || 'USD', currency, exchangeRates), currency)} ({item.pricePercent?.toFixed(2)}%)
                             </Text>
                         )}
+                        {/* Total P&L */}
+                        <Text style={[styles.itemPriceChange, profit >= 0 ? styles.positive : styles.negative, { fontSize: 11, marginLeft: 6 }]}>
+                            {profit >= 0 ? '+' : '-'}{displayProfit}
+                        </Text>
                     </View>
-                    <Text style={[styles.value, { color: isDark ? '#fff' : '#1a1a1a' }]}>{displayValue}</Text>
                 </View>
                 <TouchableOpacity
                     style={styles.manageButton}
@@ -643,6 +657,7 @@ const PortfolioScreen: React.FC = () => {
                 <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#eee' }]} />
 
                 <View style={styles.statsColumn}>
+
                     <View style={styles.statRow}>
                         <Text style={styles.statLabel}>Unrealized</Text>
                         <Text style={[styles.statValue, totalProfit >= 0 ? styles.positive : styles.negative]}>

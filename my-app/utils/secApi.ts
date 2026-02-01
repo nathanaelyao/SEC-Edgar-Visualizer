@@ -423,6 +423,13 @@ export interface StockQuote {
   preMarketPrice?: number;
   postMarketPrice?: number;
   marketState?: string;
+  dividendRate?: number;
+  dividendYield?: number;
+}
+
+export interface DividendEvent {
+  date: number;
+  amount: number;
 }
 
 export interface HistoryPoint {
@@ -434,29 +441,84 @@ export interface HistoryPoint {
 let tickerListsCache: any[] | null = null;
 let lastTickerCacheUpdate = 0;
 
+const YAHOO_HOSTS = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'];
+
+async function fetchYahoo(path: string): Promise<any> {
+  const hosts = [...YAHOO_HOSTS];
+  // Randomize initial host to load balance
+  if (Math.random() > 0.5) hosts.reverse();
+
+  for (const host of hosts) {
+    const url = `https://${host}${path}`;
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+        }
+      });
+
+      if (res.status === 429) {
+        warn(`Yahoo 429 on ${host}, trying next...`);
+        await new Promise(r => setTimeout(r, 1000)); // wait 1s
+        continue;
+      }
+
+      if (res.ok) {
+        return await res.json();
+      }
+      // For other errors (404, 500), maybe try next too?
+      warn(`Yahoo ${res.status} on ${host}, trying next...`);
+    } catch (e) {
+      warn(`Yahoo fetch failed on ${host}: ${e}`);
+    }
+  }
+  throw new Error("All Yahoo hosts failed");
+}
+
 /**
  * Fetch a quote from Yahoo Finance unofficial API.
  * Uses a browser-like User-Agent to avoid immediate blocks.
  */
 async function fetchYahooQuote(symbol: string): Promise<StockQuote | null> {
   const upperSymbol = symbol.toUpperCase();
-  // Using query1.finance.yahoo.com v8 chart endpoint as a more stable alternative to v7/v6 quote
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${upperSymbol}?interval=1d&range=1d&includePrePost=true`;
+
+  // 1. Try v7 Quote API (Preferred for Dividends/PE)
+  // const v7Url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${upperSymbol}`;
+  const v7Path = `/v7/finance/quote?symbols=${upperSymbol}`;
 
   try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-      }
-    });
+    const data = await fetchYahoo(v7Path);
+    const result = data?.quoteResponse?.result?.[0];
+    if (result) {
+      const price = result.regularMarketPrice || result.postMarketPrice || 0;
+      const prevClose = result.regularMarketPreviousClose || price;
+      const change = result.regularMarketChange || (price - prevClose);
+      const percent = result.regularMarketChangePercent || (prevClose > 0 ? (change / prevClose) * 100 : 0);
 
-    if (!res.ok) {
-      warn(`Yahoo Finance API (v8) returned status ${res.status} for ${upperSymbol}`);
-      return null;
+      return {
+        price,
+        change,
+        percent,
+        currency: result.currency || 'USD',
+        lastUpdated: Date.now(),
+        marketCap: result.marketCap,
+        volume: result.regularMarketVolume,
+        peRatio: result.trailingPE,
+        dividendRate: result.dividendRate,
+        dividendYield: result.dividendYield,
+        previousClose: prevClose,
+        marketState: result.marketState
+      };
     }
+  } catch (err) {
+    warn(`Error fetching quote from Yahoo v7 for ${upperSymbol}: ${err}`);
+  }
 
-    const data = await res.json();
+  // 2. Fallback to v8 Chart API (Reliable for Price)
+  const v8Path = `/v8/finance/chart/${upperSymbol}?interval=1d&range=1d&includePrePost=true`;
+  try {
+    const data = await fetchYahoo(v8Path);
     const result = data?.chart?.result?.[0]?.meta;
 
     if (!result) {
@@ -478,15 +540,10 @@ async function fetchYahooQuote(symbol: string): Promise<StockQuote | null> {
       lastUpdated: Date.now(),
       marketCap: result.marketCap,
       volume: result.regularMarketVolume,
-      peRatio: result.trailingPE || result.forwardPE,
-      earningsTimestamp: result.earningsTimestamp,
-      previousClose: prevClose,
-      preMarketPrice: result.preMarketPrice,
-      postMarketPrice: result.postMarketPrice,
-      marketState: result.marketState
+      // Missing PE/Dividends in v8 meta
     };
   } catch (err) {
-    error(`Error fetching from Yahoo Finance (v8) for ${upperSymbol}:`, err);
+    error(`Error fetching from Yahoo Finance (v8 fallback) for ${upperSymbol}:`, err);
     return null;
   }
 }
@@ -543,6 +600,33 @@ export async function fetchStockHistory(
     return history;
   } catch (err) {
     error(`Error fetching history from Yahoo Finance for ${upperSymbol}:`, err);
+    return [];
+  }
+}
+
+export async function fetchDividendHistory(symbol: string, range: string = '5y'): Promise<DividendEvent[]> {
+  const upperSymbol = symbol.toUpperCase();
+  const path = `/v8/finance/chart/${upperSymbol}?interval=1mo&range=${range}&events=div`;
+
+  try {
+    const data = await fetchYahoo(path);
+    const events = data?.chart?.result?.[0]?.events?.dividends;
+
+    if (!events) return [];
+
+    const dividends: DividendEvent[] = [];
+    for (const key in events) {
+      const div = events[key];
+      if (div && div.amount) {
+        dividends.push({
+          date: div.date * 1000,
+          amount: div.amount
+        });
+      }
+    }
+    return dividends.sort((a, b) => a.date - b.date);
+  } catch (err) {
+    warn(`Error fetching dividends for ${upperSymbol}: ${err}`);
     return [];
   }
 }
