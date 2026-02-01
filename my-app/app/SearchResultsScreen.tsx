@@ -1265,7 +1265,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   priceValue: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '800',
     letterSpacing: -1,
   },

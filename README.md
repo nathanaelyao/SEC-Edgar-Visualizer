@@ -1,23 +1,40 @@
 # SEC-Edgar-Visualizer
 
-React Native Application using SEC EDGAR API to visualize data on companies and 13F filings from institutional investors.
+A financial tracking application built with React Native and Expo. Track your stock portfolio, view SEC 13F filings, and visualize historical performance.
 
-Tools and technology Used:
+## Features
+*   **Portfolio Management**: Track your Holdings, Cost Basis, and Realized/Unrealized Gains.
+*   **Real-Time Data**: Fetch current stock prices and historical data.
+*   **13F Analysis**: Visualize institutional holdings from SEC Edgar filings.
+*   **Touch-Interactive Charts**:
+    *   Dynamic Line Charts for Portfolio History.
+    *   Bar Charts for Financial Trends (Revenue/Net Income).
+    *   Pie Charts for Portfolio Allocation.
+*   **Dark Mode Support**
+
+## Tools and technology Used:
 - React Native/TypeScript: To build the apps various components.
 - SEC EDGAR API: To get company data and 13F filings from the SEC. 
 - SQLite: Local database used to store SEC filings and reduce API calls
 - Cheerio: Library used for parsing HTML content from the SEC website.
 
-Demo:
-[Watch the Demo Video](https://www.youtube.com/watch?v=cHj9I8wBk9Q)
-
-App Store:
+## App Store:
 [Google Play Listing](https://play.google.com/store/apps/details?id=com.nathanaelyao.myapp2)
 
-Pictures of App:
-<div style="display: flex;">
-  <img src="images/IMG_2085.PNG" alt="Screenshot 1" style="width: 200px; margin-right: 10px;">
-    <img src="images/IMG_3352EBE852B4-1.PNG" alt="Screenshot 2" style="width: 200px; margin-right: 10px;">
-  <img src="images/IMG_2087.PNG" alt="Screenshot 2" style="width: 200px; margin-right: 10px;">
-  <img src="images/Screenshot 2025-10-28 at 7.41.28 PM.png" alt="Screenshot 3" style="width: 200px;">
-</div>
+## Screenshots
+
+<p float="left">
+  <img src="assets/screenshots/home_dashboard.png" width="30%" />
+  <img src="assets/screenshots/portfolio_performance.png" width="30%" />
+  <img src="assets/screenshots/portfolio_allocation.png" width="30%" />
+</p>
+<p float="left">
+  <img src="assets/screenshots/portfolio_holdings.png" width="30%" />
+  <img src="assets/screenshots/portfolio_holding_detail.png" width="30%" />
+  <img src="assets/screenshots/stock_price_chart.png" width="30%" /> 
+</p>
+<p float="left">
+  <img src="assets/screenshots/stock_financials.png" width="30%" />
+  <img src="assets/screenshots/filings_list.png" width="30%" />
+  <img src="assets/screenshots/settings.png" width="30%" />
+</p>
