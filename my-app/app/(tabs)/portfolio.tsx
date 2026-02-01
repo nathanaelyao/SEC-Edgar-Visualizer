@@ -1102,10 +1102,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 24,
     },
+
     title: {
-        fontSize: 22,
+        fontSize: 34,
         fontWeight: '900',
-        letterSpacing: -0.5,
+        letterSpacing: -1,
     },
     iconButton: {
         width: 44,
