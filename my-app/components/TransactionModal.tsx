@@ -91,7 +91,24 @@ const TransactionModal: React.FC<TransactionModalProps> = ({
 
     // Auto-fetch price when date changes
     useEffect(() => {
-        if (!isVisible || mode === 'history' || editingTransaction) return;
+        if (!isVisible || mode === 'history') return;
+
+        // If editing, check if date has changed
+        if (editingTransaction) {
+            const originalDate = new Date(editingTransaction.date);
+            const isSameDate = date.getDate() === originalDate.getDate() &&
+                date.getMonth() === originalDate.getMonth() &&
+                date.getFullYear() === originalDate.getFullYear();
+
+            // If date is same as original, revert to original price and stop (don't fetch)
+            if (isSameDate) {
+                // Only reset if price is different (avoid loop)
+                if (price !== editingTransaction.price.toString()) {
+                    setPrice(editingTransaction.price.toString());
+                }
+                return;
+            }
+        }
 
         const isToday = (d: Date) => {
             const now = new Date();
@@ -100,7 +117,7 @@ const TransactionModal: React.FC<TransactionModalProps> = ({
                 d.getFullYear() === now.getFullYear();
         };
 
-        if (isToday(date) && !shares) return; // Optional: don't fetch if just opening and today
+        if (isToday(date) && !shares && !editingTransaction) return;
 
         const timer = setTimeout(async () => {
             setIsPriceLoading(true);
