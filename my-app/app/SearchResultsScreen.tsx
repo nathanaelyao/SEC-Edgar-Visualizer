@@ -92,7 +92,7 @@ const SearchResultsScreen: React.FC = () => {
   const [filterType, setFilterType] = useState<string | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [priceHistory, setPriceHistory] = useState<HistoryPoint[]>([]);
-  const [priceHistoryRange, setPriceHistoryRange] = useState<'1D' | '1W' | '1M' | '1Y' | '5Y' | 'ALL'>('1M');
+  const [priceHistoryRange, setPriceHistoryRange] = useState<'1D' | '1W' | '1M' | 'YTD' | '1Y' | '5Y' | 'ALL'>('1M');
   const [priceHistoryLoading, setPriceHistoryLoading] = useState(false);
 
   const [isPortfolioModalVisible, setIsPortfolioModalVisible] = useState(false);
@@ -236,6 +236,7 @@ const SearchResultsScreen: React.FC = () => {
         case '1D': range = '1d'; interval = '2m'; break;
         case '1W': range = '5d'; interval = '15m'; break;
         case '1M': range = '1mo'; interval = '60m'; break;
+        case 'YTD': range = 'ytd'; interval = '1d'; break;
         case '1Y': range = '1y'; interval = '1d'; break;
         case '5Y': range = '5y'; interval = '1wk'; break;
         case 'ALL': range = 'max'; interval = '1mo'; break;
@@ -1086,7 +1087,7 @@ const SearchResultsScreen: React.FC = () => {
 
                   <View style={[styles.historyChartContainer, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
                     <View style={[styles.priceHistoryRangeContainer, { backgroundColor: isDark ? '#000' : '#f0f0f0' }]}>
-                      {(['1D', '1W', '1M', '1Y', '5Y', 'ALL'] as const).map((range) => (
+                      {(['1D', '1W', '1M', 'YTD', '1Y', '5Y', 'ALL'] as const).map((range) => (
                         <TouchableOpacity
                           key={range}
                           style={[styles.historyRangeChip, priceHistoryRange === range && (isDark ? styles.historyRangeChipActiveDark : styles.historyRangeChipActive)]}

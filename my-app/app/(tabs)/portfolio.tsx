@@ -19,7 +19,7 @@ const PortfolioScreen: React.FC = () => {
     const [closedPositions, setClosedPositions] = useState<PortfolioHolding[]>([]);
     const [history, setHistory] = useState<PortfolioSnapshot[]>([]);
     const [loading, setLoading] = useState(true);
-    const [selectedRange, setSelectedRange] = useState<'1D' | '1W' | '1M' | '1Y' | '5Y' | 'ALL'>('ALL');
+    const [selectedRange, setSelectedRange] = useState<'1D' | '1W' | '1M' | 'YTD' | '1Y' | '5Y' | 'ALL'>('ALL');
     const [intradayHistory, setIntradayHistory] = useState<PortfolioSnapshot[]>([]);
     const [isChartLoading, setIsChartLoading] = useState(false);
 
@@ -267,7 +267,7 @@ const PortfolioScreen: React.FC = () => {
     // Fetch intraday/daily data when range is 1D, 1W, or 1M
     useEffect(() => {
         const fetchIntradayData = async () => {
-            if (selectedRange !== '1D' && selectedRange !== '1W' && selectedRange !== '1M') {
+            if (selectedRange !== '1D' && selectedRange !== '1W' && selectedRange !== '1M' && selectedRange !== 'YTD') {
                 setIntradayHistory([]);
                 return;
             }
@@ -288,6 +288,9 @@ const PortfolioScreen: React.FC = () => {
                     interval = '15m';
                 } else if (selectedRange === '1M') {
                     range = '1mo';
+                    interval = '1d';
+                } else if (selectedRange === 'YTD') {
+                    range = 'ytd';
                     interval = '1d';
                 }
 
@@ -381,7 +384,7 @@ const PortfolioScreen: React.FC = () => {
     }, [selectedRange, openPositions, cashBalance, totalCostBasis, exchangeRates]);
 
     const getFilteredHistory = (): PortfolioSnapshot[] => {
-        if (selectedRange === '1D' || selectedRange === '1W' || selectedRange === '1M') {
+        if (selectedRange === '1D' || selectedRange === '1W' || selectedRange === '1M' || selectedRange === 'YTD') {
             if (intradayHistory.length > 0) {
                 return intradayHistory;
             }
@@ -443,6 +446,7 @@ const PortfolioScreen: React.FC = () => {
         switch (selectedRange) {
             case '1W': cutoff.setDate(now.getDate() - 7); break;
             case '1M': cutoff.setMonth(now.getMonth() - 1); break;
+            case 'YTD': cutoff = new Date(now.getFullYear(), 0, 1); break;
             case '1Y': cutoff.setFullYear(now.getFullYear() - 1); break;
             case '5Y': cutoff.setFullYear(now.getFullYear() - 5); break;
         }
@@ -689,7 +693,7 @@ const PortfolioScreen: React.FC = () => {
                                 <View style={styles.chartHeader}>
                                     <Text style={[styles.chartSectionTitle, { color: isDark ? '#fff' : '#333' }]}>Historical Performance</Text>
                                     <View style={[styles.rangeContainer, { backgroundColor: isDark ? '#000' : '#f0f0f0' }]}>
-                                        {(['1D', '1W', '1M', '1Y', '5Y', 'ALL'] as const).map((range) => (
+                                        {(['1D', '1W', '1M', 'YTD', '1Y', '5Y', 'ALL'] as const).map((range) => (
                                             <TouchableOpacity
                                                 key={range}
                                                 style={[styles.rangeChip, selectedRange === range && (isDark ? styles.rangeChipActiveDark : styles.rangeChipActive)]}
@@ -739,6 +743,7 @@ const PortfolioScreen: React.FC = () => {
                                         '1D': '1D',
                                         '1W': 'This Week',
                                         '1M': 'This Month',
+                                        'YTD': 'Year to Date',
                                         '1Y': 'This Year',
                                         '5Y': 'Last 5 Years',
                                         'ALL': 'All Time'

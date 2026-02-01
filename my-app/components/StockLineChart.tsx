@@ -7,7 +7,7 @@ import { HistoryPoint } from '@/utils/secApi';
 interface StockLineChartProps {
     data: HistoryPoint[];
     height?: number;
-    range?: '1D' | '1W' | '1M' | '1Y' | '5Y' | 'ALL';
+    range?: '1D' | '1W' | '1M' | 'YTD' | '1Y' | '5Y' | 'ALL';
     isDark?: boolean;
     formatValue?: (val: number) => string;
     previousClose?: number;
