@@ -24,17 +24,17 @@ A financial tracking application built with React Native and Expo. Track your st
 ## Screenshots
 
 <p float="left">
-  <img src="assets/screenshots/home_dashboard.png" width="30%" />
-  <img src="assets/screenshots/portfolio_performance.png" width="30%" />
-  <img src="assets/screenshots/portfolio_allocation.png" width="30%" />
+  <img src="my-app/assets/screenshots/home_dashboard.png" width="30%" />
+  <img src="my-app/assets/screenshots/portfolio_performance.png" width="30%" />
+  <img src="my-app/assets/screenshots/portfolio_allocation.png" width="30%" />
 </p>
 <p float="left">
-  <img src="assets/screenshots/portfolio_holdings.png" width="30%" />
-  <img src="assets/screenshots/portfolio_holding_detail.png" width="30%" />
-  <img src="assets/screenshots/stock_price_chart.png" width="30%" /> 
+  <img src="my-app/assets/screenshots/portfolio_holdings.png" width="30%" />
+  <img src="my-app/assets/screenshots/portfolio_holding_detail.png" width="30%" />
+  <img src="my-app/assets/screenshots/stock_price_chart.png" width="30%" /> 
 </p>
 <p float="left">
-  <img src="assets/screenshots/stock_financials.png" width="30%" />
-  <img src="assets/screenshots/filings_list.png" width="30%" />
-  <img src="assets/screenshots/settings.png" width="30%" />
+  <img src="my-app/assets/screenshots/stock_financials.png" width="30%" />
+  <img src="my-app/assets/screenshots/filings_list.png" width="30%" />
+  <img src="my-app/assets/screenshots/settings.png" width="30%" />
 </p>
