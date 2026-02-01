@@ -517,6 +517,8 @@ const calculateStockHistoryTrace = async (
     const holding = await getHolding(symbol);
     const currency = holding?.currency || 'USD';
 
+    let lastKnownPrice = 0;
+
     for (const dateStr of sortedDates) {
         const date = new Date(dateStr);
         // Set to End of Day (23:59:59.999) to ensure we include transactions from this day
@@ -525,9 +527,6 @@ const calculateStockHistoryTrace = async (
         // Apply transactions up to this date
         while (txIndex < transactions.length) {
             const tx = transactions[txIndex];
-            // Normalize tx date to YYYY-MM-DD for comparison?
-            // Or just precise time comparison.
-            // Snapshot dates are usually EOD (T00:00:00 or similar).
             const txDate = new Date(tx.date);
 
             if (txDate <= date) { // Include all transactions occurring on or before this day
@@ -536,7 +535,6 @@ const calculateStockHistoryTrace = async (
                     currentShares += tx.shares;
                     averageCost = currentShares > 0 ? totalCost / currentShares : 0;
                 } else if (tx.type === 'sell') {
-                    // Verify sell logic matches exactly
                     const profit = (tx.price - averageCost) * tx.shares;
                     cumulativeRealizedProfit += profit;
                     currentShares -= tx.shares;
@@ -547,12 +545,23 @@ const calculateStockHistoryTrace = async (
             }
         }
 
+        // Forward-fill price logic
+        let price = priceHistoryMap[dateStr] || 0;
+        if (price > 0) {
+            lastKnownPrice = price;
+        } else if (lastKnownPrice > 0) {
+            price = lastKnownPrice;
+        }
+
         // Calculate contribution at this point
         let profitContribution = 0;
         let valueContribution = 0;
 
+        // If we have no price yet (before first history point), we can try to use averageCost if available?
+        // Or just wait for price history. Usually history starts before or at buy.
+        // If history is missing, value is 0.
+
         if (currentShares > 0 || cumulativeRealizedProfit !== 0) {
-            const price = priceHistoryMap[dateStr] || 0;
             let nativeUnrealized = 0;
             let nativeValue = 0;
 
@@ -560,7 +569,15 @@ const calculateStockHistoryTrace = async (
                 nativeValue = currentShares * price;
                 const nativeCost = currentShares * averageCost;
                 nativeUnrealized = nativeValue - nativeCost;
+            } else if (currentShares > 0 && price === 0) {
+                // Fallback: if we still have 0 price (e.g. valid history hasn't started), 
+                // treat value as COST (so 0 profit impact), or just 0 value?
+                // If we treat as 0 value, we get huge negative profit.
+                // Better to assume 0 profit impact if no price.
+                nativeValue = currentShares * averageCost; // Assume break-even if no price data
+                nativeUnrealized = 0;
             }
+
             profitContribution = convertCurrency(nativeUnrealized + cumulativeRealizedProfit, currency, 'USD', rates);
             valueContribution = convertCurrency(nativeValue, currency, 'USD', rates);
         }
