@@ -430,7 +430,7 @@ const SearchResultsScreen: React.FC = () => {
     return filled;
   };
 
-  const getInfo = (currentData: any, interval: 'yearly' | 'quarterly', isFlow?: boolean): GraphDataItem[] => {
+  const getInfo = (currentData: any, interval: 'yearly' | 'quarterly', isFlow?: boolean, fillGaps: boolean = true): GraphDataItem[] => {
     if (!currentData || !Array.isArray(currentData)) return [];
 
     const entriesMap = new Map<string, any[]>();
@@ -498,6 +498,8 @@ const SearchResultsScreen: React.FC = () => {
         }
       }
     });
+
+    if (!fillGaps) return graphData;
 
     const filledData = fillDataGaps(graphData, interval);
     // Limit history to 8 years (32 quarters) or 10 years (10 FY) to keep UI focused
@@ -850,35 +852,63 @@ const SearchResultsScreen: React.FC = () => {
                       {(() => {
                         const mCap = stockQuote.marketCap;
 
-                        // Calculate fallback Market Cap with validation
+                        // Calculate fallback Market Cap with strict validation
                         let fallbackMCap = null;
                         if (stockInfo?.sharesData && isDataRecent(stockInfo.sharesData)) {
                           const sharesLatest = getLatestValue(stockInfo.sharesData);
-                          if (realTimePrice && sharesLatest) {
+                          // Ensure we have a valid positive share count
+                          if (realTimePrice && sharesLatest && sharesLatest > 0) {
                             fallbackMCap = realTimePrice * sharesLatest;
                           }
                         }
 
-                        const displayMCap = mCap || fallbackMCap;
+                        // Strict MCap display: Prefer Quote, fallback to calculated if Quote is missing/invalid
+                        const displayMCap = (mCap && mCap > 0) ? mCap : fallbackMCap;
 
                         const pe = stockQuote.peRatio;
 
                         // Calculate TTM EPS using discrete quarterly values from getInfo
-                        // Only calculate fallback P/E if we have at least 4 quarters
+                        // Strict validation: recent data AND at least 4 consecutive quarters avail (no gaps)
                         let fallbackPE = null;
                         if (!pe && stockInfo?.epsData && isDataRecent(stockInfo.epsData)) {
-                          const quarterlyEpsData = getInfo(stockInfo.epsData, 'quarterly', true);
+                          // Get quarterly data WITHOUT filling gaps to ensure we have real data
+                          const quarterlyEpsData = getInfo(stockInfo.epsData, 'quarterly', true, false);
                           if (quarterlyEpsData.length >= 4) {
                             // Sum exactly the last 4 quarters for TTM
-                            const epsTTM = quarterlyEpsData.slice(-4).reduce((sum, item) => sum + item.value, 0);
-                            // Only calculate P/E if EPS is positive
-                            if (realTimePrice && epsTTM > 0) {
-                              fallbackPE = realTimePrice / epsTTM;
+                            const last4 = quarterlyEpsData.slice(-4);
+
+                            // Verify consecutiveness
+                            let isConsecutive = true;
+                            for (let i = 1; i < last4.length; i++) {
+                              const prev = last4[i - 1].label;
+                              const curr = last4[i].label;
+                              // Parse YYYYQx
+                              const prevY = parseInt(prev.substring(0, 4));
+                              const prevQ = parseInt(prev.substring(5, 6));
+                              const currY = parseInt(curr.substring(0, 4));
+                              const currQ = parseInt(curr.substring(5, 6));
+
+                              const prevOrd = prevY * 4 + (prevQ - 1);
+                              const currOrd = currY * 4 + (currQ - 1);
+
+                              if (currOrd !== prevOrd + 1) {
+                                isConsecutive = false;
+                                break;
+                              }
+                            }
+
+                            if (isConsecutive) {
+                              const epsTTM = last4.reduce((sum, item) => sum + item.value, 0);
+                              // Only calculate P/E if EPS TTM is positive
+                              if (realTimePrice && epsTTM > 0) {
+                                fallbackPE = realTimePrice / epsTTM;
+                              }
                             }
                           }
                         }
 
-                        const displayPE = pe || fallbackPE;
+                        // Strict PE display
+                        const displayPE = (pe && pe > 0) ? pe : fallbackPE;
 
                         return (
                           <>
@@ -1517,8 +1547,8 @@ const styles = StyleSheet.create({
   },
 
   container: {
-    marginTop: 60,
-
+    flex: 1,
+    paddingTop: 60,
     justifyContent: 'center',
   },
   statsGrid: {
