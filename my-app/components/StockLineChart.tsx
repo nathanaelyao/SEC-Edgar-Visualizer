@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import Svg, { Path, Polyline, G, Line, Circle } from 'react-native-svg';
+import Svg, { Path, Polyline, G, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { HistoryPoint } from '@/utils/secApi';
 
@@ -52,7 +52,9 @@ const StockLineChart: React.FC<StockLineChartProps> = ({ data, height = 180, ran
     }).join(' ');
 
     const baselineY = padding + chartHeight - ((baselinePrice - min) / priceRange) * chartHeight;
-    const stopPercent = Math.max(0, Math.min(100, (baselineY / height) * 100));
+    // Calculate offest relative to the CHART AREA (Polyline bounding box), not the entire SVG height
+    // Add a small epsilon (+1 pixel) to ensure the baseline price itself is included in the "Green" region
+    const stopPercent = Math.max(0, Math.min(100, ((baselineY - padding + 1) / chartHeight) * 100));
 
     const handleTouch = (event: any) => {
         const x = event.nativeEvent.locationX;
@@ -125,11 +127,18 @@ const StockLineChart: React.FC<StockLineChartProps> = ({ data, height = 180, ran
                         />
                     )}
 
+                    <Defs>
+                        <LinearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="100%">
+                            <Stop offset={stopPercent / 100} stopColor="#34C759" stopOpacity="1" />
+                            <Stop offset={stopPercent / 100} stopColor="#FF3B30" stopOpacity="1" />
+                        </LinearGradient>
+                    </Defs>
+
                     {/* The line */}
                     <Polyline
                         points={points}
                         fill="none"
-                        stroke={chartColor}
+                        stroke="url(#chartGradient)"
                         strokeWidth="2.5"
                         strokeLinejoin="round"
                     />

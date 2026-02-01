@@ -648,15 +648,34 @@ const SearchResultsScreen: React.FC = () => {
 
 
   /* Restored getStockInfo */
-  const processDividends = (events: DividendEvent[]): GraphDataItem[] => {
-    const years: Record<string, number> = {};
+  const processDividends = (events: DividendEvent[], interval: 'yearly' | 'quarterly' = 'yearly'): GraphDataItem[] => {
+    const data: Record<string, number> = {};
     events.forEach(e => {
-      const year = new Date(e.date).getFullYear();
-      const key = year.toString();
-      if (!years[key]) years[key] = 0;
-      years[key] += e.amount;
+      const date = new Date(e.date);
+      const year = date.getFullYear();
+      let key = year.toString();
+
+      if (interval === 'quarterly') {
+        const month = date.getMonth(); // 0-11
+        const q = Math.floor(month / 3) + 1;
+        key = `${year}Q${q}`;
+      }
+
+      if (!data[key]) data[key] = 0;
+      data[key] += e.amount;
     });
-    return Object.keys(years).sort().map(y => ({ label: y, value: years[y] }));
+
+    // Sort logic
+    return Object.keys(data).sort((a, b) => {
+      if (interval === 'yearly') return parseInt(a) - parseInt(b);
+      // YYYYQx comparison
+      const aY = parseInt(a.substring(0, 4));
+      const bY = parseInt(b.substring(0, 4));
+      if (aY !== bY) return aY - bY;
+      const aQ = parseInt(a.substring(5, 6));
+      const bQ = parseInt(b.substring(5, 6));
+      return aQ - bQ;
+    }).map(k => ({ label: k, value: data[k] }));
   };
 
   const getStockInfo = async (ticker: string, filter: string | null): Promise<StockInfo> => {
@@ -707,7 +726,7 @@ const SearchResultsScreen: React.FC = () => {
       try {
         // We can fetch dividends for the chart here
         const divs = await fetchDividendHistory(ticker);
-        dividendDataYahoo = processDividends(divs);
+        dividendDataYahoo = processDividends(divs, dataInterval);
       } catch (e) {
         console.warn("Failed to fetch dividend history", e);
       }

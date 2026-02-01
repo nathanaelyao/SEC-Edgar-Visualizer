@@ -138,6 +138,7 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
     // This requires arrays to be aligned by date. 
     // Real implementation should use time-scale.
     // Hack for now: Map benchmark points to existing X axis if lengths are close, or just simple independent line.
+    // Hack for now: Map benchmark points to existing X axis if lengths are close, or just simple independent line.
     // Simple independent line:
     const benchmarkPath = showBenchmark ? benchmarkData?.map((d, i) => {
         // Find relative X position based on time
@@ -162,6 +163,15 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
         const y = getY(val);
         return `${x},${y} `;
     }).filter(p => p !== null).join(' ') : '';
+
+
+    // Gradient Calculation (Baseline is Start of Period)
+    // "underneath where we were in the start of the selected period"
+    const baselineValue = displayPoints.length > 0 ? displayPoints[0] : 0;
+    const baselineY = getY(baselineValue);
+
+    // Relative to Chart Height (Polyline BB), with +1px epsilon to favor Green at baseline
+    const stopPercent = Math.max(0, Math.min(100, ((baselineY - padding + 1) / chartHeight) * 100));
 
 
     // Active Data and HUD Calculations
@@ -288,18 +298,26 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
                     </LinearGradient>
                 </Defs>
 
-                {/* Grid Lines (Zero Line) */}
-                {minVal < 0 && maxVal > 0 && (
+                {/* Grid Lines (Baseline Line - Start of Period) */}
+                {baselineY >= padding && baselineY <= padding + chartHeight && (
                     <Line
                         x1={padding}
-                        y1={getY(0)}
+                        y1={baselineY}
                         x2={padding + chartWidth}
-                        y2={getY(0)}
-                        stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}
+                        y2={baselineY}
+                        stroke={isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'}
                         strokeWidth="1"
                         strokeDasharray="4,4"
                     />
                 )}
+
+                {/* Gradient Definition */}
+                <Defs>
+                    <LinearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="100%">
+                        <Stop offset={stopPercent / 100} stopColor="#34C759" stopOpacity="1" />
+                        <Stop offset={stopPercent / 100} stopColor="#FF3B30" stopOpacity="1" />
+                    </LinearGradient>
+                </Defs>
 
                 {/* Benchmark Line */}
                 {showBenchmark && benchmarkPath && (
@@ -317,7 +335,7 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
                 <Polyline
                     points={mainPath}
                     fill="none"
-                    stroke={isPositive ? '#34C759' : '#FF3B30'}
+                    stroke="url(#portfolioGradient)"
                     strokeWidth="3"
                     strokeLinejoin="round"
                 />
