@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, Platform, Switch } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, Platform, Switch, KeyboardAvoidingView } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices, Transaction, getTransactions, getAllTransactions, updateTransaction, deleteTransaction, addTransaction, getCashBalances, triggerPortfolioSnapshot } from '@/utils/db';
 import { CURRENCY_SYMBOLS } from '@/utils/currency';
@@ -667,24 +667,24 @@ const PortfolioScreen: React.FC = () => {
                                             {formatCurrency(cashBalance, currency)}
                                         </Text>
                                     </View>
-                                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                                    <View style={{ flexDirection: 'row', gap: 7, marginLeft: 12 }}>
                                         <TouchableOpacity
-                                            style={[styles.miniButton, { width: 'auto', paddingHorizontal: 16, height: 44, backgroundColor: isDark ? '#333' : '#f0f2f5' }]}
+                                            style={[styles.miniButton, { width: 'auto', paddingHorizontal: 10, height: 44, backgroundColor: isDark ? '#333' : '#f0f2f5' }]}
                                             onPress={() => {
                                                 setCashType('deposit');
                                                 setIsCashModalVisible(true);
                                             }}
                                         >
-                                            <Text style={{ color: '#007AFF', fontSize: 14, fontWeight: '800' }}>Deposit</Text>
+                                            <Text style={{ color: '#007AFF', fontSize: 12, fontWeight: '800' }}>Deposit</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
-                                            style={[styles.miniButton, { width: 'auto', paddingHorizontal: 16, height: 44, backgroundColor: isDark ? '#333' : '#f0f2f5' }]}
+                                            style={[styles.miniButton, { width: 'auto', paddingHorizontal: 10, height: 44, backgroundColor: isDark ? '#333' : '#f0f2f5' }]}
                                             onPress={() => {
                                                 setCashType('withdraw');
                                                 setIsCashModalVisible(true);
                                             }}
                                         >
-                                            <Text style={{ color: isDark ? '#aaa' : '#666', fontSize: 14, fontWeight: '800' }}>Withdraw</Text>
+                                            <Text style={{ color: isDark ? '#aaa' : '#666', fontSize: 12, fontWeight: '800' }}>Withdraw</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -789,47 +789,52 @@ const PortfolioScreen: React.FC = () => {
             >
                 <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setIsCashModalVisible(false); }}>
                     <View style={styles.modalOverlay}>
-                        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                            <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
-                                <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>
-                                    {cashType === 'deposit' ? 'Deposit Cash' : 'Withdraw Cash'}
-                                </Text>
+                        <KeyboardAvoidingView
+                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            style={{ width: '100%' }}
+                        >
+                            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                                <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
+                                    <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                                        {cashType === 'deposit' ? 'Deposit Cash' : 'Withdraw Cash'}
+                                    </Text>
 
-                                <TextInput
-                                    style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
-                                    placeholder={`Amount (${currency})`}
-                                    keyboardType="numeric"
-                                    value={cashAmount}
-                                    onChangeText={setCashAmount}
-                                    placeholderTextColor={isDark ? '#666' : '#999'}
-                                    autoFocus
-                                />
+                                    <TextInput
+                                        style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
+                                        placeholder={`Amount (${currency})`}
+                                        keyboardType="numeric"
+                                        value={cashAmount}
+                                        onChangeText={setCashAmount}
+                                        placeholderTextColor={isDark ? '#666' : '#999'}
+                                        autoFocus
+                                    />
 
-                                <View style={styles.modalButtons}>
-                                    <TouchableOpacity
-                                        style={[styles.modalButton, styles.cancelButton, { backgroundColor: isDark ? '#3a3a3c' : '#f0f0f0' }]}
-                                        onPress={() => {
-                                            setIsCashModalVisible(false);
-                                            setCashAmount('');
-                                        }}
-                                    >
-                                        <Text style={[styles.cancelButtonText, { color: isDark ? '#fff' : '#444' }]}>Cancel</Text>
-                                    </TouchableOpacity>
+                                    <View style={styles.modalButtons}>
+                                        <TouchableOpacity
+                                            style={[styles.modalButton, styles.cancelButton, { backgroundColor: isDark ? '#3a3a3c' : '#f0f0f0' }]}
+                                            onPress={() => {
+                                                setIsCashModalVisible(false);
+                                                setCashAmount('');
+                                            }}
+                                        >
+                                            <Text style={[styles.cancelButtonText, { color: isDark ? '#fff' : '#444' }]}>Cancel</Text>
+                                        </TouchableOpacity>
 
-                                    <TouchableOpacity
-                                        style={[styles.modalButton, styles.saveButton]}
-                                        disabled={isSubmitting}
-                                        onPress={handleSaveCash}
-                                    >
-                                        {isSubmitting ? (
-                                            <ActivityIndicator size="small" color="#fff" />
-                                        ) : (
-                                            <Text style={styles.saveButtonText}>Confirm</Text>
-                                        )}
-                                    </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.modalButton, styles.saveButton]}
+                                            disabled={isSubmitting}
+                                            onPress={handleSaveCash}
+                                        >
+                                            {isSubmitting ? (
+                                                <ActivityIndicator size="small" color="#fff" />
+                                            ) : (
+                                                <Text style={styles.saveButtonText}>Confirm</Text>
+                                            )}
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
-                            </View>
-                        </TouchableWithoutFeedback>
+                            </TouchableWithoutFeedback>
+                        </KeyboardAvoidingView>
                     </View>
                 </TouchableWithoutFeedback>
             </Modal>
