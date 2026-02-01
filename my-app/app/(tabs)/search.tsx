@@ -4,7 +4,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { secFetch, yahooSearch, fetchStockHistory, fetchStockPrice } from '@/utils/secApi';
 import { error as logError } from '@/utils/logger';
-import { getPortfolio, PortfolioHolding, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices } from '@/utils/db';
+import { getPortfolio, PortfolioHolding, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices, getCashBalances } from '@/utils/db';
 import { useTheme } from '@/context/ThemeContext';
 import { formatCurrency, convertCurrency } from '@/utils/currency';
 import MarketSummaryCard from '@/components/MarketSummaryCard';
@@ -31,6 +31,7 @@ const HomeScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
   const [history, setHistory] = useState<PortfolioSnapshot[]>([]);
+  const [cashBalance, setCashBalance] = useState<number>(0);
   const [topMovers, setTopMovers] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<Company[]>([]);
 
@@ -86,9 +87,16 @@ const HomeScreen: React.FC = () => {
       // Refresh prices to get latest data for the dashboard
       const holdings = await refreshPortfolioPrices();
       const historyData = await getPortfolioHistory();
+      const balances = await getCashBalances();
+
+      let totalCash = 0;
+      for (const [cur, amt] of Object.entries(balances)) {
+        totalCash += convertCurrency(amt, cur, currency, exchangeRates);
+      }
 
       setPortfolio(holdings);
       setHistory(historyData);
+      setCashBalance(totalCash);
 
       // Calculate movers based on the refreshed prices (Daily % Change)
       if (holdings.length > 0) {
@@ -153,15 +161,19 @@ const HomeScreen: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const totalPortfolioValue = portfolio.reduce((acc: number, curr: PortfolioHolding) => {
-    const nativeValue = curr.shares * (curr.price || 0);
-    return acc + convertCurrency(nativeValue, curr.currency || 'USD', currency, exchangeRates);
-  }, 0);
+  const totalPortfolioValue = portfolio
+    .filter(h => h.symbol !== 'USD')
+    .reduce((acc: number, curr: PortfolioHolding) => {
+      const nativeValue = curr.shares * (curr.price || 0);
+      return acc + convertCurrency(nativeValue, curr.currency || 'USD', currency, exchangeRates);
+    }, 0) + cashBalance; // Include cash in home tab total value
 
-  const totalCostBasis = portfolio.reduce((acc: number, curr: PortfolioHolding) => {
-    const nativeCost = curr.shares * (curr.costBasis || curr.price || 0);
-    return acc + convertCurrency(nativeCost, curr.currency || 'USD', currency, exchangeRates);
-  }, 0);
+  const totalCostBasis = portfolio
+    .filter(h => h.symbol !== 'USD')
+    .reduce((acc: number, curr: PortfolioHolding) => {
+      const nativeCost = curr.shares * (curr.costBasis || curr.price || 0);
+      return acc + convertCurrency(nativeCost, curr.currency || 'USD', currency, exchangeRates);
+    }, 0) + cashBalance; // Include cash in cost basis so deposits aren't treated as gains
 
   const totalRealizedProfit = portfolio.reduce((acc: number, curr: PortfolioHolding) => {
     const nativeRealized = curr.realizedProfit || 0;
@@ -175,10 +187,12 @@ const HomeScreen: React.FC = () => {
 
   // Day change should be based on the last trading day's performance of individual stocks
   // This ensures accuracy on weekends when snapshots might be flat.
-  const dayChange = portfolio.reduce((acc: number, curr: PortfolioHolding) => {
-    const nativeChange = curr.shares * (curr.priceChange || 0);
-    return acc + convertCurrency(nativeChange, curr.currency || 'USD', currency, exchangeRates);
-  }, 0);
+  const dayChange = portfolio
+    .filter(h => h.symbol !== 'USD')
+    .reduce((acc: number, curr: PortfolioHolding) => {
+      const nativeChange = curr.shares * (curr.priceChange || 0);
+      return acc + convertCurrency(nativeChange, curr.currency || 'USD', currency, exchangeRates);
+    }, 0);
 
   const prevTotalValue = totalPortfolioValue - dayChange;
   const dayChangePercent = prevTotalValue > 0 ? (dayChange / prevTotalValue) * 100 : 0;

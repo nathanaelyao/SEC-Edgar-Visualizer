@@ -34,6 +34,7 @@ export interface Transaction {
     shares: number;
     price: number;
     date: string;
+    currency?: string;
     createdAt?: string;
 }
 
@@ -146,6 +147,17 @@ export const initDb = async () => {
              `);
         }
 
+        if (currentVersion < 3) {
+            console.log("Migrating DB to version 3 (Transaction currency)");
+            const tableInfo = await db.getAllAsync<{ name: string }>('PRAGMA table_info(transactions);');
+            const hasCurrency = tableInfo.some(col => col.name === 'currency');
+            if (!hasCurrency) {
+                await db.execAsync("ALTER TABLE transactions ADD COLUMN currency TEXT DEFAULT 'USD';");
+            }
+            await db.execAsync("DELETE FROM portfolio WHERE symbol = 'USD';");
+            await db.execAsync("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_version', '3');");
+        }
+
     } catch (e) {
         console.error('Migration error:', e);
     }
@@ -179,11 +191,43 @@ export const getAllTransactions = async (): Promise<Transaction[]> => {
     );
 };
 
+const calculateCurrentPortfolioUSD = async (rates: any) => {
+    const { convertCurrency } = require('./currency');
+    const holdings = await getPortfolio();
+    const balances = await getCashBalances();
+
+    let totalValueUsd = 0;
+    let totalProfitUsd = 0;
+
+    for (const h of holdings) {
+        if (h.symbol === 'USD') continue; // Exclude system cash symbol
+        const v = h.shares * (h.price || 0);
+        const c = h.shares * (h.costBasis || h.price || 0);
+        totalValueUsd += convertCurrency(v, h.currency || 'USD', 'USD', rates);
+        totalProfitUsd += convertCurrency((v - c) + (h.realizedProfit || 0), h.currency || 'USD', 'USD', rates);
+    }
+    for (const [cur, amt] of Object.entries(balances)) {
+        totalValueUsd += convertCurrency(amt, cur, 'USD', rates);
+    }
+    return { totalValueUsd, totalProfitUsd };
+};
+
+export const triggerPortfolioSnapshot = async (customTimestamp?: string) => {
+    try {
+        const { fetchExchangeRates } = require('./currency');
+        const rates = await fetchExchangeRates();
+        const { totalValueUsd, totalProfitUsd } = await calculateCurrentPortfolioUSD(rates);
+        await addPortfolioSnapshot(totalValueUsd, totalProfitUsd, customTimestamp);
+    } catch (e) {
+        console.error("Failed to trigger snapshot:", e);
+    }
+};
+
 export const addTransaction = async (transaction: Transaction) => {
     const database = await initDb();
     await database.runAsync(
-        'INSERT INTO transactions (symbol, type, shares, price, date) VALUES (?, ?, ?, ?, ?);',
-        [transaction.symbol.toUpperCase(), transaction.type, transaction.shares, transaction.price, transaction.date]
+        'INSERT INTO transactions (symbol, type, shares, price, date, currency) VALUES (?, ?, ?, ?, ?, ?);',
+        [transaction.symbol.toUpperCase(), transaction.type, transaction.shares, transaction.price, transaction.date, transaction.currency || 'USD']
     );
     // Only recalculate portfolio holding if it's a trade (buy/sell)
     if (transaction.type === 'buy' || transaction.type === 'sell') {
@@ -191,23 +235,37 @@ export const addTransaction = async (transaction: Transaction) => {
     }
 };
 
-export const getCashBalance = async (): Promise<number> => {
+// Helper for currency conversion within DB context if needed, but we usually import from utils/currency
+// Since getCashBalance is exported, we should probably let the caller handle conversion 
+// OR pass in the tools. To keep db.ts clean of business logic like exchange rates, 
+// let's return a list of balances by currency.
+export const getCashBalances = async (): Promise<Record<string, number>> => {
     const database = await initDb();
-    const transactions = await database.getAllAsync<Transaction>('SELECT * FROM transactions;');
+    const transactions = await database.getAllAsync<Transaction>('SELECT * FROM transactions WHERE type IN (\'deposit\', \'withdraw\');');
 
-    // Starting balance could be 0 or managed via a Setting? 
-    // Let's assume 0 start and calculate net.
-    let cash = 0;
+    const balances: Record<string, number> = {};
 
     for (const tx of transactions) {
+        const cur = tx.currency || 'USD';
+        if (!balances[cur]) balances[cur] = 0;
+
         if (tx.type === 'deposit') {
-            cash += tx.price; // Price logic: for deposit, price is the amount? Or shares * price?
-            // Convention: shares=1, price=amount.
+            balances[cur] += tx.price;
         } else if (tx.type === 'withdraw') {
-            cash -= tx.price;
+            balances[cur] -= tx.price;
         }
     }
-    return cash;
+    return balances;
+};
+
+// Legacy support for single number (USD-equivalent or whatever it was assuming)
+export const getCashBalance = async (): Promise<number> => {
+    const balances = await getCashBalances();
+    // For now, return USD balance if exists, else return 0 or sum?
+    // Actually, callers of this expect a single number.
+    // Let's assume they want the USD equivalent but without the tools here we can't be perfect.
+    // If we only have USD transactions, it's correct.
+    return balances['USD'] || 0;
 };
 
 export const updateTransaction = async (id: number, transaction: Partial<Transaction>) => {
@@ -223,6 +281,7 @@ export const updateTransaction = async (id: number, transaction: Partial<Transac
     if (transaction.shares) { updates.push('shares = ?'); values.push(transaction.shares); }
     if (transaction.price) { updates.push('price = ?'); values.push(transaction.price); }
     if (transaction.date) { updates.push('date = ?'); values.push(transaction.date); }
+    if (transaction.currency) { updates.push('currency = ?'); values.push(transaction.currency); }
 
     if (updates.length > 0) {
         values.push(id);
@@ -230,7 +289,13 @@ export const updateTransaction = async (id: number, transaction: Partial<Transac
             `UPDATE transactions SET ${updates.join(', ')} WHERE id = ?;`,
             values
         );
-        return await recalculatePortfolio(existing.symbol);
+        if (existing.symbol !== 'USD') {
+            await recalculatePortfolio(existing.symbol);
+        }
+        // Trigger a snapshot for the date of the original transaction and the updated transaction
+        const dateToSnapshot = new Date(Math.min(new Date(existing.date).getTime(), new Date(transaction.date || existing.date).getTime()));
+        await triggerPortfolioSnapshot(dateToSnapshot.toISOString());
+        return;
     }
 };
 
@@ -333,32 +398,17 @@ export const addHolding = async (holding: PortfolioHolding) => {
         type,
         shares,
         price: holding.price || 0,
-        date: holding.lastTransactionDate || new Date().toISOString()
+        date: holding.lastTransactionDate || new Date().toISOString(),
+        currency: holding.currency || 'USD'
     });
 
     // Snapshot logic (preserved from original)
     if (holding.lastTransactionDate) {
         const txDate = new Date(holding.lastTransactionDate);
         if (txDate.getTime() < new Date().getTime() - (1000 * 60 * 60 * 2)) {
-            const { fetchExchangeRates, convertCurrency } = require('./currency');
-            const rates = await fetchExchangeRates();
-            // Get updated portfolio state
-            const allHoldings = await getPortfolio();
-
-            let totalValueUsd = 0;
-            let totalProfitUsd = 0;
-
-            for (const h of allHoldings) {
-                const nativeValue = h.shares * (h.price || 0);
-                const nativeCost = h.shares * (h.costBasis || h.price || 0);
-                const nativeProfit = (nativeValue - nativeCost) + (h.realizedProfit || 0);
-
-                totalValueUsd += convertCurrency(nativeValue, h.currency || 'USD', 'USD', rates);
-                totalProfitUsd += convertCurrency(nativeProfit, h.currency || 'USD', 'USD', rates);
-            }
-
-            await addPortfolioSnapshot(totalValueUsd, totalProfitUsd, holding.lastTransactionDate);
             await backfillPortfolioHistory(txDate);
+        } else {
+            await triggerPortfolioSnapshot(holding.lastTransactionDate);
         }
     }
 };
@@ -374,13 +424,20 @@ export const backfillPortfolioHistory = async (startDate: Date) => {
         const rates = await fetchExchangeRates();
         const database = await initDb();
         const allHoldings = await getPortfolio();
+        const allTransactions = await getAllTransactions();
 
         // 1. Calculate History Traces for ALL holdings
         const holdingTraces: Record<string, Record<string, { value: number, profit: number }>> = {};
         const allDates = new Set<string>();
 
+        // Collect dates from ALL transactions including cash
+        allTransactions.forEach(tx => {
+            allDates.add(new Date(tx.date).toISOString().split('T')[0]);
+        });
+
         console.log("Fetching traces for holdings...");
         for (const h of allHoldings) {
+            if (h.symbol === 'USD') continue; // Exclude system cash symbol
             const transactions = await getTransactions(h.symbol);
             if (transactions.length > 0) {
                 // Fetch price history covering the range
@@ -401,6 +458,10 @@ export const backfillPortfolioHistory = async (startDate: Date) => {
         }
 
         const sortedDates = Array.from(allDates).sort();
+
+        // Add Cash Trace
+        const cashTrace = await calculateCashHistoryTrace(allTransactions, allDates, rates);
+
         console.log(`Found ${sortedDates.length} relevant historical dates.`);
 
         // 2. Aggregate and Upsert Snapshots for each date
@@ -418,12 +479,19 @@ export const backfillPortfolioHistory = async (startDate: Date) => {
             let hasData = false;
 
             for (const h of allHoldings) {
+                if (h.symbol === 'USD') continue;
                 const trace = holdingTraces[h.symbol];
                 if (trace && trace[dateStr]) {
                     dailyTotalValueUsd += trace[dateStr].value;
                     dailyTotalProfitUsd += trace[dateStr].profit;
                     hasData = true;
                 }
+            }
+
+            // Add Cash to daily total
+            if (cashTrace[dateStr]) {
+                dailyTotalValueUsd += cashTrace[dateStr].value;
+                hasData = true;
             }
 
             if (hasData) {
@@ -515,7 +583,7 @@ const calculateStockHistoryTrace = async (
     // Let's assume we fetch the holding to get currency, or pass it in.
     // Optimization: Just pass currency as arg.
     const holding = await getHolding(symbol);
-    const currency = holding?.currency || 'USD';
+    const currency = holding?.currency || transactions[0]?.currency || 'USD';
 
     let lastKnownPrice = 0;
 
@@ -585,6 +653,53 @@ const calculateStockHistoryTrace = async (
         trace[dateStr] = { value: valueContribution, profit: profitContribution };
     }
 
+    return trace;
+};
+
+const calculateCashHistoryTrace = async (
+    transactions: Transaction[],
+    allDates: Set<string>,
+    rates: any
+): Promise<Record<string, { value: number, profit: number }>> => {
+    const { convertCurrency } = require('./currency');
+    const trace: Record<string, { value: number, profit: number }> = {};
+    const sortedDates = Array.from(allDates).sort();
+
+    // Filter cash transactions
+    const cashTxs = transactions.filter(t => t.type === 'deposit' || t.type === 'withdraw');
+    cashTxs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    let currentBalances: Record<string, number> = {}; // cumulative sum per currency
+    let txIndex = 0;
+
+    for (const dateStr of sortedDates) {
+        const date = new Date(dateStr);
+        date.setHours(23, 59, 59, 999);
+
+        while (txIndex < cashTxs.length) {
+            const tx = cashTxs[txIndex];
+            const txDate = new Date(tx.date);
+            if (txDate <= date) {
+                const cur = tx.currency || 'USD';
+                if (!currentBalances[cur]) currentBalances[cur] = 0;
+                if (tx.type === 'deposit') {
+                    currentBalances[cur] += tx.price;
+                } else if (tx.type === 'withdraw') {
+                    currentBalances[cur] -= tx.price;
+                }
+                txIndex++;
+            } else {
+                break;
+            }
+        }
+
+        let totalValUsd = 0;
+        for (const [cur, amt] of Object.entries(currentBalances)) {
+            totalValUsd += convertCurrency(amt, cur, 'USD', rates);
+        }
+
+        trace[dateStr] = { value: totalValUsd, profit: 0 };
+    }
     return trace;
 };
 

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, Platform, Switch } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices, Transaction, getTransactions, getAllTransactions, updateTransaction, deleteTransaction, addTransaction, getCashBalance } from '@/utils/db';
+import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices, Transaction, getTransactions, getAllTransactions, updateTransaction, deleteTransaction, addTransaction, getCashBalances, triggerPortfolioSnapshot } from '@/utils/db';
 import PieChart from '@/components/PieChart';
 import PortfolioLineChart from '@/components/PortfolioLineChart';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -99,8 +99,8 @@ const PortfolioScreen: React.FC = () => {
             await refreshPortfolioPrices(); // Refresh prices first
             const port = await getPortfolio();
             const txs = await getAllTransactions();
-            const open = port.filter(h => h.shares > 0);
-            const closed = port.filter(h => h.shares === 0);
+            const open = port.filter(h => h.shares > 0 && h.symbol !== 'USD');
+            const closed = port.filter(h => h.shares === 0 && h.symbol !== 'USD');
 
 
             // Get history
@@ -112,8 +112,12 @@ const PortfolioScreen: React.FC = () => {
             setHistory(hist);
             setGlobalTransactions(txs);
 
-            const cash = await getCashBalance();
-            setCashBalance(cash);
+            const balances = await getCashBalances();
+            let totalCash = 0;
+            for (const [cur, amt] of Object.entries(balances)) {
+                totalCash += convertCurrency(amt, cur, currency, exchangeRates);
+            }
+            setCashBalance(totalCash);
         } catch (err) {
             console.error("Error loading portfolio:", err);
         } finally {
@@ -161,16 +165,15 @@ const PortfolioScreen: React.FC = () => {
 
         setIsSubmitting(true);
         try {
-            // Convert input currency to USD for storage
-            const amountInUsd = convertCurrency(amount, currency, 'USD', exchangeRates);
-
             await addTransaction({
                 symbol: 'USD', // System symbol for Cash
                 type: cashType,
                 shares: 1, // Convention
-                price: amountInUsd,
+                price: amount,
+                currency: currency, // Store in the selected currency for stability
                 date: new Date().toISOString()
             });
+            await triggerPortfolioSnapshot();
             Alert.alert("Success", `${cashType === 'deposit' ? 'Deposited' : 'Withdrawn'} ${formatCurrency(amount, currency)} successfully.`);
             setIsCashModalVisible(false);
             setCashAmount('');
@@ -228,15 +231,19 @@ const PortfolioScreen: React.FC = () => {
         };
     });
 
-    const totalPortfolioValue = openPositions.reduce((acc, curr) => {
-        const nativeValue = curr.shares * (curr.price || 0);
-        return acc + convertCurrency(nativeValue, curr.currency || 'USD', currency, exchangeRates);
-    }, 0);
+    const totalPortfolioValue = openPositions
+        .filter(h => h.symbol !== 'USD')
+        .reduce((acc, curr) => {
+            const nativeValue = curr.shares * (curr.price || 0);
+            return acc + convertCurrency(nativeValue, curr.currency || 'USD', currency, exchangeRates);
+        }, 0) + cashBalance; // Include cash in total portfolio value
 
-    const totalCostBasis = openPositions.reduce((acc, curr) => {
-        const nativeCost = curr.shares * (curr.costBasis || curr.price || 0);
-        return acc + convertCurrency(nativeCost, curr.currency || 'USD', currency, exchangeRates);
-    }, 0);
+    const totalCostBasis = openPositions
+        .filter(h => h.symbol !== 'USD')
+        .reduce((acc, curr) => {
+            const nativeCost = curr.shares * (curr.costBasis || curr.price || 0);
+            return acc + convertCurrency(nativeCost, curr.currency || 'USD', currency, exchangeRates);
+        }, 0) + cashBalance; // Include cash in cost basis so deposits aren't treated as gains
 
     const totalProfit = totalPortfolioValue - totalCostBasis;
     const totalProfitPercent = totalCostBasis > 0 ? (totalProfit / totalCostBasis) * 100 : 0;
@@ -256,10 +263,8 @@ const PortfolioScreen: React.FC = () => {
 
     const totalTotalProfit = totalProfit + totalRealizedProfit;
 
-    const totalAccountValue = totalPortfolioValue + convertCurrency(cashBalance, 'USD', currency, exchangeRates);
-
     // Currency conversion for display
-    const displayTotalValue = formatCurrency(totalAccountValue, currency);
+    const displayTotalValue = formatCurrency(totalPortfolioValue, currency);
     const displayUnrealized = formatCurrency(Math.abs(totalProfit), currency);
     const displayRealized = formatCurrency(Math.abs(totalRealizedProfit), currency);
     const displayDayChange = formatCurrency(Math.abs(totalDayChange), currency);
@@ -582,8 +587,11 @@ const PortfolioScreen: React.FC = () => {
                 <View style={[styles.colorIndicator, { backgroundColor: colors[index % colors.length] }]} />
                 <View style={styles.holdingInfo}>
                     <View style={styles.symbolHeader}>
-                        <Text style={styles.symbol}>{item.symbol}</Text>
-                        <View style={styles.itemPriceRow}>
+                        <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                            <Text style={[styles.symbol, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.symbol}</Text>
+                            <Text style={[styles.shares, { marginLeft: 8, color: isDark ? '#aaa' : '#666', fontSize: 12 }]}>
+                                • {item.shares} {item.shares === 1 ? 'share' : 'shares'}
+                            </Text>
                         </View>
                     </View>
                     <View style={styles.holdingFooter}>
@@ -599,16 +607,14 @@ const PortfolioScreen: React.FC = () => {
 
                     <Text style={[styles.value, { color: isDark ? '#fff' : '#1a1a1a' }]}>{displayValue}</Text>
                     <View style={styles.profitContainer}>
-                        {/* Day Change */}
-                        {item.priceChange !== undefined && (
+                        {/* Day Change Only */}
+                        {item.priceChange !== undefined ? (
                             <Text style={[styles.itemPriceChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
                                 {item.priceChange >= 0 ? '+' : ''}{formatCurrency(convertCurrency(Math.abs((item.priceChange || 0) * item.shares), item.currency || 'USD', currency, exchangeRates), currency)} ({item.pricePercent?.toFixed(2)}%)
                             </Text>
+                        ) : (
+                            <Text style={[styles.itemPriceChange, { color: '#999' }]}>--</Text>
                         )}
-                        {/* Total P&L */}
-                        <Text style={[styles.itemPriceChange, profit >= 0 ? styles.positive : styles.negative, { fontSize: 11, marginLeft: 6 }]}>
-                            {profit >= 0 ? '+' : '-'}{displayProfit}
-                        </Text>
                     </View>
                 </View>
                 <TouchableOpacity
@@ -770,7 +776,7 @@ const PortfolioScreen: React.FC = () => {
                                     <View>
                                         <Text style={styles.statLabel}>Cash Balance</Text>
                                         <Text style={[styles.totalValue, { fontSize: 20, color: isDark ? '#fff' : '#1a1a1a' }]}>
-                                            {formatCurrency(convertCurrency(cashBalance, 'USD', currency, exchangeRates), currency)}
+                                            {formatCurrency(cashBalance, currency)}
                                         </Text>
                                     </View>
                                     <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -1020,7 +1026,7 @@ const PortfolioScreen: React.FC = () => {
 
                                 <TextInput
                                     style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
-                                    placeholder="Amount"
+                                    placeholder={`Amount (${currency})`}
                                     keyboardType="numeric"
                                     value={cashAmount}
                                     onChangeText={setCashAmount}

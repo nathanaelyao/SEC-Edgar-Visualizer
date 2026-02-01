@@ -19,13 +19,15 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, onEdit,
         <View style={[styles.itemConfig, { backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}>
             <View style={styles.infoContainer}>
                 <View style={styles.topRow}>
-                    <Text style={[styles.typeText, { color: item.type === 'buy' ? '#34C759' : '#FF3B30' }]}>
+                    <Text style={[styles.typeText, { color: (item.type === 'buy' || item.type === 'deposit') ? '#34C759' : '#FF3B30' }]}>
                         {item.type.toUpperCase()}
                     </Text>
                     <Text style={[styles.dateText, { color: isDark ? '#aaa' : '#888' }]}>{new Date(item.date).toLocaleDateString()}</Text>
                 </View>
                 <Text style={[styles.detailsText, { color: isDark ? '#fff' : '#333' }]}>
-                    {item.shares} shares @ {formatCurrency(item.price, (currency as any) || 'USD')}
+                    {(item.type === 'deposit' || item.type === 'withdraw')
+                        ? formatCurrency(item.price, (item.currency as any) || 'USD')
+                        : `${item.shares} shares @ ${formatCurrency(item.price, (item.currency as any) || (currency as any) || 'USD')}`}
                 </Text>
             </View>
             <View style={styles.actionsContainer}>
