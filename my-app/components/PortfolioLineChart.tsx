@@ -45,12 +45,26 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
 
     const processSeries = (series: { timestamp: number | string; value: number }[]) => {
         if (series.length === 0) return [];
-        const startValue = series[0].value;
-        return series.map(d => ({
-            timestamp: new Date(d.timestamp).getTime(),
-            value: d.value,
-            percent: startValue !== 0 ? ((d.value - startValue) / startValue) * 100 : 0
-        }));
+        // Find first non-zero Start Value
+        const firstNonZero = series.find(d => d.value > 0);
+        const startValue = firstNonZero ? firstNonZero.value : 0;
+        const startTime = firstNonZero ? new Date(firstNonZero.timestamp).getTime() : 0;
+
+        return series.map(d => {
+            const t = new Date(d.timestamp).getTime();
+            // If we haven't started (value is 0 or before first non-zero), percent is 0
+            if (d.value === 0 || t < startTime) return {
+                timestamp: t,
+                value: d.value,
+                percent: 0
+            };
+
+            return {
+                timestamp: t,
+                value: d.value,
+                percent: startValue !== 0 ? ((d.value - startValue) / startValue) * 100 : 0
+            };
+        });
     };
 
     const portfolioSeries = useMemo(() => {
@@ -64,12 +78,19 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
         if (!showBenchmark || !benchmarkData || benchmarkData.length === 0) return [];
 
         // Filter benchmark to match portfolio range loosely (start date >= portfolio start)
-        // Or find the benchmark price at portfolio start time to normalize
         const startTime = normalizedPortfolio[0].timestamp;
+        const endTime = normalizedPortfolio[normalizedPortfolio.length - 1].timestamp;
 
-        // Find closest benchmark point to start time
-        // Benchmark data is usually daily close.
-        return processSeries(benchmarkData.map(d => ({ timestamp: d.timestamp, value: d.price })));
+        // Filter valid benchmark points within the view range
+        const filteredBench = benchmarkData.filter(d => d.timestamp >= startTime && d.timestamp <= endTime);
+
+        if (filteredBench.length === 0) {
+            // Fallback: if no exact overlap, try to get some data or just return empty
+            return [];
+        }
+
+        // Process series using the filtered set, so 0% aligns with the start of the view
+        return processSeries(filteredBench.map(d => ({ timestamp: d.timestamp, value: d.price })));
     }, [benchmarkData, showBenchmark, normalizedPortfolio]);
 
     // Combine for Min/Max calculation
@@ -151,11 +172,13 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
     const metrics = useMemo(() => {
         if (activeIndex === null || data.length === 0) return null;
         const current = data[activeIndex];
-        const start = data[0];
+
+        // Use first non-zero value as the effective start for percentage calculation
+        const effectiveStart = data.find(d => d.totalValue > 0) || data[0];
 
         // Change logic: Profit Difference (excludes deposits/withdrawals impact mostly)
-        const profitChange = current.totalProfit - start.totalProfit;
-        const percentChange = start.totalValue > 0 ? (profitChange / start.totalValue) * 100 : 0;
+        const profitChange = current.totalProfit - effectiveStart.totalProfit;
+        const percentChange = effectiveStart.totalValue > 0 ? (profitChange / effectiveStart.totalValue) * 100 : 0;
 
         return {
             totalValue: current.totalValue,
@@ -217,7 +240,13 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
                     elevation: 5
                 }]}>
                     <Text style={styles.hudDate}>
-                        {new Date(data[activeIndex].timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {new Date(data[activeIndex].timestamp).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            year: (range === '5Y' || range === 'ALL') ? 'numeric' : undefined,
+                            hour: (range === '1D' || range === '1W') ? '2-digit' : undefined,
+                            minute: (range === '1D' || range === '1W') ? '2-digit' : undefined
+                        })}
                     </Text>
 
                     {/* Total Value */}
@@ -319,12 +348,25 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
                 )}
             </Svg>
 
+            {/* X-Axis Labels */}
             <View style={styles.labels}>
-                <Text style={styles.dateLabel}>
-                    {new Date(data[0].timestamp).toLocaleDateString([], { month: 'short', year: '2-digit' })}
+                <Text style={[styles.dateLabel, { color: isDark ? '#666' : '#999' }]}>
+                    {new Date(data[0].timestamp).toLocaleDateString([], {
+                        month: 'short',
+                        day: range === '1D' ? undefined : 'numeric',
+                        year: (range === '1D' || range === '1W' || range === '1M') ? undefined : '2-digit',
+                        hour: range === '1D' ? '2-digit' : undefined,
+                        minute: range === '1D' ? '2-digit' : undefined
+                    })}
                 </Text>
-                <Text style={styles.dateLabel}>
-                    {new Date(data[data.length - 1].timestamp).toLocaleDateString([], { month: 'short', year: '2-digit' })}
+                <Text style={[styles.dateLabel, { color: isDark ? '#666' : '#999' }]}>
+                    {new Date(data[data.length - 1].timestamp).toLocaleDateString([], {
+                        month: 'short',
+                        day: range === '1D' ? undefined : 'numeric',
+                        year: (range === '1D' || range === '1W' || range === '1M') ? undefined : '2-digit',
+                        hour: range === '1D' ? '2-digit' : undefined,
+                        minute: range === '1D' ? '2-digit' : undefined
+                    })}
                 </Text>
             </View>
         </View>

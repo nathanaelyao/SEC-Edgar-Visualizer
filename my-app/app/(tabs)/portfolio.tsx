@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, Platform, Switch } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices, Transaction, getTransactions, getAllTransactions, updateTransaction, deleteTransaction, addTransaction, getCashBalance } from '@/utils/db';
@@ -20,6 +20,8 @@ const PortfolioScreen: React.FC = () => {
     const [history, setHistory] = useState<PortfolioSnapshot[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedRange, setSelectedRange] = useState<'1D' | '1W' | '1M' | '1Y' | '5Y' | 'ALL'>('ALL');
+    const [intradayHistory, setIntradayHistory] = useState<PortfolioSnapshot[]>([]);
+    const [isChartLoading, setIsChartLoading] = useState(false);
 
     // Management Modal State
     const [isManageModalVisible, setIsManageModalVisible] = useState(false);
@@ -253,8 +255,133 @@ const PortfolioScreen: React.FC = () => {
     const displayUnrealized = formatCurrency(Math.abs(totalProfit), currency);
     const displayRealized = formatCurrency(Math.abs(totalRealizedProfit), currency);
 
+    // Fetch intraday/daily data when range is 1D, 1W, or 1M
+    useEffect(() => {
+        const fetchIntradayData = async () => {
+            if (selectedRange !== '1D' && selectedRange !== '1W' && selectedRange !== '1M') {
+                setIntradayHistory([]);
+                return;
+            }
+
+            if (openPositions.length === 0) {
+                setIntradayHistory([]);
+                return;
+            }
+
+            setIsChartLoading(true);
+            try {
+                // Determine range and interval
+                let range = '1d';
+                let interval = '2m';
+
+                if (selectedRange === '1W') {
+                    range = '5d';
+                    interval = '15m';
+                } else if (selectedRange === '1M') {
+                    range = '1mo';
+                    interval = '1d';
+                }
+
+                // Fetch data for all holdings in parallel
+                const validHoldings = openPositions.filter(h => h.symbol !== 'USD');
+                const historyPromises = validHoldings.map(h =>
+                    fetchStockHistory(h.symbol, range, interval).then(data => ({ symbol: h.symbol, data }))
+                );
+
+                const results = await Promise.all(historyPromises);
+                const dataMap: Record<string, { timestamp: number, price: number }[]> = {};
+
+                results.forEach(res => {
+                    if (res.data && res.data.length > 0) {
+                        dataMap[res.symbol] = res.data;
+                    }
+                });
+
+                // Get all unique timestamps and sort them
+                const allTimestamps = new Set<number>();
+                Object.values(dataMap).forEach(points => {
+                    points.forEach(p => allTimestamps.add(p.timestamp));
+                });
+
+                const sortedTimestamps = Array.from(allTimestamps).sort((a, b) => a - b);
+
+                if (sortedTimestamps.length < 2) {
+                    setIntradayHistory([]); // Fallback to standard if not enough data
+                    return;
+                }
+
+                // Calculate portfolio value at each timestamp
+                const snapshots: PortfolioSnapshot[] = sortedTimestamps.map(ts => {
+                    let totalVal = 0;
+
+                    // Add cash balance (assumed constant)
+                    totalVal += convertCurrency(cashBalance, 'USD', 'USD', exchangeRates); // Cash is USD
+
+                    validHoldings.forEach(h => {
+                        const points = dataMap[h.symbol];
+                        if (!points) {
+                            // No data for this stock, use current price as fallback? or omit?
+                            // Using current price might be misleading if efficient. 
+                            // Better: find nearest price or just use current price (simplest for now)
+                            const nativeVal = h.shares * (h.price || 0);
+                            totalVal += convertCurrency(nativeVal, h.currency || 'USD', 'USD', exchangeRates);
+                            return;
+                        }
+
+                        // Find price at or before timestamp
+                        // Since timestamps are sorted, we can optimize, but simple find/reduce is okay for small N
+                        // Actually, for intraday, data points should be aligned. 
+                        // If a stock is missing data at time T, use the last known price before T.
+
+                        let price = points[0].price; // Default to first price
+                        // Binary search or reverse find would be better
+                        const point = points.find(p => p.timestamp === ts);
+                        if (point) {
+                            price = point.price;
+                        } else {
+                            // Find closest previous point
+                            const prev = points.filter(p => p.timestamp < ts).pop();
+                            if (prev) price = prev.price;
+                        }
+
+                        const nativeVal = h.shares * price;
+                        totalVal += convertCurrency(nativeVal, h.currency || 'USD', 'USD', exchangeRates);
+                    });
+
+                    // Calculate profit based on current constant cost basis
+                    // (Simplification: assuming no trades during the intraday period)
+                    const profit = totalVal - totalCostBasis; // totalCostBasis is already in USD
+
+                    return {
+                        timestamp: new Date(ts).toISOString(),
+                        totalValue: totalVal,
+                        totalProfit: profit
+                    };
+                });
+
+                setIntradayHistory(snapshots);
+
+            } catch (error) {
+                console.error("Error fetching intraday data:", error);
+            } finally {
+                setIsChartLoading(false);
+            }
+        };
+
+        fetchIntradayData();
+    }, [selectedRange, openPositions, cashBalance, totalCostBasis, exchangeRates]);
+
     const getFilteredHistory = (): PortfolioSnapshot[] => {
+        if (selectedRange === '1D' || selectedRange === '1W' || selectedRange === '1M') {
+            if (intradayHistory.length > 0) {
+                return intradayHistory;
+            }
+            // Fallback for 1D if loading or no data matches existing logic
+            // But we can just use the existing logic as fallback
+        }
+
         if (!history || history.length === 0) return [];
+
         if (selectedRange === '1D') {
             // Since snapshots in DB are stored in USD, we need our local aggregates in USD too.
             const totalPortfolioValueUsd = openPositions.reduce((acc, curr) => {
@@ -272,6 +399,11 @@ const PortfolioScreen: React.FC = () => {
             const totalDayChangeUsd = openPositions.reduce((acc, curr) => {
                 const nativeChange = curr.shares * (curr.priceChange || 0);
                 return acc + convertCurrency(nativeChange, curr.currency || 'USD', 'USD', exchangeRates);
+            }, 0);
+
+            const totalCostBasisUsd = openPositions.reduce((acc, curr) => {
+                const nativeCost = curr.shares * (curr.costBasis || curr.price || 0);
+                return acc + convertCurrency(nativeCost, curr.currency || 'USD', 'USD', exchangeRates);
             }, 0);
 
             const now = new Date();
@@ -578,9 +710,10 @@ const PortfolioScreen: React.FC = () => {
                                     formatValue={(val) => formatCurrency(convertCurrency(val, 'USD', currency, exchangeRates), currency)}
                                 />
                                 {filteredHistory.length > 1 && (() => {
-                                    const startProfit = filteredHistory[0].totalProfit;
+                                    const effectiveStart = filteredHistory.find(h => h.totalValue > 0) || filteredHistory[0];
+                                    const startProfit = effectiveStart.totalProfit;
                                     const endProfit = filteredHistory[filteredHistory.length - 1].totalProfit;
-                                    const startValue = filteredHistory[0].totalValue;
+                                    const startValue = effectiveStart.totalValue;
 
                                     const changeAmount = endProfit - startProfit;
                                     const displayChangeAmount = formatCurrency(convertCurrency(Math.abs(changeAmount), 'USD', currency, exchangeRates), currency);

@@ -635,19 +635,14 @@ export const removePortfolioHistoryImpact = async (holding: PortfolioHolding) =>
             const dateStr = new Date(snap.timestamp).toISOString().split('T')[0];
             const traceData = trace[dateStr];
 
-            // Default to 0 contribution if not in trace
+            // Complete Deletion logic: Remove the ENTIRE value contribution of this holding.
+            // This treats the deletion as if the holding never existed in the chart.
+            const valueContribution = traceData ? traceData.value : 0;
             const profitContribution = traceData ? traceData.profit : 0;
-            // Ideally we also subtract value if we were tracking it precisely?
-            // Existing logic: "Undo" stock means principal back to cash (Value same) + Profit removal.
-            // Profit removal: TotalValue = TotalValue - ProfitContribution.
-            // THIS IS CORRECT behavior for "Undo" (as verified before).
-            // Value removal logic: TotalValue -= ValueContribution? NO.
-            // If we assume cash for principal, we only remove *profit*.
-            // So we stick to profit removal for "removePortfolioHistoryImpact".
 
-            if (profitContribution !== 0) {
-                // Remove the profit contribution
-                const newValue = Math.max(0, snap.totalValue - profitContribution);
+            if (valueContribution !== 0 || profitContribution !== 0) {
+                // Remove the value and profit contribution completely
+                const newValue = Math.max(0, snap.totalValue - valueContribution);
                 const newProfit = snap.totalProfit - profitContribution;
 
                 if (snap.id !== undefined) {
