@@ -23,9 +23,12 @@ import { XMLParser } from 'fast-xml-parser';
 import { addHolding, getHolding, PortfolioHolding, Transaction, getTransactions, updateTransaction, deleteTransaction } from '@/utils/db';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@/context/ThemeContext';
 import { formatCurrency, convertCurrency } from '@/utils/currency';
 import TransactionList from '@/components/TransactionList';
+import TransactionModal from '@/components/TransactionModal';
+import { Dimensions } from 'react-native';
 
 
 
@@ -96,121 +99,15 @@ const SearchResultsScreen: React.FC = () => {
   const [priceHistoryLoading, setPriceHistoryLoading] = useState(false);
 
   const [isPortfolioModalVisible, setIsPortfolioModalVisible] = useState(false);
-  const [sharesToAdd, setSharesToAdd] = useState('');
-  const [purchasePrice, setPurchasePrice] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingHolding, setExistingHolding] = useState<PortfolioHolding | null>(null);
   const [portfolioMode, setPortfolioMode] = useState<'buy' | 'sell' | 'history'>('buy');
-  const [transactionDate, setTransactionDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [isPriceLoading, setIsPriceLoading] = useState(false);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-
-  const fetchTransactions = async (symbol: string) => {
-    try {
-      const txs = await getTransactions(symbol);
-      setTransactions(txs);
-    } catch (e) {
-      console.error("Error fetching transactions:", e);
-    }
-  };
-
-  const handleEditTransaction = (tx: Transaction) => {
-    setEditingTransaction(tx);
-    setPortfolioMode(tx.type as 'buy' | 'sell');
-    setSharesToAdd(tx.shares.toString());
-    setPurchasePrice(tx.price.toString());
-    setTransactionDate(new Date(tx.date));
-  };
-
-  const handleDeleteTransaction = (tx: Transaction) => {
-    Alert.alert(
-      "Delete Transaction",
-      "Are you sure you want to delete this transaction?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              if (tx.id) {
-                await deleteTransaction(tx.id);
-                if (stockSymbol) fetchTransactions(stockSymbol);
-                // Refresh holding data
-                const holding = await getHolding(stockSymbol);
-                setExistingHolding(holding);
-              }
-            } catch (e) {
-              Alert.alert("Error", "Failed to delete transaction.");
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  // Auto-update price when date changes
-  useEffect(() => {
-    if (!isPortfolioModalVisible || !stockSymbol || portfolioMode === 'history') return;
-
-    const isToday = (d: Date) => {
-      const now = new Date();
-      return d.getDate() === now.getDate() &&
-        d.getMonth() === now.getMonth() &&
-        d.getFullYear() === now.getFullYear();
-    };
-
-    if (isToday(transactionDate)) return;
-
-    const timer = setTimeout(async () => {
-      setIsPriceLoading(true);
-      try {
-        const price = await fetchPriceForDate(stockSymbol, transactionDate);
-        if (price !== null) {
-          setPurchasePrice(price.toString());
-        }
-      } catch (err) {
-        console.error("Error auto-fetching price:", err);
-      } finally {
-        setIsPriceLoading(false);
-      }
-    }, 600);
-
-    return () => clearTimeout(timer);
-  }, [transactionDate, stockSymbol, isPortfolioModalVisible]);
   const [page, setPage] = useState(0);
   const itemsPerPage = 12;
 
-  const dynamicStyles = StyleSheet.create({
-    centered: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-  });
 
+
+  // Auto-update price when date changes
   const handleAddToPortfolio = () => {
-    setEditingTransaction(null);
-    if (existingHolding) {
-      setSharesToAdd('');
-      fetchTransactions(stockSymbol);
-      // Don't prefill if managing existing, unless we want to be helpful. 
-      // But clearing is safer for new transaction.
-      // Actually previous logic was: setSharesToAdd(existingHolding.shares.toString()) ... 
-      // That seems wrong for adding MORE. It implies editing the total? 
-      // The previous logic pre-filled assuming user might want to edit? 
-      // Or maybe it was just a default. Let's start fresh for add/sell.
-      const startPrice = realTimePrice || 0;
-      setPurchasePrice(startPrice > 0 ? startPrice.toFixed(2) : '');
-    } else {
-      setSharesToAdd('');
-      const convertedPrice = realTimePrice || 0;
-      setPurchasePrice(convertedPrice > 0 ? convertedPrice.toFixed(2) : '');
-    }
-    setTransactionDate(new Date());
-    setPortfolioMode('buy');
     setIsPortfolioModalVisible(true);
   };
 
@@ -542,7 +439,6 @@ const SearchResultsScreen: React.FC = () => {
           setStockQuote(q);
           if (q.price > 0) {
             setRealTimePrice(q.price);
-            setPurchasePrice(q.price.toString());
           }
         }
 
@@ -911,57 +807,76 @@ const SearchResultsScreen: React.FC = () => {
   // ...
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#f8f9fa' }]}>
       <FlatList
         data={investorInfo}
         keyExtractor={(item, index) => index.toString()}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.investorInfoCard, { backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}
-            onPress={() => {
-              if (item.cik) {
-                router.push({
-                  pathname: '/HoldingsScreen',
-                  params: {
-                    cik: item.cik,
-                    investorName: item.name,
-                    institution: item.institution || ''
-                  }
-                });
-              }
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.investorItem}>
-              <Text style={[styles.investorName, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.name}</Text>
-              <Text style={[styles.institutionName, { color: isDark ? '#aaa' : '#666' }]}>{item.institution}</Text>
-              <View style={styles.holdingDetails}>
-                <Text style={{ color: isDark ? '#eee' : '#333' }}>Shares: {formatNumberWithCommas(item.numShares)}</Text>
-                <Text style={{ color: isDark ? '#eee' : '#333' }}>Value: {formatCurrency(parseFloat(item.value || '0'), 'USD')}</Text>
-                <Text style={{ color: isDark ? '#eee' : '#333' }}>Portfolio %: {item.percent}</Text>
+        renderItem={({ item }) => {
+          const initials = item.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '?';
+          return (
+            <TouchableOpacity
+              style={[styles.investorInfoCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}
+              onPress={() => {
+                if (item.cik) {
+                  router.push({
+                    pathname: '/HoldingsScreen',
+                    params: {
+                      cik: item.cik,
+                      investorName: item.name,
+                      institution: item.institution || ''
+                    }
+                  });
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.investorRow}>
+                <View style={[styles.investorAvatar, { backgroundColor: isDark ? '#333' : '#f0f0f0' }]}>
+                  <Text style={[styles.avatarText, { color: isDark ? '#fff' : '#007AFF' }]}>{initials}</Text>
+                </View>
+                <View style={styles.investorMainInfo}>
+                  <Text style={[styles.investorName, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.name}</Text>
+                  <Text style={[styles.institutionName, { color: isDark ? '#8e8e93' : '#666' }]}>{item.institution}</Text>
+                </View>
+                <View style={[styles.percentBadge, { backgroundColor: 'rgba(0,122,255,0.1)' }]}>
+                  <Text style={styles.percentBadgeText}>{item.percent}</Text>
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        )}
+              <View style={[styles.holdingDetails, { borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                <View>
+                  <Text style={[styles.detailLabel, { color: isDark ? '#8e8e93' : '#666' }]}>Shares</Text>
+                  <Text style={[styles.detailText, { color: isDark ? '#eee' : '#333' }]}>{formatNumberWithCommas(item.numShares)}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[styles.detailLabel, { color: isDark ? '#8e8e93' : '#666' }]}>Value</Text>
+                  <Text style={[styles.detailText, { color: isDark ? '#eee' : '#333' }]}>{formatCurrency(parseFloat(item.value || '0'), 'USD')}</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        }}
         ListHeaderComponent={
           <>
-            <View style={dynamicStyles.centered}>
-              {loading && <ActivityIndicator size="large" color="#007AFF" />}
-              {loading && <Text style={{ marginTop: 12, color: isDark ? '#aaa' : '#666' }}>Fetching Stock Data...</Text>}
-            </View>
-            {error && <Text style={[styles.errorText, { color: '#FF3B30' }]}>{error}</Text>}
+            {(loading || error) && (
+              <View style={styles.loaderContainer}>
+                {loading && <ActivityIndicator size="large" color="#007AFF" />}
+                {loading && <Text style={[styles.loaderText, { color: isDark ? '#8e8e93' : '#666' }]}>Fetching Stock Data...</Text>}
+                {error && <Text style={[styles.errorText, { color: '#FF3B30' }]}>{error}</Text>}
+              </View>
+            )}
             {stockInfo && (
               <View>
-                <View style={[styles.card, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
-                  <View style={styles.titleRow}>
+                <View style={[styles.headerCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
+                  <View style={styles.headerTopRow}>
                     <TouchableOpacity
-                      style={styles.backButton}
+                      style={[styles.backButton, { backgroundColor: isDark ? '#333' : '#fff', borderColor: isDark ? '#444' : '#eee', position: 'absolute', left: 0, zIndex: 10 }]}
                       onPress={() => navigation.goBack()}
                     >
-                      <Text style={[styles.backButtonText, { color: isDark ? '#fff' : '#007AFF' }]}>←</Text>
+                      <Ionicons name="chevron-back" size={24} color={isDark ? '#fff' : '#007AFF'} />
                     </TouchableOpacity>
-                    <Text style={[styles.title, { color: isDark ? '#fff' : '#1a1a1a' }]}>{stockInfo.companyName}</Text>
+                    <Text style={[styles.screenTitle, { color: isDark ? '#fff' : '#1a1a1a' }]} numberOfLines={2} ellipsizeMode={'tail'}>{stockInfo.companyName}</Text>
                   </View>
+
 
                   {realTimePrice !== null && (
                     <View style={styles.priceContainer}>
@@ -971,140 +886,98 @@ const SearchResultsScreen: React.FC = () => {
                         </Text>
                         {stockQuote && (
                           <Text style={[styles.priceChange, stockQuote.change >= 0 ? styles.positive : styles.negative]}>
-                            {stockQuote.change >= 0 ? '+' : '-'}{formatCurrency(Math.abs(stockQuote.change), stockQuote.currency as any)} ({stockQuote.percent.toFixed(2)}%)
+                            {stockQuote.change >= 0 ? '+' : ''}{formatCurrency(stockQuote.change, stockQuote.currency as any)} ({stockQuote.percent.toFixed(2)}%)
                           </Text>
                         )}
                       </View>
-                    </View>
-                  )}
 
-                  {stockQuote && (stockQuote.preMarketPrice || stockQuote.postMarketPrice) && (
-                    <View style={styles.extendedHoursContainer}>
-                      <Text style={[styles.extendedHoursLabel, { color: isDark ? '#8e8e93' : '#666' }]}>
-                        {stockQuote.marketState === 'PRE' ? 'Pre-Market ' : 'After-Hours '}
-                      </Text>
-                      {(() => {
-                        const price = stockQuote.marketState === 'PRE' ? stockQuote.preMarketPrice : stockQuote.postMarketPrice;
-                        if (!price) return null;
-                        const diff = price - (realTimePrice || 0);
-                        const perc = (realTimePrice || 0) > 0 ? (diff / (realTimePrice || 0)) * 100 : 0;
-                        return (
-                          <Text style={[styles.extendedHoursValue, diff >= 0 ? styles.positiveSmall : styles.negativeSmall]}>
-                            {formatCurrency(price, (stockQuote.currency || 'USD') as any)} {diff >= 0 ? '+' : ''}{diff.toFixed(2)} ({perc.toFixed(2)}%)
+                      {stockQuote && (stockQuote.preMarketPrice || stockQuote.postMarketPrice) && (
+                        <View style={styles.extendedHoursContainer}>
+                          <Text style={[styles.extendedHoursLabel, { color: isDark ? '#8e8e93' : '#666' }]}>
+                            {stockQuote.marketState === 'PRE' ? 'Pre-Market ' : 'After-Hours '}
                           </Text>
-                        );
-                      })()}
+                          {(() => {
+                            const price = stockQuote.marketState === 'PRE' ? stockQuote.preMarketPrice : stockQuote.postMarketPrice;
+                            if (!price) return null;
+                            const diff = price - (realTimePrice || 0);
+                            const perc = (realTimePrice || 0) > 0 ? (diff / (realTimePrice || 0)) * 100 : 0;
+                            return (
+                              <Text style={[styles.extendedHoursValue, diff >= 0 ? styles.positiveSmall : styles.negativeSmall]}>
+                                {formatCurrency(price, (stockQuote.currency || 'USD') as any)} {diff >= 0 ? '+' : ''}{diff.toFixed(2)} ({perc.toFixed(2)}%)
+                              </Text>
+                            );
+                          })()}
+                        </View>
+                      )}
                     </View>
                   )}
 
                   {stockQuote && (
-                    <View style={[styles.statsGrid, { borderTopColor: isDark ? '#333' : '#f1f1f1', borderBottomColor: isDark ? '#333' : '#f1f1f1' }]}>
+                    <View style={[styles.statsGrid, { borderTopColor: isDark ? '#333' : '#f0f0f0', borderBottomColor: isDark ? '#333' : '#f0f0f0' }]}>
                       {(() => {
                         const mCap = stockQuote.marketCap;
-
-                        // Calculate fallback Market Cap with strict validation
                         let fallbackMCap = null;
                         if (stockInfo?.sharesData && isDataRecent(stockInfo.sharesData)) {
                           const sharesLatest = getLatestValue(stockInfo.sharesData);
-                          // Ensure we have a valid positive share count
                           if (realTimePrice && sharesLatest && sharesLatest > 0) {
                             fallbackMCap = realTimePrice * sharesLatest;
                           }
                         }
-
-                        // Strict MCap display: Prefer Quote, fallback to calculated if Quote is missing/invalid
                         const displayMCap = (mCap && mCap > 0) ? mCap : fallbackMCap;
-
                         const pe = stockQuote.peRatio;
-
-                        // Calculate TTM EPS using discrete quarterly values from getInfo
-                        // Strict validation: recent data AND at least 4 consecutive quarters avail (no gaps)
                         let fallbackPE = null;
                         if (!pe && stockInfo?.epsData && isDataRecent(stockInfo.epsData)) {
-                          // Get quarterly data WITHOUT filling gaps to ensure we have real data
                           const quarterlyEpsData = getInfo(stockInfo.epsData, 'quarterly', true, false);
                           if (quarterlyEpsData.length >= 4) {
-                            // Sum exactly the last 4 quarters for TTM
                             const last4 = quarterlyEpsData.slice(-4);
-
-                            // Verify consecutiveness
                             let isConsecutive = true;
                             for (let i = 1; i < last4.length; i++) {
-                              const prev = last4[i - 1].label;
-                              const curr = last4[i].label;
-                              // Parse YYYYQx
-                              const prevY = parseInt(prev.substring(0, 4));
-                              const prevQ = parseInt(prev.substring(5, 6));
-                              const currY = parseInt(curr.substring(0, 4));
-                              const currQ = parseInt(curr.substring(5, 6));
-
-                              const prevOrd = prevY * 4 + (prevQ - 1);
-                              const currOrd = currY * 4 + (currQ - 1);
-
-                              if (currOrd !== prevOrd + 1) {
+                              const prevY = parseInt(last4[i - 1].label.substring(0, 4));
+                              const prevQ = parseInt(last4[i - 1].label.substring(5, 6));
+                              const currY = parseInt(last4[i].label.substring(0, 4));
+                              const currQ = parseInt(last4[i].label.substring(5, 6));
+                              if (!((currY === prevY && currQ === prevQ + 1) || (currY === prevY + 1 && prevQ === 4 && currQ === 1))) {
                                 isConsecutive = false;
                                 break;
                               }
                             }
-
                             if (isConsecutive) {
                               const epsTTM = last4.reduce((sum, item) => sum + item.value, 0);
-                              // Only calculate P/E if EPS TTM is positive
-                              if (realTimePrice && epsTTM > 0) {
-                                fallbackPE = realTimePrice / epsTTM;
-                              }
+                              if (realTimePrice && epsTTM > 0) fallbackPE = realTimePrice / epsTTM;
                             }
                           }
                         }
-
                         const displayPE = (pe && pe > 0) ? pe : fallbackPE;
-
-                        // Dividend Logic: Prefer Yahoo v7 Quote, Fallback to "From Scratch" calculation
                         let yieldVal = stockQuote?.dividendYield;
                         let rateVal = stockQuote?.dividendRate;
-
                         if (!rateVal && stockInfo?.calculatedDividendRate) {
                           rateVal = stockInfo.calculatedDividendRate;
-                          if (realTimePrice && realTimePrice > 0) {
-                            yieldVal = (rateVal / realTimePrice) * 100;
-                            console.log('Using Calculated Rate:', rateVal, 'Price:', realTimePrice, 'Yield:', yieldVal);
-                          }
+                          if (realTimePrice && realTimePrice > 0) yieldVal = (rateVal / realTimePrice) * 100;
                         }
-                        if (stockInfo?.calculatedDividendRate) console.log('Calculated Dividend Rate Available:', stockInfo.calculatedDividendRate);
-
-                        const displayYield = yieldVal;
-                        const displayRate = rateVal;
-
                         return (
                           <>
                             <View style={styles.statItem}>
-                              <Text style={[styles.statLabel, { color: isDark ? '#aaa' : '#666' }]}>MCap</Text>
+                              <Text style={[styles.statLabel, { color: isDark ? '#8e8e93' : '#666' }]}>MCap</Text>
                               <Text style={[styles.statValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
                                 {displayMCap ? formatAbbreviated(displayMCap) : '-'}
                               </Text>
                             </View>
                             <View style={styles.statItem}>
-                              <Text style={[styles.statLabel, { color: isDark ? '#aaa' : '#666' }]}>Vol</Text>
+                              <Text style={[styles.statLabel, { color: isDark ? '#8e8e93' : '#666' }]}>Vol</Text>
                               <Text style={[styles.statValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
                                 {stockQuote.volume ? formatAbbreviated(stockQuote.volume) : '-'}
                               </Text>
                             </View>
                             <View style={styles.statItem}>
-                              <Text style={[styles.statLabel, { color: isDark ? '#aaa' : '#666' }]}>PE</Text>
+                              <Text style={[styles.statLabel, { color: isDark ? '#8e8e93' : '#666' }]}>PE</Text>
                               <Text style={[styles.statValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
                                 {displayPE ? displayPE.toFixed(1) : '-'}
                               </Text>
                             </View>
                             <View style={styles.statItem}>
-                              <Text style={[styles.statLabel, { color: isDark ? '#aaa' : '#666' }]}>Yield</Text>
-                              <Text
-                                style={[styles.statValue, { color: isDark ? '#fff' : '#1a1a1a' }]}
-                                numberOfLines={1}
-                                adjustsFontSizeToFit
-                              >
-                                {displayRate && displayYield
-                                  ? `${displayRate.toFixed(2)} (${displayYield.toFixed(2)}%)`
-                                  : (displayYield ? `${displayYield.toFixed(2)}%` : '-')}
+                              <Text style={[styles.statLabel, { color: isDark ? '#8e8e93' : '#666' }]}>Yield</Text>
+                              <Text style={[styles.statValue, { color: isDark ? '#fff' : '#1a1a1a' }]} numberOfLines={1} adjustsFontSizeToFit>
+                                {rateVal && yieldVal ? `${rateVal.toFixed(2)} (${yieldVal.toFixed(2)}%)` : (yieldVal ? `${yieldVal.toFixed(2)}%` : '-')}
                               </Text>
                             </View>
                           </>
@@ -1112,104 +985,104 @@ const SearchResultsScreen: React.FC = () => {
                       })()}
                     </View>
                   )}
-
-                  <View style={[styles.historyChartContainer, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
-                    <View style={[styles.priceHistoryRangeContainer, { backgroundColor: isDark ? '#000' : '#f0f0f0' }]}>
-                      {(['1D', '1W', '1M', 'YTD', '1Y', '5Y', 'ALL'] as const).map((range) => (
-                        <TouchableOpacity
-                          key={range}
-                          style={[styles.historyRangeChip, priceHistoryRange === range && (isDark ? styles.historyRangeChipActiveDark : styles.historyRangeChipActive)]}
-                          onPress={() => setPriceHistoryRange(range)}
-                        >
-                          <Text style={[styles.historyRangeText, { color: isDark ? '#aaa' : '#666' }, priceHistoryRange === range && styles.historyRangeTextActive]}>
-                            {range}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    {priceHistoryLoading ? (
-                      <View style={{ height: 180, justifyContent: 'center', alignItems: 'center' }}>
-                        <ActivityIndicator color="#007AFF" />
-                      </View>
-                    ) : (
-                      <StockLineChart
-                        data={priceHistory}
-                        range={priceHistoryRange}
-                        isDark={isDark}
-                        height={180}
-                        previousClose={stockQuote?.previousClose}
-                        formatValue={(val) => formatCurrency(val, (stockQuote?.currency || 'USD') as any)}
-                      />
-                    )}
-                  </View>
-
-                  {existingHolding && existingHolding.shares > 0 && (
-                    <View style={[styles.positionCard, { backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}>
-                      <Text style={[styles.positionTitle, { color: isDark ? '#fff' : '#333' }]}>Your Position</Text>
-                      <View style={styles.positionGrid}>
-                        <View style={styles.positionItem}>
-                          <Text style={[styles.positionLabel, { color: isDark ? '#aaa' : '#666' }]}>Shares</Text>
-                          <Text style={[styles.positionValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>{existingHolding.shares.toLocaleString()}</Text>
-                        </View>
-                        <View style={styles.positionItem}>
-                          <Text style={[styles.positionLabel, { color: isDark ? '#aaa' : '#666' }]}>Cost Basis</Text>
-                          <Text style={[styles.positionValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
-                            {formatCurrency(existingHolding.costBasis || 0, (existingHolding.currency || 'USD') as any)}
-                          </Text>
-                        </View>
-                        <View style={styles.positionItem}>
-                          <Text style={[styles.positionLabel, { color: isDark ? '#aaa' : '#666' }]}>Value</Text>
-                          <Text style={[styles.positionValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
-                            {formatCurrency((realTimePrice || 0) * existingHolding.shares, (stockQuote?.currency || 'USD') as any)}
-                          </Text>
-                        </View>
-                        <View style={styles.positionItem}>
-                          <Text style={[styles.positionLabel, { color: isDark ? '#aaa' : '#666' }]}>Unrealized P&L</Text>
-                          {(() => {
-                            const currentVal = (realTimePrice || 0) * existingHolding.shares;
-                            const cost = (existingHolding.costBasis || 0) * existingHolding.shares;
-                            const profit = currentVal - cost;
-                            const profitPercent = cost > 0 ? (profit / cost) * 100 : 0;
-                            return (
-                              <Text style={[styles.positionValue, profit >= 0 ? styles.positiveText : styles.negativeText]}>
-                                {profit >= 0 ? '+' : '-'}{formatCurrency(Math.abs(profit), (existingHolding.currency || 'USD') as any)}
-                                {"\n"}
-                                <Text style={styles.positionSubValue}>({profit >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%)</Text>
-                              </Text>
-                            );
-                          })()}
-                        </View>
-                      </View>
-                    </View>
-                  )}
-
-                  <TouchableOpacity
-                    style={[styles.addToPortfolioButton, existingHolding ? styles.managePortfolioButton : null]}
-                    onPress={handleAddToPortfolio}
-                  >
-                    <Text style={styles.addToPortfolioText}>
-                      {existingHolding ? `Manage: ${existingHolding.shares} Shares` : '+ Add to Portfolio'}
-                    </Text>
-                  </TouchableOpacity>
                 </View>
+
+                <View style={[styles.historyChartContainer, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
+                  <View style={[styles.chartControls, { backgroundColor: isDark ? '#000' : '#f0f0f0' }]}>
+                    {(['1D', '1W', '1M', 'YTD', '1Y', '5Y', 'ALL'] as const).map((range) => (
+                      <TouchableOpacity
+                        key={range}
+                        style={[styles.historyRangeChip, priceHistoryRange === range && (isDark ? styles.historyRangeChipActiveDark : styles.historyRangeChipActive)]}
+                        onPress={() => setPriceHistoryRange(range)}
+                      >
+                        <Text style={[styles.historyRangeText, { color: isDark ? '#8e8e93' : '#666' }, priceHistoryRange === range && styles.historyRangeTextActive]}>
+                          {range}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {priceHistoryLoading ? (
+                    <View style={{ height: 180, justifyContent: 'center', alignItems: 'center' }}>
+                      <ActivityIndicator color="#007AFF" />
+                    </View>
+                  ) : (
+                    <StockLineChart
+                      data={priceHistory}
+                      range={priceHistoryRange}
+                      isDark={isDark}
+                      height={180}
+                      previousClose={stockQuote?.previousClose}
+                      formatValue={(val) => formatCurrency(val, (stockQuote?.currency || 'USD') as any)}
+                    />
+                  )}
+                </View>
+
+                {existingHolding && existingHolding.shares > 0 && (
+                  <View style={[styles.positionCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
+                    <Text style={[styles.positionTitle, { color: isDark ? '#8e8e93' : '#333' }]}>Your Position</Text>
+                    <View style={styles.positionGrid}>
+                      <View style={styles.positionItem}>
+                        <Text style={[styles.positionLabel, { color: isDark ? '#8e8e93' : '#666' }]}>Shares</Text>
+                        <Text style={[styles.positionValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>{existingHolding.shares.toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.positionItem}>
+                        <Text style={[styles.positionLabel, { color: isDark ? '#8e8e93' : '#666' }]}>Cost Basis</Text>
+                        <Text style={[styles.positionValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                          {formatCurrency(existingHolding.costBasis || 0, (existingHolding.currency || 'USD') as any)}
+                        </Text>
+                      </View>
+                      <View style={styles.positionItem}>
+                        <Text style={[styles.positionLabel, { color: isDark ? '#8e8e93' : '#666' }]}>Value</Text>
+                        <Text style={[styles.positionValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                          {formatCurrency((realTimePrice || 0) * existingHolding.shares, (stockQuote?.currency || 'USD') as any)}
+                        </Text>
+                      </View>
+                      <View style={styles.positionItem}>
+                        <Text style={[styles.positionLabel, { color: isDark ? '#8e8e93' : '#666' }]}>Unrealized P&L</Text>
+                        {(() => {
+                          const currentVal = (realTimePrice || 0) * existingHolding.shares;
+                          const cost = (existingHolding.costBasis || 0) * existingHolding.shares;
+                          const profit = currentVal - cost;
+                          const profitPercent = cost > 0 ? (profit / cost) * 100 : 0;
+                          return (
+                            <Text style={[styles.positionValue, profit >= 0 ? styles.positiveText : styles.negativeText]}>
+                              {profit >= 0 ? '+' : '-'}{formatCurrency(Math.abs(profit), (existingHolding.currency || 'USD') as any)}
+                              {"\n"}
+                              <Text style={styles.positionSubValue}>({profit >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%)</Text>
+                            </Text>
+                          );
+                        })()}
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={[styles.addToPortfolioButton, existingHolding ? styles.managePortfolioButton : null]}
+                  onPress={handleAddToPortfolio}
+                >
+                  <Text style={styles.addToPortfolioText}>
+                    {existingHolding ? `Manage: ${existingHolding.shares} Shares` : '+ Add to Portfolio'}
+                  </Text>
+                </TouchableOpacity>
 
                 {stockInfo.graphData && stockInfo.graphData.length > 0 && (
                   <>
-                    <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#1a1a1a', marginTop: 30 }]}> Trends</Text>
+                    <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Financial Trends</Text>
                     <View style={styles.controlsContainer}>
-                      <View style={[styles.dropdownContainer, { backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: isDark ? '#333' : '#e0e0e0' }]}>
+                      <View style={[styles.dropdownContainer, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
                         <Dropdown
                           style={styles.dropdown}
-                          placeholderStyle={[styles.dropdownItem, { color: isDark ? '#aaa' : '#333' }]}
+                          placeholderStyle={[styles.dropdownItem, { color: isDark ? '#8e8e93' : '#333' }]}
                           selectedTextStyle={[styles.dropdownItem, { color: isDark ? '#fff' : '#333' }]}
                           itemTextStyle={{ color: isDark ? '#eee' : '#333' }}
-                          containerStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', borderWidth: 0, borderRadius: 12, overflow: 'hidden' }}
+                          containerStyle={{ backgroundColor: isDark ? '#1a1a1a' : '#fff', borderWidth: 0, borderRadius: 12, overflow: 'hidden' }}
                           activeColor={isDark ? '#333' : '#f0f0f0'}
                           data={dropdownOptions}
                           maxHeight={300}
                           labelField="label"
                           valueField="value"
-                          placeholder="Select item"
+                          placeholder="Select metric"
                           value={selectedValue}
                           onChange={item => {
                             setSelectedValue(item.value);
@@ -1218,36 +1091,31 @@ const SearchResultsScreen: React.FC = () => {
                         />
                       </View>
 
-                      <View style={[styles.toggleContainer, { backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7' }]}>
+                      <View style={[styles.toggleContainer, { backgroundColor: isDark ? '#1a1a1a' : '#f0f0f0' }]}>
                         <TouchableOpacity
-                          style={[styles.toggleButton, dataInterval === 'yearly' && [styles.toggleButtonActive, { backgroundColor: isDark ? '#3A3A3C' : '#fff' }]]}
+                          style={[styles.toggleButton, dataInterval === 'yearly' && [styles.toggleButtonActive, isDark && styles.historyRangeChipActiveDark]]}
                           onPress={() => setDataInterval('yearly')}
                         >
-                          <Text style={[styles.toggleText, { color: isDark ? '#8E8E93' : '#8E8E93' }, dataInterval === 'yearly' && [styles.toggleTextActive, { color: isDark ? '#fff' : '#000' }]]}>Yearly</Text>
+                          <Text style={[styles.toggleText, { color: isDark ? '#8e8e93' : '#666' }, dataInterval === 'yearly' && styles.toggleTextActive]}>Yearly</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={[styles.toggleButton, dataInterval === 'quarterly' && [styles.toggleButtonActive, { backgroundColor: isDark ? '#3A3A3C' : '#fff' }]]}
+                          style={[styles.toggleButton, dataInterval === 'quarterly' && [styles.toggleButtonActive, isDark && styles.historyRangeChipActiveDark]]}
                           onPress={() => setDataInterval('quarterly')}
                         >
-                          <Text style={[styles.toggleText, { color: isDark ? '#8E8E93' : '#666' }, dataInterval === 'quarterly' && [styles.toggleTextActive, { color: isDark ? '#fff' : '#000' }]]}>Quarterly</Text>
+                          <Text style={[styles.toggleText, { color: isDark ? '#8e8e93' : '#666' }, dataInterval === 'quarterly' && styles.toggleTextActive]}>Quarterly</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
 
-                    <Text style={styles.graphTitle}>
+                    <Text style={[styles.graphTitle, { color: isDark ? '#8e8e93' : '#8e8e93' }]}>
                       {selectedValue ? dropdownOptions.find(o => o.value === selectedValue)?.label : 'Revenue'}
                     </Text>
                     {(() => {
                       const allData = stockInfo.graphData!;
-                      // Using consistent itemsPerPage from component scope
                       const totalItems = allData.length;
-                      const totalPages = Math.ceil(totalItems / itemsPerPage);
-
-                      // Slicing from the end (Newest data first)
                       const end = totalItems - (chartPage * itemsPerPage);
                       const start = Math.max(0, end - itemsPerPage);
                       const visibleData = allData.slice(start, end);
-
                       const globalMin = Math.min(0, ...allData.map(d => d.value));
                       const globalMax = Math.max(0, ...allData.map(d => d.value));
 
@@ -1264,7 +1132,7 @@ const SearchResultsScreen: React.FC = () => {
                               onPress={() => setChartPage(p => p + 1)}
                               disabled={start <= 0}
                             >
-                              <Text style={start <= 0 ? styles.pageTextDisabled : styles.buttonText}>{'< Older'}</Text>
+                              <Ionicons name="chevron-back" size={20} color={start <= 0 ? (isDark ? '#444' : '#ccc') : '#007AFF'} />
                             </TouchableOpacity>
 
                             <Text style={styles.pageIndicator}>Page {chartPage + 1}</Text>
@@ -1274,7 +1142,7 @@ const SearchResultsScreen: React.FC = () => {
                               onPress={() => setChartPage(p => Math.max(0, p - 1))}
                               disabled={chartPage === 0}
                             >
-                              <Text style={chartPage === 0 ? styles.pageTextDisabled : styles.buttonText}>{'Newer >'}</Text>
+                              <Ionicons name="chevron-forward" size={20} color={chartPage === 0 ? (isDark ? '#444' : '#ccc') : '#007AFF'} />
                             </TouchableOpacity>
                           </View>
                         </>
@@ -1282,551 +1150,327 @@ const SearchResultsScreen: React.FC = () => {
                     })()}
                   </>
                 )}
-
-                {investorInfo && investorInfo.length > 0 && (
-                  <Text style={[styles.cardTitle, { color: isDark ? '#fff' : '#000' }]}>Top Institutional Holders</Text>
-                )}
               </View>
-            )
-            }
-            {
-              !loading && !investorInfo && !error && (
-                <View style={styles.invLoading}>
-                  <ActivityIndicator size="small" color={isDark ? '#eee' : '#999'} />
-                  <Text style={[styles.noDataText, { color: isDark ? '#aaa' : '#666' }]}>Loading investor data...</Text>
-                </View>
-              )
-            }
-            <Modal
-              animationType="slide"
-              transparent={true}
-              visible={isPortfolioModalVisible}
-              onRequestClose={() => setIsPortfolioModalVisible(false)}
-            >
-              <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setIsPortfolioModalVisible(false); }}>
-                <View style={styles.modalOverlay}>
-                  <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff', shadowOpacity: isDark ? 0.4 : 0.2 }]}>
-                      <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>
-                        {existingHolding ? `Manage ${stockSymbol}` : `Add ${stockSymbol} to Portfolio`}
-                      </Text>
+            )}
 
-                      {existingHolding && (
-                        <View style={[styles.modeTabs, { backgroundColor: isDark ? '#2c2c2e' : '#f0f0f0' }]}>
-                          <TouchableOpacity
-                            style={[styles.modeTab, portfolioMode === 'buy' && (isDark ? { backgroundColor: '#3a3a3c' } : styles.modeTabActive)]}
-                            onPress={() => setPortfolioMode('buy')}
-                          >
-                            <Text style={[styles.modeTabText, portfolioMode === 'buy' && styles.modeTabTextActive]}>Buy</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.modeTab, portfolioMode === 'sell' && (isDark ? { backgroundColor: '#3a3a3c' } : styles.modeTabActive)]}
-                            onPress={() => setPortfolioMode('sell')}
-                          >
-                            <Text style={[styles.modeTabText, portfolioMode === 'sell' && styles.modeTabTextActive]}>Sell</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.modeTab, portfolioMode === 'history' && (isDark ? { backgroundColor: '#3a3a3c' } : styles.modeTabActive)]}
-                            onPress={() => {
-                              setPortfolioMode('history');
-                              fetchTransactions(stockSymbol);
-                            }}
-                          >
-                            <Text style={[styles.modeTabText, portfolioMode === 'history' && styles.modeTabTextActive]}>History</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-
-                      {portfolioMode === 'history' ? (
-                        <View style={{ height: 350 }}>
-                          <TransactionList
-                            transactions={transactions}
-
-                            onDelete={handleDeleteTransaction}
-                            currency={stockQuote?.currency}
-                          />
-                          <TouchableOpacity
-                            style={[styles.modalButton, styles.cancelButton, { marginTop: 10, alignSelf: 'center', width: '100%', backgroundColor: isDark ? '#3a3a3c' : '#f0f0f0' }]}
-                            onPress={() => setIsPortfolioModalVisible(false)}
-                          >
-                            <Text style={[styles.cancelButtonText, { color: isDark ? '#fff' : '#444' }]}>Close</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <>
-
-                          <TextInput
-                            style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
-                            placeholder={portfolioMode === 'buy' ? "Number of shares to add" : "Number of shares to sell"}
-                            keyboardType="numeric"
-                            value={sharesToAdd}
-                            onChangeText={setSharesToAdd}
-                            placeholderTextColor={isDark ? '#666' : '#999'}
-                            autoFocus
-                          />
-
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
-                            <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>{portfolioMode === 'buy' ? 'Purchase Price' : 'Sale Price'} ({stockQuote?.currency || 'USD'})</Text>
-                            {isPriceLoading && <ActivityIndicator size="small" color="#007AFF" style={{ marginLeft: 8 }} />}
-                          </View>
-                          <TextInput
-                            style={[styles.modalInput, { backgroundColor: isDark ? '#2c2c2e' : '#f9f9f9', color: isDark ? '#fff' : '#000', borderColor: isDark ? '#3a3a3c' : '#e0e0e0' }]}
-                            placeholder={`Price per share in ${stockQuote?.currency || 'USD'}`}
-                            keyboardType="numeric"
-                            value={purchasePrice}
-                            onChangeText={setPurchasePrice}
-                            placeholderTextColor={isDark ? '#666' : '#999'}
-                          />
-
-                          <TouchableOpacity
-                            style={[styles.dateRow, { backgroundColor: isDark ? '#2c2c2e' : '#f5f5f5' }]}
-                            onPress={() => setShowDatePicker(true)}
-                          >
-                            <View style={styles.dateLabelGroup}>
-                              <MaterialIcons name="calendar-today" size={14} color={isDark ? '#aaa' : '#666'} style={styles.calendarIcon} />
-                              <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>Transaction Date</Text>
-                            </View>
-                            <Text style={[styles.datePickerText, { color: isDark ? '#fff' : '#1a1a1a' }]}>
-                              {transactionDate.toLocaleDateString()}
-                            </Text>
-                          </TouchableOpacity>
-
-                          {showDatePicker && (
-                            <Modal
-                              transparent={true}
-                              animationType="fade"
-                              visible={showDatePicker}
-                              onRequestClose={() => setShowDatePicker(false)}
-                            >
-                              <TouchableOpacity
-                                style={styles.datePickerOverlay}
-                                activeOpacity={1}
-                                onPress={() => setShowDatePicker(false)}
-                              >
-                                <View style={[styles.datePickerContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
-                                  <DateTimePicker
-                                    value={transactionDate}
-                                    mode="date"
-                                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                                    onChange={(event, selectedDate) => {
-                                      setShowDatePicker(false);
-                                      if (selectedDate) setTransactionDate(selectedDate);
-                                    }}
-                                    maximumDate={new Date()}
-                                    themeVariant={isDark ? "dark" : "light"}
-                                  />
-                                </View>
-                              </TouchableOpacity>
-                            </Modal>
-                          )}
-
-                          <View style={styles.modalButtons}>
-                            <TouchableOpacity
-                              style={[styles.modalButton, styles.cancelButton, { backgroundColor: isDark ? '#3a3a3c' : '#f0f0f0' }]}
-                              onPress={() => {
-                                setIsPortfolioModalVisible(false);
-                                setSharesToAdd('');
-                                setEditingTransaction(null);
-                              }}
-                            >
-                              <Text style={[styles.cancelButtonText, { color: isDark ? '#fff' : '#444' }]}>Cancel</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                              style={[styles.modalButton, styles.saveButton]}
-                              disabled={isSubmitting}
-                              onPress={async () => {
-                                const shares = parseFloat(sharesToAdd);
-                                const priceInLocal = parseFloat(purchasePrice);
-
-                                if (isNaN(shares) || shares <= 0) {
-                                  Alert.alert("Invalid input", "Please enter a valid number of shares.");
-                                  return;
-                                }
-
-                                if (isNaN(priceInLocal) || priceInLocal <= 0) {
-                                  Alert.alert("Invalid input", "Please enter a valid price.");
-                                  return;
-                                }
-
-                                setIsSubmitting(true);
-                                try {
-                                  if (editingTransaction) {
-                                    await updateTransaction(editingTransaction.id!, {
-                                      type: portfolioMode as 'buy' | 'sell',
-                                      shares: shares,
-                                      price: priceInLocal,
-                                      date: transactionDate.toISOString()
-                                    });
-                                    Alert.alert("Success", "Transaction updated.");
-
-                                    // Refresh holding
-                                    const holding = await getHolding(stockSymbol);
-                                    setExistingHolding(holding);
-
-                                    // Go back to history
-                                    setPortfolioMode('history');
-                                    fetchTransactions(stockSymbol);
-                                    setEditingTransaction(null);
-                                  } else {
-                                    const sharesChange = portfolioMode === 'buy' ? shares : -shares;
-
-                                    // Validate sell amount
-                                    if (portfolioMode === 'sell') {
-                                      if (!existingHolding || existingHolding.shares < shares) {
-                                        Alert.alert("Invalid Transaction", `You cannot sell ${shares} shares because you only own ${existingHolding?.shares || 0}.`);
-                                        setIsSubmitting(false);
-                                        return;
-                                      }
-                                    }
-                                    // Convert back to USD for storage
-                                    const priceInUsd = priceInLocal;
-
-                                    await addHolding({
-                                      symbol: stockSymbol,
-                                      companyName: stockInfo?.companyName || stockSymbol,
-                                      shares: sharesChange,
-                                      price: priceInUsd,
-                                      currency: stockQuote?.currency || 'USD',
-                                      lastTransactionDate: transactionDate.toISOString()
-                                    });
-
-                                    Alert.alert("Success", existingHolding ? "Portfolio updated." : `${stockSymbol} added to your portfolio.`);
-                                    setIsPortfolioModalVisible(false);
-                                    setSharesToAdd('');
-                                    setPurchasePrice('');
-
-                                    // Refresh holding in background
-                                    const holding = await getHolding(stockSymbol);
-                                    setExistingHolding(holding);
-                                  }
-                                } catch (err) {
-                                  console.error("Error updating portfolio:", err);
-                                  Alert.alert("Error", "Could not save. Please try again.");
-                                } finally {
-                                  setIsSubmitting(false);
-                                }
-                              }}
-                            >
-                              {isSubmitting ? (
-                                <ActivityIndicator size="small" color="#fff" />
-                              ) : (
-                                <Text style={styles.saveButtonText}>{editingTransaction ? 'Update' : 'Confirm'}</Text>
-                              )}
-                            </TouchableOpacity>
-                          </View>
-                        </>
-                      )}
-                    </View>
-                  </TouchableWithoutFeedback>
-                </View>
-              </TouchableWithoutFeedback>
-            </Modal>
+            {investorInfo && investorInfo.length > 0 && (
+              <Text style={[styles.investorCardTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Top Institutional Holders</Text>
+            )}
           </>
         }
-        // ListEmptyComponent={
-        //   !loading && investorInfo && investorInfo.length === 0 ? (
-        //     <Text style={styles.noDataText}>No investor holdings found.</Text>
-        //   ) : null
-        // }
         contentContainerStyle={styles.scrollViewContent}
       />
-    </View >
+
+      <TransactionModal
+        isVisible={isPortfolioModalVisible}
+        onClose={() => setIsPortfolioModalVisible(false)}
+        symbol={stockSymbol}
+        companyName={stockInfo?.companyName || stockSymbol}
+        currency={stockQuote?.currency || 'USD'}
+        existingShares={existingHolding?.shares || 0}
+        initialMode={existingHolding ? portfolioMode : 'buy'}
+        onSuccess={async () => {
+          const updated = await getHolding(stockSymbol);
+          setExistingHolding(updated);
+        }}
+        currentPrice={realTimePrice || stockQuote?.price}
+      />
+
+    </View>
   );
 };
-import { Dimensions } from 'react-native';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
-  scrollViewContent: {
-    paddingBottom: 20,
+  container: {
+    flex: 1,
   },
-  card: {
+  scrollViewContent: {
+    paddingBottom: 40,
+  },
+  loaderContainer: {
+    paddingVertical: 60,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 20,
   },
-  priceContainer: {
+  loaderText: {
+    marginTop: 12,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  errorText: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  // Header Section
+  headerCard: {
+    paddingTop: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    marginHorizontal: 20,
+    marginTop: Platform.OS === 'ios' ? 60 : 40,
+    borderRadius: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 10,
+    borderWidth: 1,
+  },
+  headerTopRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    marginTop: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 4,
+    minHeight: 44,
+    position: 'relative',
   },
-  historyChartContainer: {
-    width: SCREEN_WIDTH - 32,
-    marginTop: 20,
-    marginBottom: 10,
-    padding: 16,
-    borderRadius: 20,
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 2,
   },
-  priceHistoryRangeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 4,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  historyRangeChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    minWidth: 44,
-    alignItems: 'center',
-  },
-  historyRangeChipActive: {
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  historyRangeChipActiveDark: {
-    backgroundColor: '#1c1c1e',
-  },
-  historyRangeText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  historyRangeTextActive: {
-    color: '#007AFF',
-    fontWeight: '700',
-  },
-  priceLabel: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-    marginRight: 6,
-  },
-  priceValue: {
-    fontSize: 24,
+  screenTitle: {
+    fontSize: 23,
     fontWeight: '800',
-    color: '#34C759',
-  },
-  datePickerOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20
-  },
-  datePickerContent: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 10,
+    textAlign: 'center',
     width: '100%',
-    maxWidth: 340,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5
+    paddingHorizontal: 54, // Clear space for back button (44 width + margin)
+  },
+  priceContainer: {
+    marginBottom: 20,
+    alignItems: 'center',
   },
   priceValueWrapper: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 4,
+  },
+  priceValue: {
+    fontSize: 36,
+    fontWeight: '800',
+    letterSpacing: -1,
   },
   priceChange: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
-  positive: {
-    color: '#34C759',
-  },
-  negative: {
-    color: '#FF3B30',
-  },
-
-
-  investorInfoCard: {
-    marginTop: 0,
-    width: SCREEN_WIDTH - 40, // Responsive width: screen width - horizontal padding
-    backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    marginBottom: 10,
-    alignSelf: 'center', // Ensure it centers
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    marginTop: 30,
-    marginLeft: 16,
-  },
-
-  loadingContainer: {
+  extendedHoursContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 20,
+    justifyContent: 'center',
+    marginTop: 6,
   },
-  loadingText: {
-    marginLeft: 10,
-    fontSize: 16,
-  },
-  invLoading: {
-    marginTop: 20,
-  },
-  investorItem: {
-    marginBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingBottom: 8,
-  },
-  investorName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  institutionName: {
-    fontSize: 13,
-    color: 'gray',
-    marginBottom: 2,
-  },
-  holdingDetails: {
-    marginLeft: 16,
-  },
-
-
-  noDataText: {
-    color: 'gray',
-    fontSize: 13,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    paddingHorizontal: 10,
-  },
-  graphTitle: {
-    marginTop: 10, // Significantly reduced
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
+  extendedHoursLabel: {
+    fontSize: 12,
+    fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    color: '#8E8E93',
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'left',
-    width: SCREEN_WIDTH - 32,
-    alignSelf: 'center',
-    marginBottom: 5,
+  extendedHoursValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginLeft: 6,
   },
+  positive: { color: '#34C759' },
+  negative: { color: '#FF3B30' },
+  positiveSmall: { color: '#34C759' },
+  negativeSmall: { color: '#FF3B30' },
+  positiveText: { color: '#34C759' },
+  negativeText: { color: '#FF3B30' },
 
-  container: {
-    flex: 1,
-    paddingTop: 60,
-    justifyContent: 'center',
-  },
+  // Stats Grid
   statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: SCREEN_WIDTH - 40,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    marginTop: 10,
-    marginBottom: 5,
+    paddingVertical: 24,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginTop: 12,
   },
   statItem: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
   },
   statLabel: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 2,
+    letterSpacing: 1,
+    marginBottom: 6,
   },
   statValue: {
     fontSize: 14,
     fontWeight: '800',
   },
-  extendedHoursContainer: {
+
+  // Charts Section
+  historyChartContainer: {
+    marginTop: 24,
+    marginHorizontal: 20,
+    padding: 20,
+    borderRadius: 28,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
+    elevation: 5,
+  },
+  chartControls: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 6,
+    borderRadius: 14,
+    marginBottom: 24,
+  },
+  historyRangeChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: -8,
-    marginBottom: 8,
+    justifyContent: 'center',
   },
-  extendedHoursLabel: {
-    fontSize: 11,
-    fontWeight: '600',
+  historyRangeChipActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  extendedHoursValue: {
+  historyRangeChipActiveDark: {
+    backgroundColor: '#2c2c2e',
+  },
+  historyRangeText: {
     fontSize: 11,
     fontWeight: '700',
   },
-  positiveSmall: {
-    color: '#34C759',
-  },
-  negativeSmall: {
-    color: '#FF3B30',
-  },
-  labels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 5,
-    marginTop: 5,
-    position: 'absolute',
-    width: 100,
-    top: 210,
-  },
-  label: {
-    textAlign: 'center',
-    fontSize: 14,
-    fontFamily: 'Arial, sans-serif',
-    position: 'absolute',
-  },
-  valueDisplay: {
-    position: 'absolute',
-    top: -10,
-    left: 0,
-    width: '100%',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    padding: 5,
-  },
-  valueText: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  historyRangeTextActive: {
     color: '#007AFF',
   },
 
+  // Position Card
+  positionCard: {
+    marginTop: 24,
+    marginHorizontal: 20,
+    padding: 24,
+    borderRadius: 28,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  positionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 20,
+  },
+  positionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 20,
+  },
+  positionItem: {
+    width: '45%',
+  },
+  positionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  positionValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  positionSubValue: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
 
+  // Buttons
+  addToPortfolioButton: {
+    backgroundColor: '#007AFF',
+    marginHorizontal: 20,
+    marginTop: 24,
+    height: 56,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 5,
+  },
+  managePortfolioButton: {
+    backgroundColor: '#34C759',
+    shadowColor: '#34C759',
+  },
+  addToPortfolioText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+
+  // Trends Section
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginHorizontal: 20,
+    marginTop: 40,
+    marginBottom: 20,
+  },
   controlsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: SCREEN_WIDTH - 32,
-    marginTop: 15,
-    marginBottom: 10, // Reduced from 20 to be closer to graph
+    marginHorizontal: 20,
+    marginBottom: 24,
     gap: 12,
   },
+  dropdownContainer: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingLeft: 4,
+  },
+  dropdown: {
+    height: 46,
+    paddingHorizontal: 12,
+  },
+  dropdownItem: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   toggleContainer: {
+    flex: 1,
     flexDirection: 'row',
-    borderRadius: 12,
-    padding: 2,
-    height: 44,
-    width: '48%',
-    backgroundColor: '#F2F2F7',
+    height: 48,
+    borderRadius: 14,
+    padding: 4,
   },
   toggleButton: {
     flex: 1,
     borderRadius: 10,
-    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1836,297 +1480,330 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
-  },
-  dropdownContainer: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    height: 44,
-    width: '46%',
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    marginLeft: 16,
-  },
-  dropdown: {
-    height: 44,
-    paddingHorizontal: 12,
-  },
-  dropdownItem: {
-    fontSize: 16,
-    color: '#333',
-  },
-  title: {
-    flex: 1,
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    marginTop: 10,
-  },
-  errorText: {
-    color: 'red',
-    textAlign: 'center',
-    marginTop: 10,
+    elevation: 2,
   },
   toggleText: {
-    color: '#666',
-    fontWeight: '600',
-    fontSize: 14,
+    fontSize: 12,
+    fontWeight: '700',
   },
   toggleTextActive: {
-    color: '#000',
-    fontWeight: '700',
+    color: '#007AFF',
+  },
+  graphTitle: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    marginBottom: 20,
   },
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 15,
-    marginBottom: 10,
+    marginVertical: 24,
+    gap: 16,
   },
   pageButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 20,
-    marginHorizontal: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,122,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   pageButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.3,
   },
   buttonText: {
-    alignItems: 'center',
-
+    fontSize: 18,
     color: '#007AFF',
-    fontWeight: '600',
-  },
-  pageTextDisabled: {
-    color: '#999',
+    fontWeight: '700',
   },
   pageIndicator: {
-    fontSize: 14,
-    color: '#666',
-    marginHorizontal: 15,
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#8e8e93',
   },
 
-  backButton: {
-    paddingLeft: 8
+  // Investors List
+  investorCardTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 20,
   },
-  backButtonText: {
-    fontSize: 24,
-    color: '#007AFF',
-    fontWeight: '600',
+  investorInfoCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  titleRow: {
-    marginRight: 16,
+  investorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 16,
+    gap: 12,
   },
-  positionCard: {
+  investorAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  investorMainInfo: {
+    flex: 1,
+  },
+  percentBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  percentBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#007AFF',
+  },
+  investorItem: {
+    gap: 4,
+  },
+  investorName: {
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  institutionName: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  holdingDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  detailLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  detailText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  invLoading: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  noDataText: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: '600',
+    fontStyle: 'italic',
+  },
+
+  // Modals
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
+    padding: 32,
+    paddingBottom: 48,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: -0.8,
+  },
+  modeTabs: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 32,
+  },
+  modeTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  modeTabActive: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    width: SCREEN_WIDTH - 32,
-    marginVertical: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
-  },
-  positionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  positionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  positionItem: {
-    width: '48%',
-    marginBottom: 12,
-  },
-  positionLabel: {
-    fontSize: 11,
-    color: '#666',
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  positionValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1a1a1a',
-  },
-  positionSubValue: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  positiveText: {
-    color: '#34C759',
-  },
-  negativeText: {
-    color: '#FF3B30',
-  },
-  addToPortfolioButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginTop: 10,
-    alignSelf: 'center',
-  },
-  managePortfolioButton: {
-    backgroundColor: '#34C759',
-  },
-  addToPortfolioText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  modeTabs: {
-    flexDirection: 'row',
-    marginBottom: 20,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-    padding: 4,
-  },
-  modeTab: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 6,
-  },
-  modeTabActive: {
-    backgroundColor: '#fff',
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
+  },
+  modeTabActiveDark: {
+    backgroundColor: '#2c2c2e',
   },
   modeTabText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
+    fontWeight: '700',
   },
   modeTabTextActive: {
     color: '#007AFF',
+    fontWeight: '900',
+  },
+  modalForm: {
+    gap: 4,
+  },
+  inputGroup: {
+    marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 8,
-    marginTop: 2,
-    alignSelf: 'flex-start',
-    // width: '100%',
-    // paddingLeft: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '85%',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 4,
-    marginBottom: 20,
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 10,
   },
   modalInput: {
+    height: 56,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 12,
+    paddingHorizontal: 16,
     fontSize: 16,
-    color: '#1a1a1a',
-    backgroundColor: '#f9f9f9',
-    marginBottom: 24,
+    fontWeight: '700',
   },
-  modalButtons: {
+  datePickerTrigger: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  modalButton: {
-    flex: 0.48,
-    paddingVertical: 12,
-    borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#f0f0f0',
-  },
-  cancelButtonText: {
-    color: '#444',
-    fontWeight: '600',
-  },
-  saveButton: {
-    backgroundColor: '#007AFF',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  datePickerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    padding: 12,
+    height: 56,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    paddingHorizontal: 16,
+    marginTop: 8,
     marginBottom: 24,
-  },
-  calendarIcon: {
-    marginRight: 8,
-  },
-  datePickerText: {
-    fontSize: 16,
-    color: '#1a1a1a',
-    fontWeight: '500',
   },
   dateRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 20,
-    marginTop: 10,
+    height: 56,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    marginBottom: 32,
   },
   dateLabelGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+  },
+  datePickerText: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  modalButton: {
+    flex: 1,
+    height: 56,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: 'rgba(142,142,147,0.12)',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  saveButton: {
+    backgroundColor: '#007AFF',
+    height: 58,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+  datePickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  datePickerContent: {
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 44 : 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 20,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  bottomSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(142,142,147,0.3)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 12,
+  },
+  datePickerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
 });
+
 
 
 export default SearchResultsScreen;

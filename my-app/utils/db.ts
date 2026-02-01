@@ -445,16 +445,23 @@ export const backfillPortfolioHistory = async (startDate?: Date) => {
         const allTransactions = await getAllTransactions();
 
         if (allTransactions.length === 0) {
-            console.log("No transactions found, nothing to backfill.");
+            console.log("No transactions found. Clearing entire portfolio history.");
+            await database.runAsync('DELETE FROM portfolio_history;');
             return;
         }
 
         // Determine effective start date if not provided
         let effectiveStartDate = startDate;
+
         if (!effectiveStartDate) {
             const earliestTimestamp = Math.min(...allTransactions.map(t => new Date(t.date).getTime()));
             effectiveStartDate = new Date(earliestTimestamp);
-            console.log(`No start date provided, using earliest transaction date: ${effectiveStartDate.toISOString()}`);
+            console.log(`Full history rebuild triggered. using earliest transaction date: ${effectiveStartDate.toISOString()}`);
+
+            // For a full rebuild, clear the existing history to ensure no artifacts remain
+            await database.runAsync('DELETE FROM portfolio_history;');
+        } else {
+            console.log(`Rewriting portfolio history from ${effectiveStartDate.toISOString()}`);
         }
 
         // 1. Calculate History Traces for ALL holdings
@@ -795,23 +802,23 @@ export const deleteTransaction = async (id: number) => {
 export const removeHolding = async (symbol: string) => {
     const database = await initDb();
 
-    // Get the holding first to clean up its history
-    const holding = await getHolding(symbol);
-    if (holding) {
-        await removePortfolioHistoryImpact(holding);
-    }
+    console.log(`Removing holding ${symbol} and all tracers...`);
 
-    // Delete the holding
+    // 1. Delete all associated transactions FIRST
+    // This ensures backfillPortfolioHistory sees a clean state
+    await database.runAsync(
+        'DELETE FROM transactions WHERE symbol = ?;',
+        [symbol.toUpperCase()]
+    );
+
+    // 2. Delete the holding
     await database.runAsync(
         'DELETE FROM portfolio WHERE symbol = ?;',
         [symbol.toUpperCase()]
     );
 
-    // Delete all associated transactions
-    await database.runAsync(
-        'DELETE FROM transactions WHERE symbol = ?;',
-        [symbol.toUpperCase()]
-    );
+    // 3. Full Rebuild of History (will clear artifacts)
+    await backfillPortfolioHistory();
 };
 
 export const getPortfolio = async (): Promise<PortfolioHolding[]> => {

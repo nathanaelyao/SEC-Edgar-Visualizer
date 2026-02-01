@@ -29,13 +29,7 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
     const chartWidth = screenWidth - padding * 2;
     const chartHeight = height - padding * 2;
 
-    if (data.length < 2) {
-        return (
-            <View style={[styles.container, { height }]}>
-                <Text style={styles.noData}>Collecting historical data...</Text>
-            </View>
-        );
-    }
+
 
     // --- Data Normalization ---
     // Rule: If showBenchmark is true, we ONLY show Percentage Change.
@@ -213,6 +207,15 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
         }
         return 0;
     }, [activeIndex, showBenchmark, benchmarkData, data, normalizedPortfolio]);
+
+    // --- SAFE EARLY RETURN AFTER ALL HOOKS ---
+    if (data.length < 2) {
+        return (
+            <View style={[styles.container, { height }]}>
+                <Text style={styles.noData}>Collecting historical data...</Text>
+            </View>
+        );
+    }
 
     // Interaction
     const handleTouch = (event: any) => {

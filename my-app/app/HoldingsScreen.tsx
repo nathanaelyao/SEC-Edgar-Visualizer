@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   summaryValue: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '900',
     letterSpacing: -1,
   },

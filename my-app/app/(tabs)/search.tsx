@@ -515,7 +515,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 4,
   },
   cardLabel: {
     fontSize: 12,
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
     fontSize: 42,
     fontWeight: '900',
     letterSpacing: -1,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   cardBottom: {
     flexDirection: 'row',
