@@ -575,6 +575,7 @@ const PortfolioScreen: React.FC = () => {
         const costBasis = item.costBasis || currentPrice;
         const profit = (currentPrice - costBasis) * item.shares;
         const profitPercent = costBasis > 0 ? ((currentPrice - costBasis) / costBasis) * 100 : 0;
+        const isPositive = profit >= 0;
 
         const displayValue = formatCurrency(convertCurrency(value, item.currency || 'USD', currency, exchangeRates), currency);
         const displayProfit = formatCurrency(convertCurrency(Math.abs(profit), item.currency || 'USD', currency, exchangeRates), currency);
@@ -582,115 +583,82 @@ const PortfolioScreen: React.FC = () => {
 
         return (
             <TouchableOpacity
-                style={[styles.holdingItem, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}
+                style={[styles.premiumCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}
                 onPress={() => navigation.navigate('SearchResultsScreen', { stockSymbol: item.symbol })}
+                activeOpacity={0.8}
             >
-                <View style={[styles.colorIndicator, { backgroundColor: colors[index % colors.length] }]} />
-                <View style={styles.holdingInfo}>
-                    <View style={styles.symbolHeader}>
-                        <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                            <Text style={[styles.symbol, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.symbol}</Text>
-
+                <View style={styles.cardHeader}>
+                    <View style={styles.symbolInfo}>
+                        <View style={[styles.logoBadge, { backgroundColor: colors[index % colors.length] }]}>
+                            <Text style={styles.logoText}>{item.symbol.substring(0, 1)}</Text>
                         </View>
-
+                        <View style={{ marginLeft: 12 }}>
+                            <Text style={[styles.cardSymbol, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.symbol}</Text>
+                            <Text style={styles.cardCompanyName} numberOfLines={1}>{item.companyName}</Text>
+                        </View>
                     </View>
-                    <Text style={[styles.companyName, { color: isDark ? '#aaa' : '#666' }]} numberOfLines={1}>{item.companyName}</Text>
-
-                    <Text style={[styles.shares, { color: isDark ? '#aaa' : '#666', fontSize: 12 }]}>
-                        {item.shares} {item.shares === 1 ? 'share' : 'shares'}
-                    </Text>
-
+                    <View style={styles.actionButtons}>
+                        <TouchableOpacity
+                            style={[styles.miniButton, { backgroundColor: isDark ? '#333' : '#f0f2f5' }]}
+                            onPress={() => {
+                                setSelectedHolding(item);
+                                setManageMode('buy');
+                                setEditingTransaction(null);
+                                setSharesAmount('');
+                                setPriceAmount((item.price || 0).toString());
+                                setTransactionDate(new Date());
+                                fetchTransactions(item.symbol);
+                                setIsManageModalVisible(true);
+                            }}
+                        >
+                            <MaterialIcons name="add" size={18} color="#007AFF" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.miniButton, { backgroundColor: isDark ? 'rgba(255, 59, 48, 0.1)' : 'rgba(255, 59, 48, 0.05)' }]}
+                            onPress={() => handleDelete(item.symbol)}
+                        >
+                            <MaterialIcons name="delete-outline" size={18} color="#FF3B30" />
+                        </TouchableOpacity>
+                    </View>
                 </View>
-                <View style={styles.sharesContainer}>
-                    <Text style={[styles.value, { color: isDark ? '#fff' : '#1a1a1a' }]}>{displayValue}</Text>
-                    <View style={styles.profitContainer}>
-                        {item.priceChange !== undefined ? (
-                            <Text style={[styles.itemPriceChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
-                                {item.priceChange >= 0 ? '+' : ''}{formatCurrency(convertCurrency(Math.abs((item.priceChange || 0) * item.shares), item.currency || 'USD', currency, exchangeRates), currency).replace(CURRENCY_SYMBOLS[currency] || '$', '')} ({item.pricePercent?.toFixed(2)}%)
-                            </Text>
-                        ) : (
-                            <Text style={[styles.itemPriceChange, { color: '#8e8e93' }]}>--</Text>
-                        )}
+
+                <View style={styles.cardContent}>
+                    <View style={styles.dataColumn}>
+                        <Text style={styles.dataLabel}>HOLDINGS</Text>
+                        <Text style={[styles.dataValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.shares} <Text style={styles.dataUnit}>shares</Text></Text>
                     </View>
-                    <View style={styles.holdingFooter}>
-                        {(item.realizedProfit || 0) !== 0 && (
-                            <Text style={[styles.realizedBadge, (item.realizedProfit || 0) > 0 ? (isDark ? styles.positiveBadgeDark : styles.positiveBadge) : (isDark ? styles.negativeBadgeDark : styles.negativeBadge)]}>
-                                Realized: {(item.realizedProfit || 0) >= 0 ? '+' : '-'}{displayRealizedProfitItem}
-                            </Text>
-                        )}
+                    <View style={[styles.dataColumn, { alignItems: 'flex-end' }]}>
+                        <Text style={styles.dataLabel}>MARKET VALUE</Text>
+                        <Text style={[styles.dataValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>{displayValue}</Text>
                     </View>
                 </View>
-                <TouchableOpacity
-                    style={styles.manageButton}
-                    onPress={() => {
-                        setSelectedHolding(item);
-                        setManageMode('buy');
-                        setEditingTransaction(null);
-                        setSharesAmount('');
-                        setPriceAmount((item.price || 0).toString());
-                        setTransactionDate(new Date());
-                        fetchTransactions(item.symbol);
-                        setIsManageModalVisible(true);
-                    }}
-                >
-                    <MaterialIcons name="edit" size={22} color="#007AFF" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => handleDelete(item.symbol)}
-                >
-                    <MaterialIcons name="delete-outline" size={22} color="#FF3B30" />
-                </TouchableOpacity>
+
+                <View style={[styles.cardFooter, { borderTopColor: isDark ? '#333' : '#f0f0f0' }]}>
+                    <View style={styles.profitInfo}>
+                        <Text style={[styles.footerProfit, isPositive ? styles.positive : styles.negative]}>
+                            {isPositive ? '+' : '-'}{displayProfit} ({profitPercent.toFixed(2)}%)
+                        </Text>
+                        <Text style={styles.footerLabel}>Total Return</Text>
+                    </View>
+                    {item.priceChange !== undefined && (
+                        <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={[styles.footerDayChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
+                                {item.priceChange >= 0 ? '+' : ''}{item.pricePercent?.toFixed(2)}%
+                            </Text>
+                            <Text style={styles.footerLabel}>Today</Text>
+                        </View>
+                    )}
+                </View>
             </TouchableOpacity>
         );
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
-            <View style={styles.headerRow}>
-                <TouchableOpacity
-                    style={styles.historyButton}
-                    onPress={() => {
-                        loadGlobalHistory();
-                        setIsHistoryModalVisible(true);
-                    }}
-                >
-                    <MaterialIcons name="history" size={24} color={isDark ? '#fff' : '#1a1a1a'} />
-                </TouchableOpacity>
-                <Text style={[styles.title, { color: isDark ? '#fff' : '#1a1a1a' }]}>My Portfolio</Text>
-                <View style={{ width: 24 }} />
-            </View>
-
-            <View style={[styles.headerStats, { backgroundColor: isDark ? '#1e1e1e' : '#fff', marginBottom: 12 }]}>
-                <View style={styles.totalValueContainer}>
-                    <Text style={styles.totalValueLabel}>Total Value</Text>
-                    <Text style={[styles.totalValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>{displayTotalValue}</Text>
-                </View>
-
-                <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#eee' }]} />
-
-                <View style={styles.statsColumn}>
-
-                    <View style={styles.statRow}>
-                        <Text style={styles.statLabel}>Unrealized:</Text>
-                        <Text style={[styles.statValue, totalProfit >= 0 ? styles.positive : styles.negative]}>
-                            {totalProfit >= 0 ? '+' : '-'}{displayUnrealized}
-                        </Text>
-                    </View>
-                    <View style={styles.statRow}>
-                        <Text style={styles.statLabel}>Realized:</Text>
-                        <Text style={[styles.statValue, totalRealizedProfit >= 0 ? styles.positive : styles.negative]}>
-                            {totalRealizedProfit >= 0 ? '+' : '-'}{displayRealized}
-                        </Text>
-                    </View>
-                </View>
-            </View>
-
-
-
-
+        <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#f8f9fa' }]}>
             {loading && portfolio.length === 0 ? (
-                <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
+                <View style={styles.loaderContainer}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                </View>
             ) : openPositions.length > 0 || closedPositions.length > 0 ? (
                 <FlatList
                     data={openPositions}
@@ -698,6 +666,53 @@ const PortfolioScreen: React.FC = () => {
                     renderItem={renderItem}
                     ListHeaderComponent={
                         <View>
+                            <View style={styles.headerContainer}>
+                                <View style={styles.headerRow}>
+                                    <TouchableOpacity
+                                        style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
+                                        onPress={() => {
+                                            loadGlobalHistory();
+                                            setIsHistoryModalVisible(true);
+                                        }}
+                                    >
+                                        <MaterialIcons name="history" size={24} color={isDark ? '#fff' : '#1a1a1a'} />
+                                    </TouchableOpacity>
+                                    <Text style={[styles.title, { color: isDark ? '#fff' : '#1a1a1a' }]}>Portfolio</Text>
+                                    <View style={{ width: 44 }} />
+                                </View>
+
+                                <View style={[styles.mainDashboard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
+                                    <View style={styles.totalValueSection}>
+                                        <Text style={styles.dashboardLabel}>Total Balance</Text>
+                                        <Text style={[styles.totalValueDisplay, { color: isDark ? '#fff' : '#000' }]}>{displayTotalValue}</Text>
+                                        <View style={styles.todayChangeRow}>
+                                            <View style={[styles.tinyBadge, { backgroundColor: totalDayChange >= 0 ? 'rgba(52, 199, 89, 0.1)' : 'rgba(255, 59, 48, 0.1)' }]}>
+                                                <Text style={[styles.todayChangeText, totalDayChange >= 0 ? styles.positive : styles.negative]}>
+                                                    {totalDayChange >= 0 ? '+' : ''}{displayDayChange} ({totalDayChangePercent.toFixed(2)}%)
+                                                </Text>
+                                            </View>
+                                            <Text style={styles.todayLabel}>Today</Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={[styles.dashDivider, { backgroundColor: isDark ? '#333' : '#f0f0f0' }]} />
+
+                                    <View style={styles.statsGrid}>
+                                        <View style={styles.statBox}>
+                                            <Text style={styles.statBoxLabel}>UNREALIZED</Text>
+                                            <Text style={[styles.statBoxValue, totalProfit >= 0 ? styles.positive : styles.negative]}>
+                                                {totalProfit >= 0 ? '+' : ''}{displayUnrealized}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.statBox}>
+                                            <Text style={styles.statBoxLabel}>REALIZED</Text>
+                                            <Text style={[styles.statBoxValue, totalRealizedProfit >= 0 ? styles.positive : styles.negative]}>
+                                                {totalRealizedProfit >= 0 ? '+' : ''}{displayRealized}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            </View>
                             <View style={[styles.chartContainer, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
                                 <View style={styles.chartHeader}>
                                     <Text style={[styles.chartSectionTitle, { color: isDark ? '#fff' : '#333' }]}>Historical Performance</Text>
@@ -759,8 +774,8 @@ const PortfolioScreen: React.FC = () => {
                                     }[selectedRange];
 
                                     return (
-                                        <View style={[styles.rangeSummary, { borderTopColor: isDark ? '#333' : '#f1f1f1' }]}>
-                                            <Text style={styles.rangeLabel}>{rangeLabel}</Text>
+                                        <View style={[styles.rangeSummary, { borderTopColor: isDark ? '#333' : '#f0f0f0' }]}>
+                                            <Text style={styles.rangeLabelText}>{rangeLabel}</Text>
                                             <Text style={[styles.rangeChange, isPositive ? styles.positiveText : styles.negativeText]}>
                                                 {isPositive ? '+' : '-'}{displayChangeAmount} ({isPositive ? '+' : ''}{changePercent.toFixed(1)}%)
                                             </Text>
@@ -768,38 +783,38 @@ const PortfolioScreen: React.FC = () => {
                                     );
                                 })()}
                             </View>
-                            <View style={[styles.chartContainer, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
-                                <Text style={[styles.chartSectionTitle, { color: isDark ? '#fff' : '#333' }]}>Allocation (%)</Text>
+                            <View style={[styles.chartContainer, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
+                                <Text style={[styles.chartSectionTitle, { color: isDark ? '#fff' : '#000' }]}>Portfolio Allocation</Text>
                                 <PieChart data={chartData} isDark={isDark} />
                             </View>
 
                             {/* Cash Balance Section */}
-                            <View style={[styles.headerStats, { backgroundColor: isDark ? '#1e1e1e' : '#fff', paddingVertical: 14, minHeight: 60, marginTop: 16, marginHorizontal: 16 }]}>
-                                <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <View style={[styles.premiumCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0', marginTop: 8 }]}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <View>
-                                        <Text style={styles.statLabel}>Cash Balance</Text>
-                                        <Text style={[styles.totalValue, { fontSize: 20, color: isDark ? '#fff' : '#1a1a1a' }]}>
+                                        <Text style={styles.dataLabel}>CASH BALANCE</Text>
+                                        <Text style={[styles.dataValue, { fontSize: 24, color: isDark ? '#fff' : '#000' }]}>
                                             {formatCurrency(cashBalance, currency)}
                                         </Text>
                                     </View>
-                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <View style={{ flexDirection: 'row', gap: 10 }}>
                                         <TouchableOpacity
-                                            style={{ backgroundColor: isDark ? '#333' : '#e0e0e0', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 }}
+                                            style={[styles.miniButton, { width: 'auto', paddingHorizontal: 16, height: 44, backgroundColor: isDark ? '#333' : '#f0f2f5' }]}
                                             onPress={() => {
                                                 setCashType('deposit');
                                                 setIsCashModalVisible(true);
                                             }}
                                         >
-                                            <Text style={{ color: isDark ? '#fff' : '#333', fontSize: 13, fontWeight: '600' }}>Deposit</Text>
+                                            <Text style={{ color: '#007AFF', fontSize: 14, fontWeight: '800' }}>Deposit</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
-                                            style={{ backgroundColor: isDark ? '#333' : '#e0e0e0', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 }}
+                                            style={[styles.miniButton, { width: 'auto', paddingHorizontal: 16, height: 44, backgroundColor: isDark ? '#333' : '#f0f2f5' }]}
                                             onPress={() => {
                                                 setCashType('withdraw');
                                                 setIsCashModalVisible(true);
                                             }}
                                         >
-                                            <Text style={{ color: isDark ? '#fff' : '#333', fontSize: 13, fontWeight: '600' }}>Withdraw</Text>
+                                            <Text style={{ color: isDark ? '#aaa' : '#666', fontSize: 14, fontWeight: '800' }}>Withdraw</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -809,7 +824,7 @@ const PortfolioScreen: React.FC = () => {
                     ListFooterComponent={
                         closedPositions.length > 0 ? (
                             <View style={[styles.closedSection, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
-                                <Text style={[styles.chartSectionTitle, { color: isDark ? '#fff' : '#333', marginLeft: 16, marginTop: 24, marginBottom: 8 }]}>Closed Positions</Text>
+                                <Text style={[styles.chartSectionTitle, { color: isDark ? '#fff' : '#1a1a1a', marginLeft: 16, marginTop: 24, marginBottom: 8 }]}>Closed Positions</Text>
                                 {closedPositions.map((item, index) => (
                                     <View key={item.symbol}>
                                         {renderItem({ item, index })}
@@ -979,16 +994,19 @@ const PortfolioScreen: React.FC = () => {
 
 
             {/* Global History Modal */}
-            < Modal
+            <Modal
                 animationType="slide"
                 presentationStyle="pageSheet"
                 visible={isHistoryModalVisible}
                 onRequestClose={() => setIsHistoryModalVisible(false)}
             >
-                <View style={[styles.historyModalContainer, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
+                <View style={[styles.historyModalContainer, { backgroundColor: isDark ? '#000' : '#f8f9fa' }]}>
                     <View style={styles.historyHeader}>
-                        <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Transaction History</Text>
-                        <TouchableOpacity onPress={() => setIsHistoryModalVisible(false)} style={styles.closeButton}>
+                        <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a', marginBottom: 0 }]}>History</Text>
+                        <TouchableOpacity
+                            onPress={() => setIsHistoryModalVisible(false)}
+                            style={[styles.iconButton, { backgroundColor: isDark ? '#333' : '#f0f2f5' }]}
+                        >
                             <MaterialIcons name="close" size={24} color={isDark ? '#fff' : '#1a1a1a'} />
                         </TouchableOpacity>
                     </View>
@@ -1072,374 +1090,364 @@ const PortfolioScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f8f9fa',
-        paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    },
+    headerContainer: {
+        paddingTop: Platform.OS === 'ios' ? 60 : 40,
+        paddingBottom: 24,
+        paddingHorizontal: 20,
     },
     headerRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 16,
+        marginBottom: 24,
+    },
+    title: {
+        fontSize: 22,
+        fontWeight: '900',
+        letterSpacing: -0.5,
+    },
+    iconButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    mainDashboard: {
+        padding: 24,
+        borderRadius: 32,
+        borderWidth: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.1,
+        shadowRadius: 20,
+        elevation: 8,
+    },
+    totalValueSection: {
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    dashboardLabel: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: '#8e8e93',
+        textTransform: 'uppercase',
+        letterSpacing: 1.5,
         marginBottom: 8,
     },
-    historyButton: {
-        padding: 5,
+    totalValueDisplay: {
+        fontSize: 40,
+        fontWeight: '900',
+        letterSpacing: -1,
+        marginBottom: 8,
+    },
+    todayChangeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    tinyBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+    },
+    todayChangeText: {
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    todayLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#8e8e93',
+    },
+    dashDivider: {
+        height: 1,
+        width: '100%',
+        marginBottom: 20,
+    },
+    statsGrid: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    statBox: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    statBoxLabel: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#8e8e93',
+        marginBottom: 4,
+    },
+    statBoxValue: {
+        fontSize: 16,
+        fontWeight: '800',
+    },
+    listContent: {
+        paddingBottom: 100,
+    },
+    premiumCard: {
+        marginHorizontal: 20,
+        marginBottom: 16,
+        borderRadius: 24,
+        padding: 20,
+        borderWidth: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    loaderContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     historyModalContainer: {
         flex: 1,
-        padding: 20,
-        paddingTop: Platform.OS === 'ios' ? 20 : 50,
+        padding: 24,
     },
     historyHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 24,
     },
-    closeButton: {
-        padding: 5,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: '#1a1a1a',
-        textAlign: 'center',
-        marginBottom: 8,
-        marginTop: 30,
-    },
-    headerStats: {
+    symbolInfo: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
-        backgroundColor: '#fff',
-        marginHorizontal: 16,
-        marginBottom: 20,
-        paddingVertical: 20,
-        borderRadius: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        elevation: 4,
+        flex: 1,
     },
-    totalValueContainer: {
-        alignItems: 'flex-start',
-        flex: 1.4,
+    logoBadge: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    totalValueLabel: {
-        fontSize: 10,
-        color: '#8e8e93',
-        fontWeight: '700',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-        marginBottom: 2,
+    logoText: {
+        color: '#fff',
+        fontWeight: '900',
+        fontSize: 18,
     },
-    totalValue: {
-        fontSize: 24,
+    cardSymbol: {
+        fontSize: 17,
         fontWeight: '800',
-        color: '#1a1a1a',
         letterSpacing: -0.5,
     },
-    statDivider: {
-        width: 1,
-        height: 50,
-        backgroundColor: '#f2f2f7',
-        marginHorizontal: 10,
+    cardCompanyName: {
+        fontSize: 12,
+        color: '#8e8e93',
+        fontWeight: '600',
+        maxWidth: 150,
     },
-    statsColumn: {
-        flex: 1,
+    actionButtons: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    miniButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
         justifyContent: 'center',
+        alignItems: 'center',
     },
-    statRow: {
+    cardContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+    },
+    dataColumn: {
+        flex: 1,
+    },
+    dataLabel: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#8e8e93',
+        marginBottom: 4,
+        letterSpacing: 0.5,
+    },
+    dataValue: {
+        fontSize: 18,
+        fontWeight: '800',
+    },
+    dataUnit: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#8e8e93',
+    },
+    cardFooter: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginVertical: 2,
+        paddingTop: 16,
+        borderTopWidth: 1,
     },
-    statLabel: {
-        fontSize: 11,
-        color: '#8e8e93',
-        fontWeight: '600',
-    },
-    statValue: {
-        fontSize: 12,
-        fontWeight: '700',
-        marginLeft: 3,
-    },
-    symbolHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 2,
-    },
-    holdingItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        marginHorizontal: 16,
-        marginBottom: 8,
-        padding: 16,
-        borderRadius: 12,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 2,
-    },
-    colorIndicator: {
-        width: 4,
-        height: 60,
-        borderRadius: 2,
-        marginRight: 12,
-    },
-    holdingInfo: {
+    profitInfo: {
         flex: 1,
-        minWidth: 0,
     },
-    symbol: {
-        fontSize: 18,
+    footerProfit: {
+        fontSize: 15,
         fontWeight: '800',
-        color: '#007AFF',
     },
-    shares: {
-        fontSize: 12,
-        fontWeight: '500',
-        color: '#8e8e93',
+    footerDayChange: {
+        fontSize: 15,
+        fontWeight: '800',
     },
-    companyName: {
-        fontSize: 12,
-        color: '#666',
-        marginTop: 2,
-    },
-    holdingFooter: {
-        marginTop: 4,
-    },
-    realizedBadge: {
+    footerLabel: {
         fontSize: 10,
         fontWeight: '700',
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-        overflow: 'hidden',
-        marginTop: 4,
-        alignSelf: 'flex-start',
-    },
-    sharesContainer: {
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-        width: 120,
-        marginLeft: 8,
-    },
-    value: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#1a1a1a',
-    },
-    profitContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        color: '#8e8e93',
         marginTop: 2,
-    },
-    itemPriceChange: {
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    positive: {
-        color: '#34C759',
-    },
-    negative: {
-        color: '#FF3B30',
-    },
-    manageButton: {
-        padding: 8,
-        marginLeft: 4,
-    },
-    deleteButton: {
-        padding: 8,
-    },
-    loader: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
+        textTransform: 'uppercase',
     },
     chartContainer: {
-        backgroundColor: '#fff',
-        marginHorizontal: 16,
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 20,
+        marginHorizontal: 20,
+        marginBottom: 24,
+        padding: 24,
+        borderRadius: 28,
+        borderWidth: 1,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.05,
+        shadowRadius: 16,
+        elevation: 4,
     },
     chartSectionTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#333',
-        marginBottom: 8,
+        fontSize: 18,
+        fontWeight: '900',
+        letterSpacing: -0.5,
+        marginBottom: 20,
     },
     chartHeader: {
-        marginBottom: 12,
+        marginBottom: 20,
     },
     rangeContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        backgroundColor: '#f0f0f0',
-        borderRadius: 10,
-        padding: 2,
+        padding: 4,
+        borderRadius: 14,
     },
     rangeChip: {
-        paddingVertical: 6,
-        paddingHorizontal: 8,
-        borderRadius: 8,
-        minWidth: 40,
+        flex: 1,
+        paddingVertical: 8,
+        borderRadius: 10,
         alignItems: 'center',
     },
     rangeChipActive: {
         backgroundColor: '#fff',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
-        shadowRadius: 1,
-        elevation: 1,
+        shadowRadius: 8,
+        elevation: 2,
     },
     rangeChipActiveDark: {
         backgroundColor: '#333',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.3,
-        shadowRadius: 1,
-        elevation: 1,
     },
     rangeText: {
-        fontSize: 11,
-        fontWeight: '600',
-        color: '#888',
+        fontSize: 12,
+        fontWeight: '800',
+        color: '#8e8e93',
     },
     rangeTextActive: {
         color: '#007AFF',
+    },
+    benchmarkToggleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        marginBottom: 16,
+        gap: 8,
+    },
+    benchmarkLabel: {
+        fontSize: 12,
+        fontWeight: '700',
     },
     rangeSummary: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: 12,
-        paddingTop: 12,
+        marginTop: 20,
+        paddingTop: 16,
         borderTopWidth: 1,
-        borderTopColor: '#f1f1f1',
     },
-    rangeLabel: {
-        fontSize: 13,
-        color: '#666',
-        fontWeight: '600',
+    rangeLabelText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#8e8e93',
     },
     rangeChange: {
-        fontSize: 13,
-        fontWeight: '700',
-    },
-    positiveText: {
-        color: '#34C759',
-    },
-    negativeText: {
-        color: '#FF3B30',
-    },
-    positiveBadge: {
-        backgroundColor: '#E8F5E9',
-        color: '#2E7D32',
-    },
-    negativeBadge: {
-        backgroundColor: '#FFEBEE',
-        color: '#C62828',
-    },
-    positiveBadgeDark: {
-        backgroundColor: '#064e1c',
-        color: '#81c784',
-    },
-    negativeBadgeDark: {
-        backgroundColor: '#4a0e0e',
-        color: '#e57373',
-    },
-    listContent: {
-        paddingBottom: 100,
+        fontSize: 15,
+        fontWeight: '800',
     },
     emptyContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 40,
-        marginTop: -40,
+        padding: 40,
     },
     emptyText: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: '#333',
-        marginTop: 20,
+        fontSize: 24,
+        fontWeight: '900',
+        marginTop: 24,
+        textAlign: 'center',
     },
     emptySubtext: {
-        fontSize: 14,
-        color: '#666',
+        fontSize: 16,
+        color: '#8e8e93',
         textAlign: 'center',
-        marginTop: 10,
-        lineHeight: 20,
-    },
-    closedSection: {
-        marginTop: 20,
-        borderTopWidth: 1,
-        borderTopColor: '#eee',
-        marginBottom: 20,
+        marginTop: 12,
+        lineHeight: 24,
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'flex-end',
     },
     modalContent: {
-        width: '100%',
-        backgroundColor: '#fff',
-        borderRadius: 20,
-        padding: 24,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.25,
-        shadowRadius: 10,
-        elevation: 10,
+        borderTopLeftRadius: 40,
+        borderTopRightRadius: 40,
+        padding: 32,
+        paddingBottom: Platform.OS === 'ios' ? 50 : 32,
     },
     modalTitle: {
-        fontSize: 22,
-        fontWeight: '800',
-        color: '#1a1a1a',
-        marginBottom: 20,
-        textAlign: 'center',
+        fontSize: 24,
+        fontWeight: '900',
+        marginBottom: 24,
+        letterSpacing: -0.5,
     },
     modeTabs: {
         flexDirection: 'row',
-        backgroundColor: '#f0f0f0',
-        borderRadius: 12,
-        padding: 4,
-        marginBottom: 20,
+        padding: 6,
+        borderRadius: 16,
+        marginBottom: 24,
     },
     modeTab: {
         flex: 1,
-        paddingVertical: 10,
+        paddingVertical: 12,
+        borderRadius: 12,
         alignItems: 'center',
-        borderRadius: 8,
     },
     modeTabActive: {
         backgroundColor: '#fff',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
-        shadowRadius: 2,
+        shadowRadius: 8,
         elevation: 2,
     },
     modeTabText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#666',
+        fontSize: 14,
+        fontWeight: '800',
+        color: '#8e8e93',
     },
     modeTabTextActive: {
         color: '#007AFF',
@@ -1450,38 +1458,42 @@ const styles = StyleSheet.create({
     inputLabel: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#666',
+        color: '#8e8e93',
         marginLeft: 4,
         marginBottom: 8,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
     modalInput: {
-        backgroundColor: '#f5f5f5',
-        borderRadius: 12,
-        padding: 16,
-        fontSize: 18,
-        color: '#1a1a1a',
+        height: 64,
+        borderRadius: 20,
+        paddingHorizontal: 20,
+        fontSize: 20,
+        fontWeight: '800',
+        borderWidth: 1.5,
+        marginBottom: 16,
         textAlign: 'center',
     },
     dateRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#f5f5f5',
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 20,
+        borderRadius: 20,
+        padding: 16,
+        marginBottom: 24,
+        borderWidth: 1.5,
     },
     dateLabelGroup: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 8,
     },
     calendarIcon: {
-        marginRight: 8,
+        opacity: 0.8,
     },
     datePickerText: {
         fontSize: 16,
-        color: '#1a1a1a',
-        fontWeight: '500',
+        fontWeight: '700',
     },
     datePickerOverlay: {
         flex: 1,
@@ -1491,58 +1503,59 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     datePickerContent: {
-        backgroundColor: '#fff',
-        borderRadius: 14,
-        padding: 10,
+        borderRadius: 24,
+        padding: 16,
         width: '100%',
         maxWidth: 340,
     },
     modalButtons: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 10,
+        gap: 12,
+        marginTop: 8,
     },
     modalButton: {
         flex: 1,
-        paddingVertical: 14,
-        borderRadius: 12,
+        height: 56,
+        borderRadius: 18,
+        justifyContent: 'center',
         alignItems: 'center',
-    },
-    cancelButton: {
-        backgroundColor: '#f0f0f0',
-        marginRight: 10,
     },
     saveButton: {
         backgroundColor: '#007AFF',
-        marginLeft: 10,
+    },
+    cancelButton: {
+        backgroundColor: 'transparent',
+    },
+    saveButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '800',
     },
     cancelButtonText: {
         fontSize: 16,
-        fontWeight: '600',
-        color: '#666',
-    },
-    saveButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#fff',
-    },
-    benchmarkToggleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        marginBottom: 10,
-        justifyContent: 'flex-end',
-    },
-    benchmarkLabel: {
-        fontSize: 12,
-        marginRight: 8,
-        fontWeight: '600',
+        fontWeight: '800',
     },
     currentPositionText: {
         fontSize: 14,
-        color: '#666',
-        marginBottom: 20,
+        fontWeight: '700',
+        color: '#8e8e93',
+        marginBottom: 24,
         textAlign: 'center',
+    },
+    positive: {
+        color: '#34C759',
+    },
+    negative: {
+        color: '#FF3B30',
+    },
+    positiveText: {
+        color: '#34C759',
+    },
+    negativeText: {
+        color: '#FF3B30',
+    },
+    closedSection: {
+        paddingVertical: 20,
     },
 });
 

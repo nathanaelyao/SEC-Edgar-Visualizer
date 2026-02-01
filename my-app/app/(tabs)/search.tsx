@@ -53,19 +53,27 @@ const HomeScreen: React.FC = () => {
 
       // Relevant currency pairs based on user selected currency
       const currencyPairs: any[] = [];
-      if (currency === 'CAD') {
-        currencyPairs.push({ sym: 'USDCAD=X', name: 'USD/CAD' });
-        currencyPairs.push({ sym: 'CADUSD=X', name: 'CAD/USD' });
-      } else if (currency !== 'USD') {
+      const majorCurrencies = ['USD', 'EUR', 'GBP', 'CAD', 'JPY'];
+
+      if (currency !== 'USD') {
+        // Show selected currency against USD in both directions
         currencyPairs.push({ sym: `${currency}USD=X`, name: `${currency}/USD` });
         currencyPairs.push({ sym: `USD${currency}=X`, name: `USD/${currency}` });
+
+        // Add another major pair if not already included
+        const otherMajor = majorCurrencies.find(c => c !== currency && c !== 'USD');
+        if (otherMajor) {
+          currencyPairs.push({ sym: `${currency}${otherMajor}=X`, name: `${currency}/${otherMajor}` });
+        }
       } else {
-        // If USD is selected, show major pairs and crypto
+        // If USD is selected, show major pairs against USD
         currencyPairs.push({ sym: 'EURUSD=X', name: 'EUR/USD' });
         currencyPairs.push({ sym: 'GBPUSD=X', name: 'GBP/USD' });
         currencyPairs.push({ sym: 'JPYUSD=X', name: 'JPY/USD' });
-        currencyPairs.push({ sym: 'BTC-USD', name: 'Bitcoin' });
       }
+
+      // Always add Bitcoin
+      currencyPairs.push({ sym: 'BTC-USD', name: 'Bitcoin' });
 
       const allSymbols = [...baseSymbols, ...currencyPairs];
 
@@ -224,10 +232,8 @@ const HomeScreen: React.FC = () => {
   const displayTotalValue = formatCurrency(totalPortfolioValue, currency);
   const displayDayChange = formatCurrency(Math.abs(dayChange), currency);
 
-
-
   return (
-    <ScrollView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]} stickyHeaderIndices={[1]}>
+    <ScrollView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
       <TouchableWithoutFeedback onPress={() => {
         setSuggestions([]);
         Keyboard.dismiss();
@@ -290,8 +296,6 @@ const HomeScreen: React.FC = () => {
               </View>
             )}
           </View>
-
-
 
           {portfolio.length > 0 && (
             <TouchableOpacity
@@ -384,6 +388,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+    marginBottom: 40,
   },
   centered: {
     justifyContent: 'center',
@@ -424,7 +429,7 @@ const styles = StyleSheet.create({
   },
   searchSection: {
     zIndex: 100,
-    marginBottom: 32,
+    marginBottom: 20,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -535,13 +540,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   moversSection: {
-    marginBottom: 36,
+    marginBottom: 32,
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '800',
     color: '#1a1a1a',
-    marginBottom: 20,
+    marginBottom: 12,
     letterSpacing: -0.5,
   },
   moversGrid: {
