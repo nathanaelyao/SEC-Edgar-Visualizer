@@ -1,12 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, Platform, Switch } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices, Transaction, getTransactions, getAllTransactions, updateTransaction, deleteTransaction, addTransaction, getCashBalance } from '@/utils/db';
 import PieChart from '@/components/PieChart';
 import PortfolioLineChart from '@/components/PortfolioLineChart';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import TransactionList from '@/components/TransactionList';
-import { fetchStockPrice, fetchPriceForDate } from '@/utils/secApi';
+import { fetchStockPrice, fetchPriceForDate, fetchStockHistory } from '@/utils/secApi';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/context/ThemeContext';
 import { formatCurrency, convertCurrency } from '@/utils/currency';
@@ -86,16 +86,30 @@ const PortfolioScreen: React.FC = () => {
         return () => clearTimeout(timer);
     }, [transactionDate, selectedHolding, isManageModalVisible, manageMode, editingTransaction]);
 
+    // Benchmark State
+    const [showBenchmark, setShowBenchmark] = useState(false);
+    const [benchmarkData, setBenchmarkData] = useState<{ timestamp: number; price: number }[]>([]);
+    const [isBenchmarkLoading, setIsBenchmarkLoading] = useState(false);
+
     const loadPortfolio = async () => {
+        setLoading(true);
         try {
-            setLoading(true);
-            const holdings = await refreshPortfolioPrices();
-            setPortfolio(holdings);
-            setOpenPositions(holdings.filter(h => h.shares > 0));
-            // Show all closed positions even if realized profit is 0, so users know they are "closed"
-            setClosedPositions(holdings.filter(h => h.shares <= 0));
-            const historyData = await getPortfolioHistory();
-            setHistory(historyData);
+            await refreshPortfolioPrices(); // Refresh prices first
+            const port = await getPortfolio();
+            const txs = await getAllTransactions();
+            const open = port.filter(h => h.shares > 0);
+            const closed = port.filter(h => h.shares === 0);
+
+
+            // Get history
+            const hist = await getPortfolioHistory();
+
+            setPortfolio(port);
+            setOpenPositions(open);
+            setClosedPositions(closed);
+            setHistory(hist);
+            setGlobalTransactions(txs);
+
             const cash = await getCashBalance();
             setCashBalance(cash);
         } catch (err) {
@@ -104,6 +118,32 @@ const PortfolioScreen: React.FC = () => {
             setLoading(false);
         }
     };
+
+    const fetchBenchmarkData = async () => {
+        if (benchmarkData.length > 0) return; // Already loaded
+
+        setIsBenchmarkLoading(true);
+        try {
+            // Fetch SPY history for max range to cover all possibilities
+            console.log("Fetching SPY benchmark data...");
+            const history = await fetchStockHistory('SPY', '5y', '1d'); // 5y should cover most
+            // If user has >5y history, might need 'max'
+            if (history && history.length > 0) {
+                setBenchmarkData(history);
+            }
+        } catch (e) {
+            console.error("Failed to load benchmark:", e);
+        } finally {
+            setIsBenchmarkLoading(false);
+        }
+    };
+
+    // Trigger fetch when toggle is turned on
+    React.useEffect(() => {
+        if (showBenchmark) {
+            fetchBenchmarkData();
+        }
+    }, [showBenchmark]);
 
     const handleSaveCash = async () => {
         const amount = parseFloat(cashAmount);
@@ -515,8 +555,24 @@ const PortfolioScreen: React.FC = () => {
                                         ))}
                                     </View>
                                 </View>
+
+                                <View style={styles.benchmarkToggleRow}>
+                                    <Text style={[styles.benchmarkLabel, { color: isDark ? '#aaa' : '#666' }]}>Compare to S&P 500</Text>
+                                    <Switch
+                                        value={showBenchmark}
+                                        onValueChange={setShowBenchmark}
+                                        trackColor={{ false: isDark ? '#333' : '#e0e0e0', true: '#34C759' }}
+                                        thumbColor={Platform.OS === 'ios' ? '#fff' : (showBenchmark ? '#fff' : '#f4f3f4')}
+                                        ios_backgroundColor={isDark ? '#333' : '#e0e0e0'}
+                                        style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                                    />
+                                    {isBenchmarkLoading && <ActivityIndicator size="small" style={{ marginLeft: 8 }} />}
+                                </View>
+
                                 <PortfolioLineChart
                                     data={filteredHistory}
+                                    benchmarkData={benchmarkData}
+                                    showBenchmark={showBenchmark}
                                     range={selectedRange}
                                     isDark={isDark}
                                     formatValue={(val) => formatCurrency(convertCurrency(val, 'USD', currency, exchangeRates), currency)}
@@ -1266,6 +1322,18 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
         elevation: 5
+    },
+    benchmarkToggleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        marginBottom: 10,
+        justifyContent: 'flex-end'
+    },
+    benchmarkLabel: {
+        fontSize: 12,
+        marginRight: 8,
+        fontWeight: '600'
     },
     currentPositionText: {
         fontSize: 14,
