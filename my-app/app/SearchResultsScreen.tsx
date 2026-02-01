@@ -1171,41 +1171,44 @@ const SearchResultsScreen: React.FC = () => {
 
                           <TouchableOpacity
                             style={[styles.dateRow, { backgroundColor: isDark ? '#2c2c2e' : '#f5f5f5' }]}
-                            onPress={() => Platform.OS === 'android' && setShowDatePicker(true)}
+                            onPress={() => setShowDatePicker(true)}
                           >
                             <View style={styles.dateLabelGroup}>
                               <MaterialIcons name="calendar-today" size={14} color={isDark ? '#aaa' : '#666'} style={styles.calendarIcon} />
                               <Text style={[styles.inputLabel, { color: isDark ? '#aaa' : '#666', marginBottom: 0 }]}>Transaction Date</Text>
                             </View>
-                            {Platform.OS === 'ios' ? (
-                              <DateTimePicker
-                                value={transactionDate}
-                                mode="date"
-                                display="compact"
-                                onChange={(event, selectedDate) => {
-                                  if (selectedDate) setTransactionDate(selectedDate);
-                                }}
-                                maximumDate={new Date()}
-                                themeVariant={isDark ? "dark" : "light"}
-                              />
-                            ) : (
-                              <Text style={[styles.datePickerText, { color: isDark ? '#fff' : '#1a1a1a' }]}>
-                                {transactionDate.toLocaleDateString()}
-                              </Text>
-                            )}
+                            <Text style={[styles.datePickerText, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                              {transactionDate.toLocaleDateString()}
+                            </Text>
                           </TouchableOpacity>
 
-                          {showDatePicker && Platform.OS === 'android' && (
-                            <DateTimePicker
-                              value={transactionDate}
-                              mode="date"
-                              display="default"
-                              onChange={(event, selectedDate) => {
-                                setShowDatePicker(false);
-                                if (selectedDate) setTransactionDate(selectedDate);
-                              }}
-                              maximumDate={new Date()}
-                            />
+                          {showDatePicker && (
+                            <Modal
+                              transparent={true}
+                              animationType="fade"
+                              visible={showDatePicker}
+                              onRequestClose={() => setShowDatePicker(false)}
+                            >
+                              <TouchableOpacity
+                                style={styles.datePickerOverlay}
+                                activeOpacity={1}
+                                onPress={() => setShowDatePicker(false)}
+                              >
+                                <View style={[styles.datePickerContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
+                                  <DateTimePicker
+                                    value={transactionDate}
+                                    mode="date"
+                                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                                    onChange={(event, selectedDate) => {
+                                      setShowDatePicker(false);
+                                      if (selectedDate) setTransactionDate(selectedDate);
+                                    }}
+                                    maximumDate={new Date()}
+                                    themeVariant={isDark ? "dark" : "light"}
+                                  />
+                                </View>
+                              </TouchableOpacity>
+                            </Modal>
                           )}
 
                           <View style={styles.modalButtons}>
@@ -1395,7 +1398,26 @@ const styles = StyleSheet.create({
   priceValue: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#1a1a1a',
+    color: '#34C759',
+  },
+  datePickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  datePickerContent: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 10,
+    width: '100%',
+    maxWidth: 340,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5
   },
   priceValueWrapper: {
     flexDirection: 'row',
