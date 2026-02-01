@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Dimensions, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Dimensions, TouchableWithoutFeedback, Keyboard, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { Dropdown } from 'react-native-element-dropdown';
 import { investorsData } from '@/constants/investors'
 import * as SQLite from 'expo-sqlite';
@@ -12,11 +13,13 @@ import { getPortfolio, PortfolioHolding } from '@/utils/db';
 import { useTheme } from '@/context/ThemeContext';
 import { formatCurrency, convertCurrency } from '@/utils/currency';
 
+
 interface Investor {
   name: string;
   institution: string;
   cik: string;
 }
+
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -261,6 +264,9 @@ const HomeScreen: React.FC = () => {
       <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setIsFocus(false); }}>
         <View>
           <Text style={dynamicStyles.title}>13F Filings</Text>
+
+
+
           <TextInput
             style={dynamicStyles.searchBar}
             placeholder="Search by name or institution"

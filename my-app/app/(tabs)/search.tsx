@@ -2,12 +2,20 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Dimensions, ScrollView, Platform } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
-import { secFetch, yahooSearch } from '@/utils/secApi';
+import { secFetch, yahooSearch, fetchStockHistory, fetchStockPrice } from '@/utils/secApi';
 import { error as logError } from '@/utils/logger';
 import { getPortfolio, PortfolioHolding, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices } from '@/utils/db';
 import { useTheme } from '@/context/ThemeContext';
 import { formatCurrency, convertCurrency } from '@/utils/currency';
+import MarketSummaryCard from '@/components/MarketSummaryCard';
 
+interface MarketItem {
+  symbol: string;
+  name: string;
+  data: number[];
+  price: number;
+  changePercent: number;
+}
 interface Company {
   name: string;
   ticker: string;
@@ -25,6 +33,53 @@ const HomeScreen: React.FC = () => {
   const [history, setHistory] = useState<PortfolioSnapshot[]>([]);
   const [topMovers, setTopMovers] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<Company[]>([]);
+
+  // Market Summary State
+  const [marketSummary, setMarketSummary] = useState<MarketItem[]>([]);
+  const [marketLoading, setMarketLoading] = useState(true);
+
+  // Fetch Market Data
+  useEffect(() => {
+    const fetchMarket = async () => {
+      const symbols = [
+        { sym: 'ES=F', name: 'S&P 500' },
+        { sym: 'NQ=F', name: 'NASDAQ' },
+        { sym: 'YM=F', name: 'Dow Jones' },
+        { sym: 'XIU.TO', name: 'TSX 60' },
+        { sym: 'GC=F', name: 'Gold' },
+        { sym: 'CL=F', name: 'Oil' }
+      ];
+
+      try {
+        const results = await Promise.all(symbols.map(async (item) => {
+          try {
+            // Fetch 1D history for chart
+            const history = await fetchStockHistory(item.sym, '1d', '5m');
+            // Fetch real-time quote for latest price/change
+            const quote = await fetchStockPrice(item.sym);
+            const prices = history.map(h => h.price);
+
+            return {
+              symbol: item.sym,
+              name: item.name,
+              data: prices,
+              price: quote.price || 0,
+              changePercent: quote.percent || 0
+            };
+          } catch (e) {
+            console.error(`Error fetching ${item.sym}`, e);
+            return null;
+          }
+        }));
+        setMarketSummary(results.filter(r => r !== null) as MarketItem[]);
+      } catch (e) {
+        console.error("Market summary fetch failed", e);
+      } finally {
+        setMarketLoading(false);
+      }
+    };
+    fetchMarket();
+  }, []);
 
   const loadData = async () => {
     try {
@@ -186,6 +241,8 @@ const HomeScreen: React.FC = () => {
           )}
         </View>
 
+
+
         {portfolio.length > 0 && (
           <TouchableOpacity
             style={[styles.portfolioCard, {
@@ -233,6 +290,23 @@ const HomeScreen: React.FC = () => {
           </View>
         )}
 
+        {!marketLoading && marketSummary.length > 0 && (
+          <View style={{ marginBottom: 24 }}>
+            <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#1a1a1a', marginBottom: 16 }]}>Market Snapshot</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
+              {marketSummary.map((item, index) => (
+                <MarketSummaryCard
+                  key={index}
+                  {...item}
+                  onPress={() => {
+                    navigation.navigate('SearchResultsScreen', { stockSymbol: item.symbol });
+                  }}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {portfolio.length === 0 && (
           <View style={[styles.emptyPortfolioCard, {
             backgroundColor: isDark ? '#1e1e1e' : '#f1f1f6',
@@ -268,7 +342,7 @@ const styles = StyleSheet.create({
   header: {
     padding: CONTAINER_PADDING,
     paddingTop: 80,
-    paddingBottom: 40,
+    paddingBottom: 80,
   },
   topRow: {
     flexDirection: 'row',
