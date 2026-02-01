@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { CurrencyCode } from '@/utils/currency';
+import { clearAllData } from '@/utils/db';
 
 const SettingsScreen: React.FC = () => {
     const { theme, setTheme, currency, setCurrency, isDark } = useTheme();
@@ -115,6 +115,46 @@ const SettingsScreen: React.FC = () => {
                 ))}
             </View>
 
+            <Text style={dynamicStyles.sectionTitle}>Data Management</Text>
+            <View style={dynamicStyles.card}>
+                <TouchableOpacity
+                    style={[dynamicStyles.row, { justifyContent: 'center' }]}
+                    onPress={() => {
+                        Alert.alert(
+                            "Reset All Data",
+                            "Are you sure you want to delete all portfolio data and transactions? This action cannot be undone.",
+                            [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                    text: "Reset Data",
+                                    style: "destructive",
+                                    onPress: async () => {
+                                        try {
+                                            await clearAllData();
+                                            // Reset local state if needed? 
+                                            // Ideally we force a reload or just alert success.
+                                            // The app state elsewhere (currency, theme) updates via context, 
+                                            // but data in other tabs needs refresh.
+                                            // Since this is settings, user will likely navigate away, triggering refresh on focus.
+                                            setCurrency('USD'); // Reset local context state to match DB default
+                                            if (isDark) toggleTheme(); // Reset to system/light default if that's what DB does? 
+                                            // Actually DB resets to 'system'. Context should update?
+                                            // Context initializes from storage/DB on mount. 
+                                            // We might need to manually sync context state here.
+                                            Alert.alert("Success", "All data has been wiped.");
+                                        } catch (e) {
+                                            Alert.alert("Error", "Failed to reset data.");
+                                        }
+                                    }
+                                }
+                            ]
+                        );
+                    }}
+                >
+                    <Text style={{ color: '#FF3B30', fontSize: 16, fontWeight: '600' }}>Reset Data</Text>
+                </TouchableOpacity>
+            </View>
+
             <View style={{ padding: 40, alignItems: 'center' }}>
                 <Text style={{ color: '#8e8e93', fontSize: 12 }}>SEC Edgar Visualizer v1.2.0</Text>
             </View>
@@ -123,4 +163,4 @@ const SettingsScreen: React.FC = () => {
 };
 
 export default SettingsScreen;
-import { Platform } from 'react-native';
+

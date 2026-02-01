@@ -7,7 +7,7 @@ import { useTheme } from '@/context/ThemeContext';
 
 interface TransactionListProps {
     transactions: Transaction[];
-    onEdit: (transaction: Transaction) => void;
+    onEdit?: (transaction: Transaction) => void;
     onDelete: (transaction: Transaction) => void;
     currency?: string;
 }
@@ -29,9 +29,11 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, onEdit,
                 </Text>
             </View>
             <View style={styles.actionsContainer}>
-                <TouchableOpacity onPress={() => onEdit(item)} style={styles.actionButton}>
-                    <MaterialIcons name="edit" size={20} color={isDark ? '#0A84FF' : '#007AFF'} />
-                </TouchableOpacity>
+                {onEdit && (
+                    <TouchableOpacity onPress={() => onEdit(item)} style={styles.actionButton}>
+                        <MaterialIcons name="edit" size={20} color={isDark ? '#0A84FF' : '#007AFF'} />
+                    </TouchableOpacity>
+                )}
                 <TouchableOpacity onPress={() => onDelete(item)} style={styles.actionButton}>
                     <MaterialIcons name="delete" size={20} color="#FF3B30" />
                 </TouchableOpacity>

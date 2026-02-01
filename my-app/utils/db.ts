@@ -234,14 +234,7 @@ export const updateTransaction = async (id: number, transaction: Partial<Transac
     }
 };
 
-export const deleteTransaction = async (id: number) => {
-    const database = await initDb();
-    const existing = await database.getFirstAsync<Transaction>('SELECT * FROM transactions WHERE id = ?;', [id]);
-    if (!existing) throw new Error("Transaction not found");
 
-    await database.runAsync('DELETE FROM transactions WHERE id = ?;', [id]);
-    return await recalculatePortfolio(existing.symbol);
-};
 
 const recalculatePortfolio = async (symbol: string) => {
     const database = await initDb();
@@ -372,78 +365,82 @@ export const addHolding = async (holding: PortfolioHolding) => {
 
 // Reconstruct portfolio history from a specific date to now
 // This is expensive as it fetches history for ALL holdings, so use sparingly
+// Reconstruct portfolio history from a specific date to now
+// This is expensive as it fetches history for ALL holdings, so use sparingly
 export const backfillPortfolioHistory = async (startDate: Date) => {
     try {
-        const { fetchExchangeRates, convertCurrency } = require('./currency');
+        console.log(`Rewriting portfolio history from ${startDate.toISOString()}`);
+        const { fetchExchangeRates } = require('./currency');
         const rates = await fetchExchangeRates();
+        const database = await initDb();
         const allHoldings = await getPortfolio();
 
-        // Determine date range for fetch
-        const now = new Date();
-        const diffTime = Math.abs(now.getTime() - startDate.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        // 1. Calculate History Traces for ALL holdings
+        const holdingTraces: Record<string, Record<string, { value: number, profit: number }>> = {};
+        const allDates = new Set<string>();
 
-        let range = '1mo';
-        if (diffDays > 1825) range = 'max';
-        else if (diffDays > 365) range = '5y';
-        else if (diffDays > 30) range = '1y';
-        else if (diffDays > 5) range = '1mo'; // Minimum useful range
-
-        console.log(`Backfilling portfolio history from ${startDate.toISOString()} (Range: ${range})`);
-
-        // Fetch history for all holdings map[symbol] -> validMap[dateString] -> price
-        const priceHistoryMap: Record<string, Record<string, number>> = {};
-
+        console.log("Fetching traces for holdings...");
         for (const h of allHoldings) {
-            const history = await fetchStockHistory(h.symbol, range);
-            priceHistoryMap[h.symbol] = {};
-            history.forEach(point => {
-                const dateStr = new Date(point.timestamp).toISOString().split('T')[0];
-                priceHistoryMap[h.symbol][dateStr] = point.price;
-            });
+            const transactions = await getTransactions(h.symbol);
+            if (transactions.length > 0) {
+                // Fetch price history covering the range
+                const history = await fetchStockHistoryForTransactions(h.symbol, transactions);
+                const priceHistoryMap: Record<string, number> = {};
+                history.forEach(point => {
+                    const dateStr = new Date(point.timestamp).toISOString().split('T')[0];
+                    priceHistoryMap[dateStr] = point.price;
+                });
+
+                // Calculate accurate trace
+                const trace = await calculateStockHistoryTrace(h.symbol, transactions, priceHistoryMap, rates);
+                holdingTraces[h.symbol] = trace;
+
+                // Collect dates
+                Object.keys(trace).forEach(d => allDates.add(d));
+            }
         }
 
-        // Iterate through each day from start date to now
-        const dayIterator = new Date(startDate);
-        while (dayIterator <= now) {
-            const dateStr = dayIterator.toISOString().split('T')[0];
+        const sortedDates = Array.from(allDates).sort();
+        console.log(`Found ${sortedDates.length} relevant historical dates.`);
+
+        // 2. Aggregate and Upsert Snapshots for each date
+        // Note: This replaces the simplistic iteration that assumed constant shares.
+        for (const dateStr of sortedDates) {
+            // Filter to only dates >= startDate (if requested range is strictly enforced)
+            // But usually backfill implies "Ensure history is correct from X". 
+            // If we have data before X, we might as well update it if we are recalculating?
+            // The prompt says "from a specific date to now".
+            // Let's stick to the requested range to avoid re-writing ancient history unnecessarily.
+            if (dateStr < startDate.toISOString().split('T')[0]) continue;
 
             let dailyTotalValueUsd = 0;
             let dailyTotalProfitUsd = 0;
-            let hasDataForAny = false;
+            let hasData = false;
 
             for (const h of allHoldings) {
-                // Find price for this day, or closest previous? 
-                // Creating a simplified lookup: exact match only for now.
-                // Improve: Finding closest previous price if market closed?
-                // For now, if no price exists (weekend), we might skip creating a snapshot 
-                // OR use the last known price. Let's use exact match for simplicity first.
-                // If it's a weekend, Yahoo usually doesn't return data, so we just skip weekends.
-
-                const price = priceHistoryMap[h.symbol]?.[dateStr];
-
-                if (price !== undefined) {
-                    hasDataForAny = true;
-                    // Note: We use CURRENT shares/costBasis. This is a limitation (no transaction ledger).
-                    const nativeValue = h.shares * price;
-                    const nativeCost = h.shares * (h.costBasis || 0);
-                    const nativeProfit = (nativeValue - nativeCost) + (h.realizedProfit || 0);
-
-                    dailyTotalValueUsd += convertCurrency(nativeValue, h.currency || 'USD', 'USD', rates);
-                    dailyTotalProfitUsd += convertCurrency(nativeProfit, h.currency || 'USD', 'USD', rates);
+                const trace = holdingTraces[h.symbol];
+                if (trace && trace[dateStr]) {
+                    dailyTotalValueUsd += trace[dateStr].value;
+                    dailyTotalProfitUsd += trace[dateStr].profit;
+                    hasData = true;
                 }
             }
 
-            if (hasDataForAny) {
-                // Format timestamp to end of day to match typical closing time or just keep T00:00:00
-                // addPortfolioSnapshot handles the ID check by date prefix
-                await addPortfolioSnapshot(dailyTotalValueUsd, dailyTotalProfitUsd, dayIterator.toISOString());
-            }
+            if (hasData) {
+                // Format timestamp. Use the dateStr (YYYY-MM-DD) appended with T00:00:00 or T23:59:59?
+                // Existing snapshots use ISO strings. 
+                // We should preserve the daily granularity.
+                // Let's use EOD for consistency with our trace logic, or just the dateStr + T00:00:00Z
+                // addPortfolioSnapshot handles 'date%' matching, so T... matters less for uniqueness, 
+                // but usually we want consistent sorting.
+                const timestamp = `${dateStr}T23:59:59.000Z`;
 
-            dayIterator.setDate(dayIterator.getDate() + 1);
+                // Existing logic checks for snapshot existence by day.
+                await addPortfolioSnapshot(dailyTotalValueUsd, dailyTotalProfitUsd, timestamp);
+            }
         }
 
-        console.log("Backfill complete");
+        console.log("Backfill complete with Transaction-Aware logic.");
 
     } catch (err) {
         console.error("Error backfilling portfolio history:", err);
@@ -482,79 +479,261 @@ export const getPortfolioHistory = async (): Promise<PortfolioSnapshot[]> => {
     );
 };
 
+// Helper to calculate the historical trace (Value and Profit) for a set of transactions
+// Returns a map of dateStr -> { value: number, profit: number } (in base currency USD)
+const calculateStockHistoryTrace = async (
+    symbol: string,
+    transactions: Transaction[],
+    priceHistoryMap: Record<string, number>,
+    rates: any
+): Promise<Record<string, { value: number, profit: number }>> => {
+    const { convertCurrency } = require('./currency');
+    const trace: Record<string, { value: number, profit: number }> = {};
+
+    // Sort transactions
+    transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Get range of dates from first transaction to now
+    if (transactions.length === 0) return trace;
+
+    // We need to iterate over RELEVANT dates.
+    // Ideally we iterate over the keys of priceHistoryMap (which represents daily points)
+    // plus any transaction dates.
+    // For simplicity, let's iterate through the sorted price history dates.
+    const sortedDates = Object.keys(priceHistoryMap).sort();
+
+    let currentShares = 0;
+    let cumulativeRealizedProfit = 0;
+    let averageCost = 0;
+    let txIndex = 0;
+
+    // We also need to handle the holding's currency metadata usually,
+    // assuming it comes from the first transaction or we look it up.
+    // For trace calculation, we return USD values directly to simplify upstream diffing.
+    // We might need to know the currency of the STOCK.
+    // We can assume inputs have this or we fetch it.
+    // Let's assume we fetch the holding to get currency, or pass it in.
+    // Optimization: Just pass currency as arg.
+    const holding = await getHolding(symbol);
+    const currency = holding?.currency || 'USD';
+
+    for (const dateStr of sortedDates) {
+        const date = new Date(dateStr);
+        // Set to End of Day (23:59:59.999) to ensure we include transactions from this day
+        date.setHours(23, 59, 59, 999);
+
+        // Apply transactions up to this date
+        while (txIndex < transactions.length) {
+            const tx = transactions[txIndex];
+            // Normalize tx date to YYYY-MM-DD for comparison?
+            // Or just precise time comparison.
+            // Snapshot dates are usually EOD (T00:00:00 or similar).
+            const txDate = new Date(tx.date);
+
+            if (txDate <= date) { // Include all transactions occurring on or before this day
+                if (tx.type === 'buy') {
+                    const totalCost = (currentShares * averageCost) + (tx.shares * tx.price);
+                    currentShares += tx.shares;
+                    averageCost = currentShares > 0 ? totalCost / currentShares : 0;
+                } else if (tx.type === 'sell') {
+                    // Verify sell logic matches exactly
+                    const profit = (tx.price - averageCost) * tx.shares;
+                    cumulativeRealizedProfit += profit;
+                    currentShares -= tx.shares;
+                }
+                txIndex++;
+            } else {
+                break;
+            }
+        }
+
+        // Calculate contribution at this point
+        let profitContribution = 0;
+        let valueContribution = 0;
+
+        if (currentShares > 0 || cumulativeRealizedProfit !== 0) {
+            const price = priceHistoryMap[dateStr] || 0;
+            let nativeUnrealized = 0;
+            let nativeValue = 0;
+
+            if (currentShares > 0 && price > 0) {
+                nativeValue = currentShares * price;
+                const nativeCost = currentShares * averageCost;
+                nativeUnrealized = nativeValue - nativeCost;
+            }
+            profitContribution = convertCurrency(nativeUnrealized + cumulativeRealizedProfit, currency, 'USD', rates);
+            valueContribution = convertCurrency(nativeValue, currency, 'USD', rates);
+        }
+
+        trace[dateStr] = { value: valueContribution, profit: profitContribution };
+    }
+
+    return trace;
+};
+
+// Helper to fetch history range based on txs
+const fetchStockHistoryForTransactions = async (symbol: string, transactions: Transaction[]) => {
+    if (transactions.length === 0) return [];
+
+    const dates = transactions.map(t => new Date(t.date).getTime());
+    const minDate = Math.min(...dates);
+    const now = new Date().getTime();
+
+    const diffDays = Math.ceil(Math.abs(now - minDate) / (1000 * 60 * 60 * 24));
+
+    let range = '1mo';
+    if (diffDays > 1825) range = 'max';
+    else if (diffDays > 365) range = '5y';
+    else if (diffDays > 30) range = '1y';
+    else if (diffDays > 5) range = '1mo';
+
+    return await fetchStockHistory(symbol, range);
+};
+
 // Remove a holding's impact from historical snapshots ("Undo" history)
 export const removePortfolioHistoryImpact = async (holding: PortfolioHolding) => {
     try {
         console.log(`Removing historical impact for ${holding.symbol}`);
-        const { fetchExchangeRates, convertCurrency } = require('./currency');
+        const { fetchExchangeRates } = require('./currency');
         const rates = await fetchExchangeRates();
         const database = await initDb();
 
-        // We need to know the price history to subtract the correct value for each day
-        // Similar strategy to backfill, but subtracting
-        const now = new Date();
-        const startDate = new Date(holding.lastTransactionDate || new Date().toISOString());
+        const transactions = await getTransactions(holding.symbol);
+        if (transactions.length === 0) return;
 
-        const diffTime = Math.abs(now.getTime() - startDate.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        let range = '1mo';
-        if (diffDays > 1825) range = 'max';
-        else if (diffDays > 365) range = '5y';
-        else if (diffDays > 30) range = '1y';
-        else if (diffDays > 5) range = '1mo';
-
-        const history = await fetchStockHistory(holding.symbol, range);
+        // Fetch price history
+        const history = await fetchStockHistoryForTransactions(holding.symbol, transactions);
         const priceHistoryMap: Record<string, number> = {};
         history.forEach(point => {
             const dateStr = new Date(point.timestamp).toISOString().split('T')[0];
             priceHistoryMap[dateStr] = point.price;
         });
 
-        // Iterate through all snapshots in DB to update them
-        // This is safer than iterating dates because we only want to touch existing snapshots
+        // Calculate Trace
+        const trace = await calculateStockHistoryTrace(holding.symbol, transactions, priceHistoryMap, rates);
+
+        // Update DB
         const snapshots = await getPortfolioHistory();
-
         for (const snap of snapshots) {
-            const snapDate = new Date(snap.timestamp);
-            const dateStr = snapDate.toISOString().split('T')[0];
+            const dateStr = new Date(snap.timestamp).toISOString().split('T')[0];
+            const traceData = trace[dateStr];
 
-            // Only affect snapshots after the holding started
-            if (snapDate >= startDate) {
-                const price = priceHistoryMap[dateStr];
+            // Default to 0 contribution if not in trace
+            const profitContribution = traceData ? traceData.profit : 0;
+            // Ideally we also subtract value if we were tracking it precisely?
+            // Existing logic: "Undo" stock means principal back to cash (Value same) + Profit removal.
+            // Profit removal: TotalValue = TotalValue - ProfitContribution.
+            // THIS IS CORRECT behavior for "Undo" (as verified before).
+            // Value removal logic: TotalValue -= ValueContribution? NO.
+            // If we assume cash for principal, we only remove *profit*.
+            // So we stick to profit removal for "removePortfolioHistoryImpact".
 
-                if (price !== undefined) {
-                    // Calculate what this holding contributed at that time
-                    // NOTE: Assumes constant shares. If shares changed over time, this is an approximation.
-                    // But for "undoing" a simple "add -> delete" workflow, it's accurate.
-                    const nativeValue = holding.shares * price;
-                    const nativeCost = holding.shares * (holding.costBasis || 0);
-                    // Realized profit is static, so we always remove it if it existed? 
-                    // Or only if it was realized before this snapshot? 
-                    // Simplified: We assume realized profit is part of the "total profit" metric we execute
-                    const nativeProfit = (nativeValue - nativeCost) + (holding.realizedProfit || 0);
+            if (profitContribution !== 0) {
+                // Remove the profit contribution
+                const newValue = Math.max(0, snap.totalValue - profitContribution);
+                const newProfit = snap.totalProfit - profitContribution;
 
-                    const valueToRemove = convertCurrency(nativeValue, holding.currency || 'USD', 'USD', rates);
-                    const profitToRemove = convertCurrency(nativeProfit, holding.currency || 'USD', 'USD', rates);
-
-                    const newValue = Math.max(0, snap.totalValue - valueToRemove);
-                    // Profit can be negative, so standard subtraction
-                    const newProfit = snap.totalProfit - profitToRemove;
-
-                    if (snap.id !== undefined) {
-                        await database.runAsync(
-                            'UPDATE portfolio_history SET totalValue = ?, totalProfit = ? WHERE id = ?;',
-                            [newValue, newProfit, snap.id]
-                        );
-                    }
+                if (snap.id !== undefined) {
+                    await database.runAsync(
+                        'UPDATE portfolio_history SET totalValue = ?, totalProfit = ? WHERE id = ?;',
+                        [newValue, newProfit, snap.id]
+                    );
                 }
             }
         }
         console.log("Historical impact removed.");
-
     } catch (err) {
         console.error("Error removing portfolio history impact:", err);
     }
+};
+
+export const deleteTransaction = async (id: number) => {
+    const database = await initDb();
+    const existing = await database.getFirstAsync<Transaction>('SELECT * FROM transactions WHERE id = ?;', [id]);
+    if (!existing) throw new Error("Transaction not found");
+
+    try {
+        console.log(`Deleting transaction ${id}, updating history...`);
+        const { fetchExchangeRates } = require('./currency');
+        const rates = await fetchExchangeRates();
+
+        const allTransactions = await getTransactions(existing.symbol);
+
+        // 1. Fetch Price History
+        const history = await fetchStockHistoryForTransactions(existing.symbol, allTransactions);
+        const priceHistoryMap: Record<string, number> = {};
+        history.forEach(point => {
+            const dateStr = new Date(point.timestamp).toISOString().split('T')[0];
+            priceHistoryMap[dateStr] = point.price;
+        });
+
+        // 2. Calculate Trace BEFORE deletion
+        const traceBefore = await calculateStockHistoryTrace(existing.symbol, allTransactions, priceHistoryMap, rates);
+
+        // 3. Calculate Trace AFTER deletion
+        const transactionsAfter = allTransactions.filter(t => t.id !== id);
+        const traceAfter = await calculateStockHistoryTrace(existing.symbol, transactionsAfter, priceHistoryMap, rates);
+
+        // 4. Update Portfolio History with Diff
+        const snapshots = await getPortfolioHistory();
+        for (const snap of snapshots) {
+            const dateStr = new Date(snap.timestamp).toISOString().split('T')[0];
+
+            const before = traceBefore[dateStr] || { value: 0, profit: 0 };
+            const after = traceAfter[dateStr] || { value: 0, profit: 0 };
+
+            // Diff in Profit logic? 
+            // If I delete a transaction:
+            // "Value" should change by [AfterValue - BeforeValue].
+            // "Profit" should change by [AfterProfit - BeforeProfit].
+            // Wait.
+            // For Delete Transaction:
+            // If I delete a BUY ($100).
+            // Before: Value $100. Profit $0.
+            // After: Value $0. Profit $0.
+            // Diff Value: -$100. Diff Profit: 0.
+            // Global Value: $1000 -> $900. 
+            // NOTE: Global Value includes CASH usually?
+            // If we delete a BUY, we get CASH back.
+            // So Total Value should ideally stay same ($100 Stock -> $100 Cash).
+            // UNLESS stock moved.
+            // If Stock moved to $110. Profit +$10.
+            // Before: Value $110. Profit $10.
+            // After: Value $0. Profit $0.
+            // Diff Value: -$110. Diff Profit: -$10.
+            // If we apply this to Global History:
+            // Global Value -= 110.
+            // But we should have $100 Cash.
+            // So Global Value should only drop by $10 (Profit).
+            // SO: We should ONLY update Global Value by the PROFIT diff.
+            // Same as "delete stock" logic.
+            // Because our model assumes "Portfolio Value = Cash + Stocks".
+            // If we "undo" a stock transaction, we assume consistent Cash baseline principal.
+            // So deleting a Buy means "I had Cash instead".
+            // So we only remove the Profit/Loss component.
+
+            const diffProfit = after.profit - before.profit;
+
+            if (diffProfit !== 0) {
+                const newValue = Math.max(0, snap.totalValue + diffProfit);
+                const newProfit = snap.totalProfit + diffProfit;
+
+                if (snap.id !== undefined) {
+                    await database.runAsync(
+                        'UPDATE portfolio_history SET totalValue = ?, totalProfit = ? WHERE id = ?;',
+                        [newValue, newProfit, snap.id]
+                    );
+                }
+            }
+        }
+        console.log("History corrected for transaction deletion.");
+
+    } catch (e) {
+        console.error("Error updating history for deleteTransaction:", e);
+    }
+
+    await database.runAsync('DELETE FROM transactions WHERE id = ?;', [id]);
+    return await recalculatePortfolio(existing.symbol);
 };
 
 export const removeHolding = async (symbol: string) => {
@@ -566,11 +745,17 @@ export const removeHolding = async (symbol: string) => {
         await removePortfolioHistoryImpact(holding);
     }
 
-    const result = await database.runAsync(
+    // Delete the holding
+    await database.runAsync(
         'DELETE FROM portfolio WHERE symbol = ?;',
         [symbol.toUpperCase()]
     );
-    return result;
+
+    // Delete all associated transactions
+    await database.runAsync(
+        'DELETE FROM transactions WHERE symbol = ?;',
+        [symbol.toUpperCase()]
+    );
 };
 
 export const getPortfolio = async (): Promise<PortfolioHolding[]> => {
@@ -663,4 +848,18 @@ export const updateSetting = async (key: string, value: string) => {
         'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?);',
         [key, value]
     );
+};
+
+export const clearAllData = async () => {
+    const database = await initDb();
+    await database.runAsync('DELETE FROM portfolio;');
+    await database.runAsync('DELETE FROM portfolio_history;');
+    await database.runAsync('DELETE FROM transactions;');
+    // Reset settings to defaults
+    await database.runAsync('DELETE FROM settings;');
+    await database.execAsync(`
+        INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', 'system');
+        INSERT OR IGNORE INTO settings (key, value) VALUES ('currency', 'USD');
+        INSERT OR IGNORE INTO settings (key, value) VALUES ('db_schema_version', '2');
+    `);
 };

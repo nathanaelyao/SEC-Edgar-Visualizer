@@ -1096,7 +1096,7 @@ const SearchResultsScreen: React.FC = () => {
             >
               <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setIsPortfolioModalVisible(false); }}>
                 <View style={styles.modalOverlay}>
-                  <TouchableWithoutFeedback>
+                  <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                     <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff', shadowOpacity: isDark ? 0.4 : 0.2 }]}>
                       <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>
                         {existingHolding ? `Manage ${stockSymbol}` : `Add ${stockSymbol} to Portfolio`}
@@ -1132,7 +1132,7 @@ const SearchResultsScreen: React.FC = () => {
                         <View style={{ height: 350 }}>
                           <TransactionList
                             transactions={transactions}
-                            onEdit={handleEditTransaction}
+
                             onDelete={handleDeleteTransaction}
                             currency={stockQuote?.currency}
                           />

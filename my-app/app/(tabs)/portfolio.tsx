@@ -415,7 +415,7 @@ const PortfolioScreen: React.FC = () => {
                     <View style={styles.profitContainer}>
                         {item.priceChange !== undefined && (
                             <Text style={[styles.itemPriceChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
-                                {item.priceChange >= 0 ? '+' : ''}{formatCurrency(convertCurrency(Math.abs(item.priceChange || 0), item.currency || 'USD', currency, exchangeRates), currency)} ({item.pricePercent?.toFixed(2)}%)
+                                {item.priceChange >= 0 ? '+' : ''}{formatCurrency(convertCurrency(Math.abs((item.priceChange || 0) * item.shares), item.currency || 'USD', currency, exchangeRates), currency)} ({item.pricePercent?.toFixed(2)}%)
                             </Text>
                         )}
                     </View>
@@ -619,7 +619,7 @@ const PortfolioScreen: React.FC = () => {
             >
                 <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setIsManageModalVisible(false); }}>
                     <View style={styles.modalOverlay}>
-                        <TouchableWithoutFeedback>
+                        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                             <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
                                 <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Manage {selectedHolding?.symbol}</Text>
 
@@ -773,25 +773,7 @@ const PortfolioScreen: React.FC = () => {
                     </View>
                     <TransactionList
                         transactions={globalTransactions}
-                        onEdit={(tx) => {
-                            // Find holding to edit? Or just open manage modal logic? 
-                            // Complex: We need 'selectedHolding' for the Manage modal to work.
-                            // We can fetch the holding by symbol.
-                            const holding = portfolio.find(h => h.symbol === tx.symbol) || closedPositions.find(h => h.symbol === tx.symbol);
-                            if (holding) {
-                                setIsHistoryModalVisible(false);
-                                setSelectedHolding(holding);
-                                setManageMode(tx.type as any); // Use logic from handleEditTransaction
-                                setEditingTransaction(tx);
-                                setSharesAmount(tx.shares.toString());
-                                setPriceAmount(tx.price.toString());
-                                setTransactionDate(new Date(tx.date));
-                                fetchTransactions(tx.symbol);
-                                setIsManageModalVisible(true);
-                            } else {
-                                Alert.alert("Error", "Could not find holding details for this transaction.");
-                            }
-                        }}
+
                         onDelete={async (tx) => {
                             Alert.alert("Delete Transaction", "Are you sure?", [
                                 { text: "Cancel", style: "cancel" },
@@ -818,7 +800,7 @@ const PortfolioScreen: React.FC = () => {
             >
                 <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setIsCashModalVisible(false); }}>
                     <View style={styles.modalOverlay}>
-                        <TouchableWithoutFeedback>
+                        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                             <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
                                 <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>
                                     {cashType === 'deposit' ? 'Deposit Cash' : 'Withdraw Cash'}
