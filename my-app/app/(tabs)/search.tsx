@@ -42,7 +42,7 @@ const HomeScreen: React.FC = () => {
   // Fetch Market Data
   useEffect(() => {
     const fetchMarket = async () => {
-      const symbols = [
+      const baseSymbols = [
         { sym: 'ES=F', name: 'S&P 500' },
         { sym: 'NQ=F', name: 'NASDAQ' },
         { sym: 'YM=F', name: 'Dow Jones' },
@@ -51,20 +51,43 @@ const HomeScreen: React.FC = () => {
         { sym: 'CL=F', name: 'Oil' }
       ];
 
+      // Relevant currency pairs based on user selected currency
+      const currencyPairs: any[] = [];
+      if (currency === 'CAD') {
+        currencyPairs.push({ sym: 'USDCAD=X', name: 'USD/CAD' });
+        currencyPairs.push({ sym: 'CADUSD=X', name: 'CAD/USD' });
+      } else if (currency !== 'USD') {
+        currencyPairs.push({ sym: `${currency}USD=X`, name: `${currency}/USD` });
+        currencyPairs.push({ sym: `USD${currency}=X`, name: `USD/${currency}` });
+      } else {
+        // If USD is selected, show major pairs and crypto
+        currencyPairs.push({ sym: 'EURUSD=X', name: 'EUR/USD' });
+        currencyPairs.push({ sym: 'GBPUSD=X', name: 'GBP/USD' });
+        currencyPairs.push({ sym: 'JPYUSD=X', name: 'JPY/USD' });
+        currencyPairs.push({ sym: 'BTC-USD', name: 'Bitcoin' });
+      }
+
+      const allSymbols = [...baseSymbols, ...currencyPairs];
+
       try {
-        const results = await Promise.all(symbols.map(async (item) => {
+        const results = await Promise.all(allSymbols.map(async (item) => {
           try {
-            // Fetch 1D history for chart
-            const history = await fetchStockHistory(item.sym, '1d', '5m');
-            // Fetch real-time quote for latest price/change
+            // Using 5d range / 15m interval for better robustness across weekends/off-hours
+            const historyData = await fetchStockHistory(item.sym, '5d', '15m');
             const quote = await fetchStockPrice(item.sym);
-            const prices = history.map(h => h.price);
+            const prices = historyData.map(h => h.price);
+
+            // If we have no price but have history, use the last history point
+            let finalPrice = quote.price;
+            if ((!finalPrice || finalPrice === 0) && prices.length > 0) {
+              finalPrice = prices[prices.length - 1];
+            }
 
             return {
               symbol: item.sym,
               name: item.name,
               data: prices,
-              price: quote.price || 0,
+              price: finalPrice || 0,
               changePercent: quote.percent || 0
             };
           } catch (e) {
@@ -72,7 +95,7 @@ const HomeScreen: React.FC = () => {
             return null;
           }
         }));
-        setMarketSummary(results.filter(r => r !== null) as MarketItem[]);
+        setMarketSummary(results.filter(r => r !== null && r.price > 0) as MarketItem[]);
       } catch (e) {
         console.error("Market summary fetch failed", e);
       } finally {
@@ -80,7 +103,7 @@ const HomeScreen: React.FC = () => {
       }
     };
     fetchMarket();
-  }, []);
+  }, [currency]);
 
   const loadData = async () => {
     try {
@@ -220,22 +243,25 @@ const HomeScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.searchSection}>
-            <TextInput
-              style={[styles.searchBar, {
-                backgroundColor: isDark ? '#1e1e1e' : '#fff',
-                borderColor: isDark ? '#333' : '#e0e0e0',
-                color: isDark ? '#fff' : '#000'
-              }]}
-              placeholder="Search stocks or companies"
-              placeholderTextColor={isDark ? '#666' : 'gray'}
-              onChangeText={setSearchQuery}
-              value={searchQuery}
-            />
+          <View style={[styles.searchSection, { shadowColor: isDark ? '#000' : '#007AFF' }]}>
+            <View style={[styles.searchContainer, {
+              backgroundColor: isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(255, 255, 255, 0.9)',
+              borderColor: isDark ? '#333' : '#e0e0e0'
+            }]}>
+              <Ionicons name="search" size={20} color={isDark ? '#8e8e93' : '#8e8e93'} style={styles.searchIcon} />
+              <TextInput
+                style={[styles.searchInput, { color: isDark ? '#fff' : '#000' }]}
+                placeholder="Search ticker, company or asset"
+                placeholderTextColor={isDark ? '#666' : '#999'}
+                onChangeText={setSearchQuery}
+                value={searchQuery}
+                autoCorrect={false}
+              />
+            </View>
             {suggestions.length > 0 && (
               <View style={[styles.suggestionsContainer, {
-                backgroundColor: isDark ? '#1e1e1e' : '#fff',
-                borderColor: isDark ? '#333' : '#eee'
+                backgroundColor: isDark ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+                borderColor: isDark ? '#444' : '#eee'
               }]}>
                 {suggestions.map((s, index) => (
                   <TouchableOpacity
@@ -247,12 +273,18 @@ const HomeScreen: React.FC = () => {
                       setSuggestions([]);
                     }}
                   >
-                    <View>
-                      <Text style={[styles.suggestionText, { color: isDark ? '#fff' : '#1a1a1a' }]}>{s.name}</Text>
-                      <Text style={styles.suggestionSubtext}>
-                        {s.ticker} • {s.exchange} • {s.type}
-                      </Text>
+                    <View style={styles.suggestionLeft}>
+                      <View style={[styles.symbolBadge, { backgroundColor: isDark ? '#333' : '#f0f2f5' }]}>
+                        <Text style={[styles.symbolBadgeText, { color: isDark ? '#fff' : '#000' }]}>{s.ticker}</Text>
+                      </View>
+                      <View style={{ marginLeft: 12 }}>
+                        <Text style={[styles.suggestionText, { color: isDark ? '#fff' : '#1a1a1a' }]} numberOfLines={1}>{s.name}</Text>
+                        <Text style={styles.suggestionSubtext}>
+                          {s.exchange} • {s.type}
+                        </Text>
+                      </View>
                     </View>
+                    <MaterialIcons name="arrow-forward-ios" size={14} color="#8e8e93" />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -359,109 +391,139 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: CONTAINER_PADDING,
-    paddingTop: 80,
-    paddingBottom: 80,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 28,
   },
   greeting: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#8e8e93',
-    fontWeight: '500',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
   },
   homeTitle: {
-    fontSize: 32,
-    fontWeight: '800',
+    fontSize: 34,
+    fontWeight: '900',
     color: '#1a1a1a',
-    letterSpacing: -0.5,
+    letterSpacing: -1,
   },
   profileButton: {
-    padding: 2,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   searchSection: {
     zIndex: 100,
-    marginBottom: 28,
+    marginBottom: 32,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  searchBar: {
-    height: 56,
-    borderColor: '#e0e0e0',
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 60,
     borderWidth: 1.5,
-    paddingHorizontal: 20,
-    borderRadius: 18,
-    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
     fontSize: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+    fontWeight: '500',
   },
   suggestionsContainer: {
     position: 'absolute',
-    top: 60,
+    top: 68,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#eee',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+    overflow: 'hidden',
     zIndex: 1000,
   },
   suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+  },
+  suggestionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  symbolBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  symbolBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
   },
   suggestionText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontWeight: '700',
     marginBottom: 2,
+    maxWidth: SCREEN_WIDTH * 0.5,
   },
   suggestionSubtext: {
     fontSize: 12,
     color: '#8e8e93',
+    fontWeight: '500',
   },
   portfolioCard: {
-    backgroundColor: '#ffffff',
     padding: 24,
-    borderRadius: 24,
+    borderRadius: 30,
     marginBottom: 32,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.15,
+    shadowRadius: 32,
+    elevation: 10,
     borderWidth: 1,
-    borderColor: '#eee',
   },
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   cardLabel: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '800',
     color: '#8e8e93',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 2,
   },
   portfolioValue: {
-    fontSize: 38,
-    fontWeight: '800',
-    color: '#1a1a1a',
-    marginBottom: 10,
+    fontSize: 42,
+    fontWeight: '900',
+    letterSpacing: -1,
+    marginBottom: 12,
   },
   cardBottom: {
     flexDirection: 'row',
@@ -469,21 +531,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardChange: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  cardTime: {
-    fontSize: 15,
-    color: '#8e8e93',
+    fontSize: 17,
+    fontWeight: '800',
   },
   moversSection: {
-    marginBottom: 32,
+    marginBottom: 36,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#1a1a1a',
     marginBottom: 20,
+    letterSpacing: -0.5,
   },
   moversGrid: {
     flexDirection: 'row',
@@ -492,76 +551,73 @@ const styles = StyleSheet.create({
   },
   moverItem: {
     flex: 1,
-    backgroundColor: '#fff',
-    padding: 18,
-    borderRadius: 20,
+    padding: 20,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#eee',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   moverSymbol: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
+    fontSize: 15,
+    fontWeight: '800',
     marginBottom: 6,
   },
   moverValue: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
   },
   emptyPortfolioCard: {
-    backgroundColor: '#f1f1f6',
-    padding: 24,
-    borderRadius: 24,
+    padding: 32,
+    borderRadius: 30,
     alignItems: 'center',
     borderStyle: 'dashed',
-    borderWidth: 1.5,
-    borderColor: '#c7c7cc',
+    borderWidth: 2,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 10,
   },
   emptySubtext: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#8e8e93',
     textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  searchButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  searchButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
+    marginBottom: 24,
+    lineHeight: 22,
+    paddingHorizontal: 10,
   },
   settingsButton: {
     backgroundColor: '#007AFF',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 16,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 18,
     shadowColor: '#007AFF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   settingsButtonText: {
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '800',
     fontSize: 16,
+    letterSpacing: 0.5,
+  },
+  positiveBadge: {
+    backgroundColor: 'rgba(52, 199, 89, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  negativeBadge: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   positiveText: {
     color: '#34C759',
