@@ -1241,14 +1241,14 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   screenTitle: {
-    fontSize: 23,
+    fontSize: 28,
     fontWeight: '800',
     textAlign: 'center',
     width: '100%',
     paddingHorizontal: 54, // Clear space for back button (44 width + margin)
   },
   priceContainer: {
-    marginBottom: 20,
+    marginBottom: 8,
     alignItems: 'center',
   },
   priceValueWrapper: {
@@ -1257,12 +1257,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   priceValue: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: '800',
     letterSpacing: -1,
   },
   priceChange: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
