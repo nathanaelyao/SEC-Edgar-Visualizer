@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Dimensions, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Dimensions, ScrollView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { secFetch, yahooSearch, fetchStockHistory, fetchStockPrice } from '@/utils/secApi';
@@ -204,138 +204,143 @@ const HomeScreen: React.FC = () => {
 
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <View style={styles.topRow}>
-          <View>
-            <Text style={[styles.greeting, { color: isDark ? '#8e8e93' : '#8e8e93' }]}>Welcome back</Text>
-            <Text style={[styles.homeTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Stock Trends</Text>
+    <ScrollView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]} stickyHeaderIndices={[1]}>
+      <TouchableWithoutFeedback onPress={() => {
+        setSuggestions([]);
+        Keyboard.dismiss();
+      }}>
+        <View style={styles.header}>
+          <View style={styles.topRow}>
+            <View>
+              <Text style={[styles.greeting, { color: isDark ? '#8e8e93' : '#8e8e93' }]}>Welcome back</Text>
+              <Text style={[styles.homeTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Stock Trends</Text>
+            </View>
+            <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('portfolio')}>
+              <Ionicons name="pie-chart-outline" size={32} color="#007AFF" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('portfolio')}>
-            <Ionicons name="pie-chart-outline" size={32} color="#007AFF" />
-          </TouchableOpacity>
-        </View>
 
-        <View style={styles.searchSection}>
-          <TextInput
-            style={[styles.searchBar, {
-              backgroundColor: isDark ? '#1e1e1e' : '#fff',
-              borderColor: isDark ? '#333' : '#e0e0e0',
-              color: isDark ? '#fff' : '#000'
-            }]}
-            placeholder="Search stocks or companies"
-            placeholderTextColor={isDark ? '#666' : 'gray'}
-            onChangeText={setSearchQuery}
-            value={searchQuery}
-          />
-          {suggestions.length > 0 && (
-            <View style={[styles.suggestionsContainer, {
-              backgroundColor: isDark ? '#1e1e1e' : '#fff',
-              borderColor: isDark ? '#333' : '#eee'
-            }]}>
-              {suggestions.map((s, index) => (
-                <TouchableOpacity
-                  key={`${s.ticker}-${index}`}
-                  style={[styles.suggestionItem, { borderBottomColor: isDark ? '#333' : '#f0f0f0' }]}
-                  onPress={() => {
-                    navigation.navigate('SearchResultsScreen', { stockSymbol: s.ticker });
-                    setSearchQuery('');
-                    setSuggestions([]);
-                  }}
-                >
-                  <View>
-                    <Text style={[styles.suggestionText, { color: isDark ? '#fff' : '#1a1a1a' }]}>{s.name}</Text>
-                    <Text style={styles.suggestionSubtext}>
-                      {s.ticker} • {s.exchange} • {s.type}
+          <View style={styles.searchSection}>
+            <TextInput
+              style={[styles.searchBar, {
+                backgroundColor: isDark ? '#1e1e1e' : '#fff',
+                borderColor: isDark ? '#333' : '#e0e0e0',
+                color: isDark ? '#fff' : '#000'
+              }]}
+              placeholder="Search stocks or companies"
+              placeholderTextColor={isDark ? '#666' : 'gray'}
+              onChangeText={setSearchQuery}
+              value={searchQuery}
+            />
+            {suggestions.length > 0 && (
+              <View style={[styles.suggestionsContainer, {
+                backgroundColor: isDark ? '#1e1e1e' : '#fff',
+                borderColor: isDark ? '#333' : '#eee'
+              }]}>
+                {suggestions.map((s, index) => (
+                  <TouchableOpacity
+                    key={`${s.ticker}-${index}`}
+                    style={[styles.suggestionItem, { borderBottomColor: isDark ? '#333' : '#f0f0f0' }]}
+                    onPress={() => {
+                      navigation.navigate('SearchResultsScreen', { stockSymbol: s.ticker });
+                      setSearchQuery('');
+                      setSuggestions([]);
+                    }}
+                  >
+                    <View>
+                      <Text style={[styles.suggestionText, { color: isDark ? '#fff' : '#1a1a1a' }]}>{s.name}</Text>
+                      <Text style={styles.suggestionSubtext}>
+                        {s.ticker} • {s.exchange} • {s.type}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+
+
+          {portfolio.length > 0 && (
+            <TouchableOpacity
+              style={[styles.portfolioCard, {
+                backgroundColor: isDark ? '#1e1e1e' : '#fff',
+                borderColor: isDark ? '#333' : '#eee'
+              }]}
+              onPress={() => navigation.navigate('portfolio')}
+            >
+              <View style={styles.cardTop}>
+                <Text style={styles.cardLabel}>Personal Portfolio</Text>
+                <MaterialIcons name="chevron-right" size={20} color="#8e8e93" />
+              </View>
+              <Text style={[styles.portfolioValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                {displayTotalValue}
+              </Text>
+              <View style={styles.cardBottom}>
+                <Text style={[styles.cardChange, dayChange >= 0 ? styles.positiveText : styles.negativeText]}>
+                  {dayChange >= 0 ? '+' : '-'}{displayDayChange} ({dayChangePercent.toFixed(1)}%)
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {topMovers.length > 0 && (
+            <View style={styles.moversSection}>
+              <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Portfolio Movers</Text>
+              <View style={styles.moversGrid}>
+                {topMovers.map((mover: any) => (
+                  <TouchableOpacity
+                    key={mover.symbol}
+                    style={[styles.moverItem, {
+                      backgroundColor: isDark ? '#1e1e1e' : '#fff',
+                      borderColor: isDark ? '#333' : '#eee'
+                    }]}
+                    onPress={() => navigation.navigate('SearchResultsScreen', { stockSymbol: mover.symbol })}
+                  >
+                    <Text style={[styles.moverSymbol, { color: isDark ? '#fff' : '#1a1a1a' }]}>{mover.symbol}</Text>
+                    <Text style={[styles.moverValue, mover.dailyChangePercent >= 0 ? styles.positiveText : styles.negativeText]}>
+                      {mover.dailyChangePercent >= 0 ? '+' : ''}{mover.dailyChangePercent.toFixed(1)}%
                     </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {!marketLoading && marketSummary.length > 0 && (
+            <View style={{ marginBottom: 24 }}>
+              <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#1a1a1a', marginBottom: 16 }]}>Market Snapshot</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
+                {marketSummary.map((item, index) => (
+                  <MarketSummaryCard
+                    key={index}
+                    {...item}
+                    onPress={() => {
+                      navigation.navigate('SearchResultsScreen', { stockSymbol: item.symbol });
+                    }}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {portfolio.length === 0 && (
+            <View style={[styles.emptyPortfolioCard, {
+              backgroundColor: isDark ? '#1e1e1e' : '#f1f1f6',
+              borderColor: isDark ? '#444' : '#c7c7cc'
+            }]}>
+              <Text style={[styles.emptyTitle, { color: isDark ? '#fff' : '#333' }]}>Start your portfolio</Text>
+              <Text style={[styles.emptySubtext, { color: isDark ? '#8e8e93' : '#8e8e93' }]}>Search for a stock and add it to your portfolio to see its performance here.</Text>
+              <TouchableOpacity
+                style={styles.settingsButton}
+                onPress={() => navigation.navigate('settings')}
+              >
+                <Text style={styles.settingsButtonText}>Set Preferred Currency</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
-
-
-
-        {portfolio.length > 0 && (
-          <TouchableOpacity
-            style={[styles.portfolioCard, {
-              backgroundColor: isDark ? '#1e1e1e' : '#fff',
-              borderColor: isDark ? '#333' : '#eee'
-            }]}
-            onPress={() => navigation.navigate('portfolio')}
-          >
-            <View style={styles.cardTop}>
-              <Text style={styles.cardLabel}>Personal Portfolio</Text>
-              <MaterialIcons name="chevron-right" size={20} color="#8e8e93" />
-            </View>
-            <Text style={[styles.portfolioValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>
-              {displayTotalValue}
-            </Text>
-            <View style={styles.cardBottom}>
-              <Text style={[styles.cardChange, dayChange >= 0 ? styles.positiveText : styles.negativeText]}>
-                {dayChange >= 0 ? '+' : '-'}{displayDayChange} ({dayChangePercent.toFixed(1)}%)
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {topMovers.length > 0 && (
-          <View style={styles.moversSection}>
-            <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Portfolio Movers</Text>
-            <View style={styles.moversGrid}>
-              {topMovers.map((mover: any) => (
-                <TouchableOpacity
-                  key={mover.symbol}
-                  style={[styles.moverItem, {
-                    backgroundColor: isDark ? '#1e1e1e' : '#fff',
-                    borderColor: isDark ? '#333' : '#eee'
-                  }]}
-                  onPress={() => navigation.navigate('SearchResultsScreen', { stockSymbol: mover.symbol })}
-                >
-                  <Text style={[styles.moverSymbol, { color: isDark ? '#fff' : '#1a1a1a' }]}>{mover.symbol}</Text>
-                  <Text style={[styles.moverValue, mover.dailyChangePercent >= 0 ? styles.positiveText : styles.negativeText]}>
-                    {mover.dailyChangePercent >= 0 ? '+' : ''}{mover.dailyChangePercent.toFixed(1)}%
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {!marketLoading && marketSummary.length > 0 && (
-          <View style={{ marginBottom: 24 }}>
-            <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#1a1a1a', marginBottom: 16 }]}>Market Snapshot</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
-              {marketSummary.map((item, index) => (
-                <MarketSummaryCard
-                  key={index}
-                  {...item}
-                  onPress={() => {
-                    navigation.navigate('SearchResultsScreen', { stockSymbol: item.symbol });
-                  }}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {portfolio.length === 0 && (
-          <View style={[styles.emptyPortfolioCard, {
-            backgroundColor: isDark ? '#1e1e1e' : '#f1f1f6',
-            borderColor: isDark ? '#444' : '#c7c7cc'
-          }]}>
-            <Text style={[styles.emptyTitle, { color: isDark ? '#fff' : '#333' }]}>Start your portfolio</Text>
-            <Text style={[styles.emptySubtext, { color: isDark ? '#8e8e93' : '#8e8e93' }]}>Search for a stock and add it to your portfolio to see its performance here.</Text>
-            <TouchableOpacity
-              style={styles.settingsButton}
-              onPress={() => navigation.navigate('settings')}
-            >
-              <Text style={styles.settingsButtonText}>Set Preferred Currency</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+      </TouchableWithoutFeedback>
     </ScrollView>
   );
 };

@@ -784,12 +784,40 @@ const SearchResultsScreen: React.FC = () => {
         if (divPayments.length >= 4 && sharesPoints.length > 0) {
           // Sum last 4 quarters
           const last4 = divPayments.slice(-4);
-          const totalDivsTTM = last4.reduce((sum, item) => sum + item.value, 0);
-          const latestShares = sharesPoints[sharesPoints.length - 1].value;
 
-          if (latestShares > 0) {
-            calculatedRate = totalDivsTTM / latestShares;
-            // console.log(`Calculated Rate (Fundamental): ${calculatedRate} (Divs: ${totalDivsTTM}, Shares: ${latestShares})`);
+          // --- Strict Freshness & Consecutiveness Check ---
+          const now = new Date();
+          const latestPoint = last4[3];
+          const latestYear = parseInt(latestPoint.label.substring(0, 4));
+          const latestQuarter = parseInt(latestPoint.label.substring(5, 6));
+
+          // Latest data should be from within last 12 months approximately
+          // If current year is 2026, latest should at least be 2025Q1
+          const latestDate = new Date(latestYear, (latestQuarter * 3) - 1);
+          const oneYearAgo = new Date();
+          oneYearAgo.setFullYear(now.getFullYear() - 1);
+
+          let isConsecutive = true;
+          for (let i = 1; i < last4.length; i++) {
+            const prev = last4[i - 1].label;
+            const curr = last4[i].label;
+            const pY = parseInt(prev.substring(0, 4));
+            const pQ = parseInt(prev.substring(5, 6));
+            const cY = parseInt(curr.substring(0, 4));
+            const cQ = parseInt(curr.substring(5, 6));
+            if (!((cY === pY && cQ === pQ + 1) || (cY === pY + 1 && pQ === 4 && cQ === 1))) {
+              isConsecutive = false;
+              break;
+            }
+          }
+
+          if (isConsecutive && latestDate >= oneYearAgo) {
+            const totalDivsTTM = last4.reduce((sum, item) => sum + item.value, 0);
+            const latestShares = sharesPoints[sharesPoints.length - 1].value;
+
+            if (latestShares > 0) {
+              calculatedRate = totalDivsTTM / latestShares;
+            }
           }
         }
       }
