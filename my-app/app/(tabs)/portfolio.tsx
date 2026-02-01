@@ -1197,7 +1197,7 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 8,
-        elevation: 3,
+        elevation: 8,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -1313,12 +1313,7 @@ const styles = StyleSheet.create({
         marginBottom: 24,
         padding: 24,
         borderRadius: 28,
-        borderWidth: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.05,
-        shadowRadius: 16,
-        elevation: 4,
+        elevation: 8,
     },
     chartSectionTitle: {
         fontSize: 18,
@@ -1347,7 +1342,7 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
-        elevation: 2,
+        elevation: 8,
     },
     rangeChipActiveDark: {
         backgroundColor: '#333',
@@ -1442,7 +1437,7 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
-        elevation: 2,
+        elevation: 8,
     },
     modeTabText: {
         fontSize: 14,

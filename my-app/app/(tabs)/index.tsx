@@ -1,18 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Dimensions, TouchableWithoutFeedback, Keyboard, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Dimensions, TouchableWithoutFeedback, Keyboard, ScrollView, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Dropdown } from 'react-native-element-dropdown';
 import { investorsData } from '@/constants/investors'
-import * as SQLite from 'expo-sqlite';
-import cheerio from 'react-native-cheerio';
-import { XMLParser } from 'fast-xml-parser';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { secFetch } from '@/utils/secApi';
-import { debug, info, warn, error as logError } from '@/utils/logger';
-import { getPortfolio, PortfolioHolding } from '@/utils/db';
+import { error as logError } from '@/utils/logger';
 import { useTheme } from '@/context/ThemeContext';
-import { formatCurrency, convertCurrency } from '@/utils/currency';
-
 
 interface Investor {
   name: string;
@@ -20,43 +16,26 @@ interface Investor {
   cik: string;
 }
 
-
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { isDark, currency, exchangeRates } = useTheme();
+  const { isDark } = useTheme();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filteredInvestors, setFilteredInvestors] = useState<Investor[]>(investorsData);
   const [filingDates, setFilingDates] = useState<Record<string, { date: string; quarter: string }>>({});
   const [loading, setLoading] = useState(true);
-  const firstRender = useRef(true);
   const [sortType, setSortType] = useState('recent');
-  const [value, setValue] = useState(null);
+  const [value, setValue] = useState('recent');
   const [isFocus, setIsFocus] = useState(false);
-
 
   // Initialize daily prefetch for popular endpoints on app startup
   useEffect(() => {
     const { scheduleDailyPrefetch } = require('@/utils/secApi');
-
-    // Prefetch the most popular investor CIK submissions (top 10 by activity)
     const popularEndpoints = investorsData.slice(0, 10).map(
       investor => `https://data.sec.gov/submissions/CIK${investor.cik}.json`
     );
-
-    // Schedule daily prefetch and store cleanup function
     const cleanup = scheduleDailyPrefetch(popularEndpoints);
-
-    return cleanup; // cleanup on unmount
+    return cleanup;
   }, []);
-
-  useEffect(() => {
-
-    if (firstRender.current) {
-      firstRender.current = false;
-    }
-  },);
-
-
 
   useEffect(() => {
     const fetchFilingDates = async () => {
@@ -65,11 +44,7 @@ const HomeScreen: React.FC = () => {
         const promises = investorsData.map(async (investor) => {
           try {
             const response = await secFetch(`https://data.sec.gov/submissions/CIK${investor.cik}.json`, { priority: true });
-
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
             const recentFilings = data.filings.recent;
             if (recentFilings) {
@@ -82,15 +57,11 @@ const HomeScreen: React.FC = () => {
                   const filingDateObj = new Date(filingDate);
                   const month = filingDateObj.getMonth() + 1;
                   let quarterString = "";
-                  if (month >= 1 && month <= 3) {
-                    quarterString = "Q4 " + (filingDateObj.getFullYear() - 1);
-                  } else if (month >= 4 && month <= 6) {
-                    quarterString = "Q1 " + filingDateObj.getFullYear();
-                  } else if (month >= 7 && month <= 9) {
-                    quarterString = "Q2 " + filingDateObj.getFullYear();
-                  } else if (month >= 10 && month <= 12) {
-                    quarterString = "Q3 " + filingDateObj.getFullYear();
-                  }
+                  if (month >= 1 && month <= 3) quarterString = "Q4 " + (filingDateObj.getFullYear() - 1);
+                  else if (month >= 4 && month <= 6) quarterString = "Q1 " + filingDateObj.getFullYear();
+                  else if (month >= 7 && month <= 9) quarterString = "Q2 " + filingDateObj.getFullYear();
+                  else if (month >= 10 && month <= 12) quarterString = "Q3 " + filingDateObj.getFullYear();
+
                   return { cik: investor.cik, date: filingDate, quarter: quarterString };
                 }
               }
@@ -107,17 +78,13 @@ const HomeScreen: React.FC = () => {
           dates[result.cik] = { date: result.date, quarter: result.quarter };
         });
         setFilingDates(dates);
-
       } finally {
         setLoading(false);
       }
     };
-
-    // Immediately prioritize fetching filing dates for the list view
     fetchFilingDates();
-    // Defer heavy investor holdings fetch until filing dates are loaded and user interacts
-    // (getInvestorInfo will still be used elsewhere on demand)
   }, []);
+
   useEffect(() => {
     let sortedInvestors = [...investorsData];
 
@@ -131,30 +98,22 @@ const HomeScreen: React.FC = () => {
       sortedInvestors.sort((a, b) => {
         const dateA = filingDates[a.cik]?.date || 'N/A';
         const dateB = filingDates[b.cik]?.date || 'N/A';
-
         if (dateA === 'N/A') return 1;
         if (dateB === 'N/A') return -1;
-
-        const dateObjA = new Date(dateA);
-        const dateObjB = new Date(dateB);
-        return dateObjB.getTime() - dateObjA.getTime();
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
       });
     }
 
     const filtered = sortedInvestors.filter(investor => {
       const lowerCaseQuery = searchQuery.toLowerCase();
-      const lowerCaseName = investor.name.toLowerCase();
-      const lowerCaseInstitution = investor.institution.toLowerCase();
-
       return (
-        lowerCaseName.includes(lowerCaseQuery) ||
-        lowerCaseInstitution.includes(lowerCaseQuery)
+        investor.name.toLowerCase().includes(lowerCaseQuery) ||
+        investor.institution.toLowerCase().includes(lowerCaseQuery)
       );
     });
 
     setFilteredInvestors(filtered);
   }, [searchQuery, sortType, filingDates]);
-
 
   const sortOptions = [
     { label: 'Most Recent Filings', value: 'recent' },
@@ -164,286 +123,304 @@ const HomeScreen: React.FC = () => {
   const handleSortChange = (item: any) => {
     setValue(item.value);
     setSortType(item.value);
-
-    // Collapse dropdown after a short delay (ensures re-render sync)
     setTimeout(() => setIsFocus(false), 50);
   };
 
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+  };
 
-  const renderItem = ({ item }: { item: Investor }) => (
-    <TouchableOpacity
-      style={[styles.investorItem, { backgroundColor: isDark ? '#1e1e1e' : '#ffffff', borderColor: isDark ? '#333' : '#e8e8e8' }]}
-      onPress={() => {
-        navigation.navigate('HoldingsScreen', {
-          investorName: item.name,
-          institution: item.institution,
-          cik: item.cik,
-        });
-      }}
-    >
-      <View style={styles.investorNameContainer}>
-        <Text style={[styles.investorName, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.name}</Text>
-        <Text style={[styles.filingInfo, { color: isDark ? '#aaa' : '#666' }]}>
-          {filingDates[item.cik]?.date} ({filingDates[item.cik]?.quarter})
-        </Text>
-      </View>
-      <Text style={[styles.institutionName, { color: isDark ? '#888' : '#757575' }]}>{item.institution}</Text>
-    </TouchableOpacity>
-  );
+  const renderItem = ({ item }: { item: Investor }) => {
+    const filing = filingDates[item.cik];
+    const hasFiling = filing && filing.date !== 'N/A';
 
-  const dynamicStyles = StyleSheet.create({
-    container: {
-      paddingTop: 80,
-      flex: 1,
-      padding: CONTAINER_PADDING,
-      marginBottom: 0,
-      backgroundColor: isDark ? '#121212' : '#f8f9fa',
-    },
-    title: {
-      fontSize: SCREEN_WIDTH > 600 ? 32 : 28,
-      fontWeight: '700',
-      marginBottom: 24,
-      textAlign: 'center',
-      color: isDark ? '#fff' : '#1a1a1a',
-      letterSpacing: -0.5,
-    },
-    searchBar: {
-      height: 48,
-      borderColor: isDark ? '#333' : '#e0e0e0',
-      borderWidth: 1.5,
-      marginBottom: 20,
-      paddingHorizontal: 16,
-      borderRadius: 12,
-      backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
-      color: isDark ? '#fff' : '#000',
-      fontSize: 16,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
-    },
-    dropdown: {
-      height: 48,
-      borderColor: isDark ? '#333' : '#e0e0e0',
-      borderWidth: 1.5,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      marginBottom: 20,
-      backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
-    },
-    placeholderStyle: {
-      fontSize: 16,
-      color: isDark ? '#888' : '#9e9e9e',
-    },
-    selectedTextStyle: {
-      fontSize: 16,
-      color: isDark ? '#fff' : '#1a1a1a',
-      fontWeight: '500',
-    },
-    item: {
-      paddingVertical: 14,
-      paddingHorizontal: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: isDark ? '#333' : '#f0f0f0',
-      backgroundColor: isDark ? '#1e1e1e' : '#fff',
-    },
-    itemText: {
-      fontSize: 16,
-      color: isDark ? '#eee' : '#333',
-    },
-  });
+    return (
+      <TouchableOpacity
+        style={[styles.investorCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}
+        onPress={() => {
+          navigation.navigate('HoldingsScreen', {
+            investorName: item.name,
+            institution: item.institution,
+            cik: item.cik,
+          });
+        }}
+      >
+        <View style={styles.cardHeader}>
+          <View style={[styles.avatar, { backgroundColor: isDark ? '#333' : '#f0f2f5' }]}>
+            <Text style={[styles.avatarText, { color: isDark ? '#fff' : '#007AFF' }]}>{getInitials(item.name)}</Text>
+          </View>
+          <View style={styles.nameSection}>
+            <Text style={[styles.investorName, { color: isDark ? '#fff' : '#1a1a1a' }]} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.institutionName} numberOfLines={1}>{item.institution}</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color={isDark ? '#444' : '#ccc'} />
+        </View>
+
+        {hasFiling && (
+          <View style={styles.cardFooter}>
+            <View style={[styles.filingBadge, { backgroundColor: isDark ? 'rgba(0,122,255,0.1)' : 'rgba(0,122,255,0.05)' }]}>
+              <MaterialIcons name="history" size={14} color="#007AFF" style={{ marginRight: 4 }} />
+              <Text style={styles.filingDateText}>{filing.date}</Text>
+            </View>
+            <View style={[styles.quarterBadge, { backgroundColor: isDark ? 'rgba(52,199,89,0.1)' : 'rgba(52,199,89,0.05)' }]}>
+              <Text style={styles.quarterText}>{filing.quarter}</Text>
+            </View>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
-    <View style={dynamicStyles.container}>
-      <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setIsFocus(false); }}>
-        <View>
-          <Text style={dynamicStyles.title}>13F Filings</Text>
+    <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#f8f9fa' }]}>
+      <View style={styles.header}>
+        <View style={styles.titleRow}>
+          <View>
+            <Text style={[styles.title, { color: isDark ? '#fff' : '#1a1a1a' }]}>13F Filings</Text>
+            <Text style={styles.subtitle}>Track top institutional investors</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}
+            onPress={() => navigation.navigate('portfolio')}
+          >
+            <Ionicons name="pie-chart-outline" size={24} color="#007AFF" />
+          </TouchableOpacity>
+        </View>
 
-
-
-          <TextInput
-            style={dynamicStyles.searchBar}
-            placeholder="Search by name or institution"
-            placeholderTextColor={isDark ? '#888' : 'gray'}
-            onChangeText={setSearchQuery}
-            value={searchQuery}
-          />
+        <View style={styles.controlsRow}>
+          <View style={[styles.searchContainer, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}>
+            <Ionicons name="search" size={18} color={isDark ? '#666' : '#999'} style={{ marginRight: 10 }} />
+            <TextInput
+              style={[styles.searchInput, { color: isDark ? '#fff' : '#000' }]}
+              placeholder="Search investors..."
+              placeholderTextColor={isDark ? '#666' : '#999'}
+              onChangeText={setSearchQuery}
+              value={searchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={18} color={isDark ? '#444' : '#ccc'} />
+              </TouchableOpacity>
+            )}
+          </View>
 
           <Dropdown
             data={sortOptions}
-            style={[dynamicStyles.dropdown, isFocus && { borderColor: '#007AFF' }]}
-            placeholderStyle={dynamicStyles.placeholderStyle}
-            selectedTextStyle={dynamicStyles.selectedTextStyle}
-            inputSearchStyle={styles.inputSearchStyle}
-            containerStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', borderBlockColor: isDark ? '#333' : '#eee' }}
-            iconStyle={styles.iconStyle}
+            style={[styles.dropdown, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}
+            placeholderStyle={[styles.dropdownPlaceholder, { color: isDark ? '#666' : '#999' }]}
+            selectedTextStyle={[styles.dropdownSelectedText, { color: isDark ? '#fff' : '#1a1a1a' }]}
+            containerStyle={[styles.dropdownContainer, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}
             labelField="label"
             valueField="value"
-            placeholder={!isFocus ? 'Most Recent Filings' : '...'}
-            searchPlaceholder="Search..."
+            value={value}
             onFocus={() => setIsFocus(true)}
             onBlur={() => setIsFocus(false)}
-            value={value}
-            onChange={(item) => {
-              setValue(item.value);
-              setSortType(item.value);
-              setIsFocus(false); // ensures dropdown closes
-            }}
+            onChange={handleSortChange}
             renderItem={item => (
-              <TouchableOpacity onPress={() => handleSortChange(item)} style={dynamicStyles.item}>
-                <Text style={dynamicStyles.itemText}>{item.label}</Text>
-              </TouchableOpacity>
+              <View style={[styles.dropdownItem, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderBottomColor: isDark ? '#333' : '#f0f0f0' }]}>
+                <Text style={[styles.dropdownItemText, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.label}</Text>
+                {item.value === value && <MaterialIcons name="check" size={18} color="#007AFF" />}
+              </View>
             )}
           />
         </View>
-      </TouchableWithoutFeedback>
+      </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#007AFF" />
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+        </View>
       ) : (
         <FlatList
           data={filteredInvestors}
           renderItem={renderItem}
           keyExtractor={(item) => item.cik}
-          onScrollBeginDrag={() => { Keyboard.dismiss(); setIsFocus(false); }}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          onScrollBeginDrag={() => Keyboard.dismiss()}
         />
       )}
     </View>
   );
 };
 
-
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CONTAINER_PADDING = SCREEN_WIDTH > 600 ? 32 : 16;
-const CARD_WIDTH = SCREEN_WIDTH - (CONTAINER_PADDING * 2);
 
 const styles = StyleSheet.create({
-  dropdown: {
-    height: 48,
-    borderColor: '#e0e0e0',
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    marginBottom: 20,
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  label: {
-    position: 'absolute',
-    backgroundColor: 'white',
-    left: 22,
-    top: 8,
-    zIndex: 999,
-    paddingHorizontal: 8,
-    fontSize: 14,
-  },
-  placeholderStyle: {
-    fontSize: 16,
-    color: '#9e9e9e',
-  },
-  selectedTextStyle: {
-    fontSize: 16,
-    color: '#1a1a1a',
-    fontWeight: '500',
-  },
-  inputSearchStyle: {
-    height: 40,
-    fontSize: 16,
-  },
-  iconStyle: {
-    width: 20,
-    height: 20,
-  },
-  clickedItemText: {
-    marginTop: 16,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  item: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  itemText: {
-    fontSize: 16,
-    color: '#333',
-  },
   container: {
-    paddingTop: 80,
     flex: 1,
-    padding: CONTAINER_PADDING,
-    marginBottom: 70,
-    backgroundColor: '#f8f9fa',
   },
-  title: {
-    fontSize: SCREEN_WIDTH > 600 ? 32 : 28,
-    fontWeight: '700',
-    marginBottom: 24,
-    textAlign: 'center',
-    color: '#1a1a1a',
-    letterSpacing: -0.5,
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
-  searchBar: {
-    height: 48,
-    borderColor: '#e0e0e0',
-    borderWidth: 1.5,
-    marginBottom: 20,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    fontSize: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  investorItem: {
-    backgroundColor: '#ffffff',
-    padding: 18,
-    marginBottom: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e8e8e8',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  investorNameContainer: {
+  titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 34,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#8e8e93',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  controlsRow: {
+    gap: 12,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 52,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dropdown: {
+    height: 52,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  dropdownPlaceholder: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dropdownSelectedText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  dropdownContainer: {
+    borderRadius: 16,
+    marginTop: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  listContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  investorCard: {
+    padding: 20,
+    borderRadius: 24,
+    marginBottom: 16,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  nameSection: {
+    flex: 1,
+    marginLeft: 16,
   },
   investorName: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    flex: 1,
-  },
-  filingInfo: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-    marginLeft: 8,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   institutionName: {
-    fontSize: 14,
-    color: '#757575',
+    fontSize: 13,
+    color: '#8e8e93',
+    fontWeight: '600',
     marginTop: 2,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+    gap: 8,
+  },
+  filingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  filingDateText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#007AFF',
+  },
+  quarterBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  quarterText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#34C759',
+  },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 
