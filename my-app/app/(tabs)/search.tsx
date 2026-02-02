@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Dimensions, ScrollView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
@@ -38,6 +38,9 @@ const HomeScreen: React.FC = () => {
   // Market Summary State
   const [marketSummary, setMarketSummary] = useState<MarketItem[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(true);
+  const marketScrollViewRef = useRef<ScrollView>(null);
 
   // Fetch Market Data
   useEffect(() => {
@@ -346,17 +349,63 @@ const HomeScreen: React.FC = () => {
           {!marketLoading && marketSummary.length > 0 && (
             <View style={{ marginBottom: 24 }}>
               <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>Market Snapshot</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
-                {marketSummary.map((item, index) => (
-                  <MarketSummaryCard
-                    key={index}
-                    {...item}
+              <View style={{ position: 'relative' }}>
+                <ScrollView
+                  ref={(ref) => { marketScrollViewRef.current = ref; }}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingRight: 20 }}
+                  onScroll={(event) => {
+                    const scrollX = event.nativeEvent.contentOffset.x;
+                    const contentWidth = event.nativeEvent.contentSize.width;
+                    const viewWidth = event.nativeEvent.layoutMeasurement.width;
+
+                    setShowLeftArrow(scrollX > 10);
+                    setShowRightArrow(scrollX < contentWidth - viewWidth - 10);
+                  }}
+                  scrollEventThrottle={16}
+                >
+                  {marketSummary.map((item, index) => (
+                    <MarketSummaryCard
+                      key={index}
+                      {...item}
+                      onPress={() => {
+                        navigation.navigate('SearchResultsScreen', { stockSymbol: item.symbol });
+                      }}
+                    />
+                  ))}
+                </ScrollView>
+
+                {/* Left Arrow */}
+                {showLeftArrow && (
+                  <TouchableOpacity
+                    style={[styles.scrollArrow, styles.leftArrow, {
+                      backgroundColor: isDark ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                      borderColor: isDark ? '#333' : '#e0e0e0'
+                    }]}
                     onPress={() => {
-                      navigation.navigate('SearchResultsScreen', { stockSymbol: item.symbol });
+                      marketScrollViewRef.current?.scrollTo({ x: 0, animated: true });
                     }}
-                  />
-                ))}
-              </ScrollView>
+                  >
+                    <Ionicons name="chevron-back" size={20} color={isDark ? '#fff' : '#000'} />
+                  </TouchableOpacity>
+                )}
+
+                {/* Right Arrow */}
+                {showRightArrow && (
+                  <TouchableOpacity
+                    style={[styles.scrollArrow, styles.rightArrow, {
+                      backgroundColor: isDark ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                      borderColor: isDark ? '#333' : '#e0e0e0'
+                    }]}
+                    onPress={() => {
+                      marketScrollViewRef.current?.scrollToEnd({ animated: true });
+                    }}
+                  >
+                    <Ionicons name="chevron-forward" size={20} color={isDark ? '#fff' : '#000'} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           )}
 
@@ -629,6 +678,29 @@ const styles = StyleSheet.create({
   },
   negativeText: {
     color: '#FF3B30',
+  },
+  scrollArrow: {
+    position: 'absolute',
+    top: '50%',
+    transform: [{ translateY: -20 }],
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 10,
+  },
+  leftArrow: {
+    left: 8,
+  },
+  rightArrow: {
+    right: 8,
   },
 });
 
