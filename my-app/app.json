@@ -4,7 +4,7 @@
     "slug": "my-app",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/images/icon_real.png",
+    "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,7 +16,7 @@
       }
     },
     "android": {
-      "icon": "./assets/images/icon_real.png",
+      "icon": "./assets/images/icon.png",
       "package": "com.nathanaelyao.myapp2"
     },
     "web": {
