@@ -38,6 +38,9 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
     // switching to S&P compare usually implies switching to % view for valid comparison.
 
     const processSeries = (series: { timestamp: number | string; value: number }[]) => {
+        if (!series || series.length === 0) return [];
+        // Filter out undefined/null items to prevention crash
+        series = series.filter(item => item && item.timestamp);
         if (series.length === 0) return [];
         // Find first non-zero Start Value
         const firstNonZero = series.find(d => d.value > 0);
@@ -88,25 +91,20 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
     }, [benchmarkData, showBenchmark, normalizedPortfolio]);
 
     // Combine for Min/Max calculation
-    const allPoints = showBenchmark
-        ? [...normalizedPortfolio.map(d => d.percent), ...normalizedBenchmark.map(d => d.percent)]
-        : normalizedPortfolio.map(d => d.value); // If not comparing, show Dollar Value? Or Profit? 
-    // Wait, original chart showed "Total Profit". 
-    // "Performance" usually means % Return or Total Profit.
-    // Comparison with S&P only makes sense in %.
-    // Let's stick to:
-    // Mode A (Standard): Show Total Profit ($) (Existing behavior)
-    // Mode B (Compare): Show % Return for both.
+    const displayPoints = useMemo(() => {
+        if (!data.length) return [];
+        // Use returnPercent if available (new logic), normalized to start of period
+        if (typeof data[0].returnPercent === 'number') {
+            const startPct = data[0].returnPercent;
+            return data.map(d => (d.returnPercent || 0) - startPct);
+        }
+        // Fallback
+        return showBenchmark ? normalizedPortfolio.map(d => d.percent) : data.map(d => d.totalProfit);
+    }, [data, showBenchmark, normalizedPortfolio]);
 
-    // Let's refine Mode A: User wants "Gains compared to assets".
-    // Existing code mapped `totalProfit`.
-
-    // DECISION: 
-    // If `showBenchmark`: Use Normalized % Return (Total Value % change).
-    // If `!showBenchmark`: Use Total Profit ($) (Legacy behavior).
-
-    const displayPoints = showBenchmark ? normalizedPortfolio.map(d => d.percent) : data.map(d => d.totalProfit);
     const benchmarkPoints = showBenchmark ? normalizedBenchmark.map(d => d.percent) : [];
+
+    const allPoints = showBenchmark ? [...displayPoints, ...benchmarkPoints] : displayPoints;
 
     const minVal = Math.min(...(showBenchmark ? allPoints : displayPoints));
     const maxVal = Math.max(...(showBenchmark ? allPoints : displayPoints));
@@ -176,20 +174,19 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
     const metrics = useMemo(() => {
         if (activeIndex === null || data.length === 0) return null;
         const current = data[activeIndex];
+        const start = data[0];
 
-        // Use first non-zero value as the effective start for percentage calculation
-        const effectiveStart = data.find(d => d.totalValue > 0) || data[0];
-
-        // Change logic: Profit Difference (excludes deposits/withdrawals impact mostly)
-        const profitChange = current.totalProfit - effectiveStart.totalProfit;
-        const percentChange = effectiveStart.totalValue > 0 ? (profitChange / effectiveStart.totalValue) * 100 : 0;
+        // Change ($) = Current Profit - Start Profit (Period Gain)
+        const profitChange = (current.totalProfit || 0) - (start.totalProfit || 0);
+        // Change (%) = Use the plotted percent value (Normalized Return)
+        const percentChange = displayPoints[activeIndex] || 0;
 
         return {
             totalValue: current.totalValue,
             change: profitChange,
             percent: percentChange
         };
-    }, [activeIndex, data]);
+    }, [activeIndex, data, displayPoints]);
 
     // Find corresponding benchmark value at active time
     const activeBenchmarkVal = useMemo(() => {

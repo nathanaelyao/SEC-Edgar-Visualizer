@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, Platform, Switch, KeyboardAvoidingView } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices, Transaction, getTransactions, getAllTransactions, updateTransaction, deleteTransaction, addTransaction, getCashBalances, triggerPortfolioSnapshot, checkAndRunMaintenance } from '@/utils/db';
+import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices, Transaction, getTransactions, getAllTransactions, updateTransaction, deleteTransaction, addTransaction, getCashBalances, triggerPortfolioSnapshot, checkAndRunMaintenance, getChartCashBalances } from '@/utils/db';
 import { CURRENCY_SYMBOLS } from '@/utils/currency';
 import PieChart from '@/components/PieChart';
 import PortfolioLineChart from '@/components/PortfolioLineChart';
@@ -19,6 +19,8 @@ const PortfolioScreen: React.FC = () => {
     const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
     const [openPositions, setOpenPositions] = useState<PortfolioHolding[]>([]);
     const [closedPositions, setClosedPositions] = useState<PortfolioHolding[]>([]);
+    const [cashBalance, setCashBalance] = useState(0); // Display Cash (Deposits - Withdraws)
+    const [chartCashBalance, setChartCashBalance] = useState(0); // Chart Cash (Smart Logic including trades)
 
     const [loading, setLoading] = useState(true);
     const [selectedRange, setSelectedRange] = useState<'1D' | '1W' | '1M' | 'YTD' | '1Y' | '5Y' | 'ALL'>('ALL');
@@ -36,7 +38,6 @@ const PortfolioScreen: React.FC = () => {
     const [isPriceLoading, setIsPriceLoading] = useState(false);
 
     // Cash Management
-    const [cashBalance, setCashBalance] = useState(0);
     const [isCashModalVisible, setIsCashModalVisible] = useState(false);
     const [cashAmount, setCashAmount] = useState('');
     const [cashType, setCashType] = useState<'deposit' | 'withdraw'>('deposit');
@@ -76,6 +77,14 @@ const PortfolioScreen: React.FC = () => {
                 totalCash += convertCurrency(amt, cur, currency, exchangeRates);
             }
             setCashBalance(totalCash);
+
+            // Fetch Chart Cash (Smart Logic)
+            const chartBalances = await getChartCashBalances();
+            let totalChartCash = 0;
+            for (const [cur, amt] of Object.entries(chartBalances)) {
+                totalChartCash += convertCurrency(amt, cur, currency, exchangeRates);
+            }
+            setChartCashBalance(totalChartCash);
         } catch (err) {
             console.error("Error loading portfolio:", err);
         } finally {
@@ -230,7 +239,12 @@ const PortfolioScreen: React.FC = () => {
     // Fetch chart data (intraday or historical) dynamically based on current holdings
     useEffect(() => {
         const fetchChartData = async () => {
-            if (openPositions.length === 0) {
+            // Need to consider ALL holdings (open + closed) AND any symbol ever traded for historical accuracy
+            const allPortfolioSymbols = portfolio.map(h => h.symbol);
+            const allTxSymbols = globalTransactions.map(t => t.symbol);
+            const uniqueSymbols = Array.from(new Set([...allPortfolioSymbols, ...allTxSymbols])).filter(s => s !== 'USD');
+
+            if (uniqueSymbols.length === 0 && globalTransactions.length === 0) {
                 setIntradayHistory([]);
                 return;
             }
@@ -252,31 +266,18 @@ const PortfolioScreen: React.FC = () => {
                     interval = '1d';
                 } else if (selectedRange === '1Y') {
                     range = '1y';
-                    interval = '1d'; // Fetch daily to allow 10d filtering
+                    interval = '1d';
                 } else if (selectedRange === '5Y') {
                     range = '5y';
-                    interval = '1mo'; // Fetch monthly directly
+                    interval = '1mo';
                 } else if (selectedRange === 'ALL') {
                     range = 'max';
-                    interval = '1d'; // Fetch daily to allow dynamic granular filtering
+                    interval = '1d';
                 }
 
-                // Fetch data for all holdings in parallel
-                const validHoldings = openPositions.filter(h => h.symbol !== 'USD');
-                if (validHoldings.length === 0) {
-                    // Only cash
-                    // Generate synthetic cash history if needed, or just standard 2 points
-                    // For now, if no stocks, chart is flat line of cash?
-                    const dummyHistory = [
-                        { timestamp: new Date(Date.now() - 86400000).toISOString(), totalValue: cashBalance, totalProfit: 0 },
-                        { timestamp: new Date().toISOString(), totalValue: cashBalance, totalProfit: 0 }
-                    ];
-                    setIntradayHistory(dummyHistory);
-                    return;
-                }
-
-                const historyPromises = validHoldings.map(h =>
-                    fetchStockHistory(h.symbol, range, interval).then(data => ({ symbol: h.symbol, data }))
+                // Fetch data for all unique symbols in parallel
+                const historyPromises = uniqueSymbols.map(s =>
+                    fetchStockHistory(s, range, interval).then(data => ({ symbol: s, data }))
                 );
 
                 const results = await Promise.all(historyPromises);
@@ -290,137 +291,168 @@ const PortfolioScreen: React.FC = () => {
                     }
                 });
 
-                if (!hasData) {
-                    setIntradayHistory([]);
-                    return;
-                }
-
-                // Get all unique timestamps and sort them
-                const allTimestamps = new Set<number>();
+                // Get all unique timestamps from market data
+                const marketTimestamps = new Set<number>();
                 Object.values(dataMap).forEach(points => {
-                    points.forEach(p => allTimestamps.add(p.timestamp));
+                    points.forEach(p => marketTimestamps.add(p.timestamp));
                 });
 
-                let sortedTimestamps = Array.from(allTimestamps).sort((a, b) => a - b);
+                let sortedTimestamps = Array.from(marketTimestamps).sort((a, b) => a - b);
 
-                if (sortedTimestamps.length < 2) {
-                    setIntradayHistory([]);
-                    return;
+                if (!hasData && globalTransactions.length > 0) {
+                    // Only transactions, use tx dates
+                    const txDates = globalTransactions.map(t => new Date(t.date).getTime());
+                    sortedTimestamps = Array.from(new Set(txDates)).sort((a, b) => a - b);
+                    sortedTimestamps.push(Date.now());
                 }
 
-                // Custom Downsampling Logic
+                if (sortedTimestamps.length < 2 && hasData) {
+                    // Ensure minimal points
+                }
+
+                // Clip to Inception
+                let inceptionTimestamp = 0;
+                if (globalTransactions.length > 0) {
+                    const earliest = Math.min(...globalTransactions.map(t => new Date(t.date).getTime()));
+                    const d = new Date(earliest);
+                    d.setHours(0, 0, 0, 0);
+                    inceptionTimestamp = d.getTime();
+                }
+
+                if (inceptionTimestamp > 0) {
+                    sortedTimestamps = sortedTimestamps.filter(ts => ts >= inceptionTimestamp);
+                    if (sortedTimestamps.length === 0) {
+                        const now = Date.now();
+                        sortedTimestamps = [inceptionTimestamp, now].sort((a, b) => a - b);
+                    }
+                }
+
+                // Downsampling
                 if (selectedRange === '1Y') {
-                    // 1 point every 10 days
                     const filtered: number[] = [];
                     let lastTs = 0;
                     const tenDaysMs = 10 * 24 * 60 * 60 * 1000;
-
-                    // Always include the first point
                     filtered.push(sortedTimestamps[0]);
                     lastTs = sortedTimestamps[0];
-
                     for (let i = 1; i < sortedTimestamps.length; i++) {
-                        const ts = sortedTimestamps[i];
-                        if (ts - lastTs >= tenDaysMs) {
-                            filtered.push(ts);
-                            lastTs = ts;
+                        if (sortedTimestamps[i] - lastTs >= tenDaysMs) {
+                            filtered.push(sortedTimestamps[i]);
+                            lastTs = sortedTimestamps[i];
                         }
                     }
-                    // Always include the very last point for current value
                     if (filtered[filtered.length - 1] !== sortedTimestamps[sortedTimestamps.length - 1]) {
                         filtered.push(sortedTimestamps[sortedTimestamps.length - 1]);
                     }
                     sortedTimestamps = filtered;
-
-                } else if (selectedRange === '5Y') {
-                    // User asked for every month. 1mo interval from API is usually good,
-                    // but sometimes it returns start of month. We assumed interval='1wk' originally?
-                    // Let's rely on API interval if it was set to '1mo'.
-                    // If we fetched '1wk', we filter.
-                    // Current logic: range='5y', interval='1mo'.
-                    // So we likely don't need heavy filtering if API respected 1mo.
-                    // But just in case, ensure spacing? No, month lengths vary. Leave as is for 1mo interval.
                 } else if (selectedRange === 'ALL') {
                     const firstTs = sortedTimestamps[0];
                     const nowTs = Date.now();
                     const durationYears = (nowTs - firstTs) / (365 * 24 * 60 * 60 * 1000);
-
-                    let minGapMs = 0;
-                    if (durationYears > 5) {
-                        minGapMs = 30 * 24 * 60 * 60 * 1000; // ~1 Month
-                    } else if (durationYears >= 1) {
-                        minGapMs = 10 * 24 * 60 * 60 * 1000; // 10 Days
-                    } else {
-                        minGapMs = 3 * 24 * 60 * 60 * 1000; // 3 Days
-                    }
+                    let minGapMs = durationYears > 5 ? 30 * 24 * 60 * 60 * 1000 :
+                        durationYears >= 1 ? 10 * 24 * 60 * 60 * 1000 :
+                            3 * 24 * 60 * 60 * 1000;
 
                     const filtered: number[] = [];
                     let lastTs = 0;
-
                     filtered.push(sortedTimestamps[0]);
                     lastTs = sortedTimestamps[0];
-
                     for (let i = 1; i < sortedTimestamps.length; i++) {
-                        const ts = sortedTimestamps[i];
-                        if (ts - lastTs >= minGapMs) {
-                            filtered.push(ts);
-                            lastTs = ts;
+                        if (sortedTimestamps[i] - lastTs >= minGapMs) {
+                            filtered.push(sortedTimestamps[i]);
+                            lastTs = sortedTimestamps[i];
                         }
                     }
-                    // Always include last
                     if (filtered[filtered.length - 1] !== sortedTimestamps[sortedTimestamps.length - 1]) {
                         filtered.push(sortedTimestamps[sortedTimestamps.length - 1]);
                     }
                     sortedTimestamps = filtered;
                 }
 
-                // Calculate portfolio value at each timestamp
-                const snapshots: PortfolioSnapshot[] = sortedTimestamps.map(ts => {
-                    let totalVal = 0;
+                // EVENT SOURCING REPLAY
+                const sortedTxs = [...globalTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-                    // Add cash balance (assumed constant)
-                    totalVal += convertCurrency(cashBalance, 'USD', 'USD', exchangeRates); // Cash is USD
+                let currentDocCash: Record<string, number> = {};
+                const currentDocShares: Record<string, number> = {};
+                // Track Net Capital Invested (Deposits - Withdrawals) to calculate true return
+                let currentNetInvested = 0;
+                let txIndex = 0;
 
-                    validHoldings.forEach(h => {
-                        const points = dataMap[h.symbol];
-                        if (!points) return;
+                const applyTx = (tx: Transaction) => {
+                    const cur = tx.currency || 'USD';
+                    if (!currentDocCash[cur]) currentDocCash[cur] = 0;
+                    const totalAmt = (tx.type === 'buy' || tx.type === 'sell') ? (tx.shares * tx.price) : tx.price;
 
-                        // Find price at or before timestamp
-                        // Data is sorted. Optimize with binary search if needed, but linear for now.
-                        // Optimization: For daily/weekly, exact match is likely.
-                        let price = points[0].price;
+                    // Convert transaction amount to display currency for Invested Capital tracking
+                    const displayAmt = convertCurrency(totalAmt, cur, currency, exchangeRates);
 
-                        // Try exact match first
-                        const exact = points.find(p => p.timestamp === ts);
-                        if (exact) {
-                            price = exact.price;
+                    if (tx.type === 'deposit') {
+                        currentDocCash[cur] += totalAmt;
+                        currentNetInvested += displayAmt;
+                    } else if (tx.type === 'withdraw') {
+                        currentDocCash[cur] -= totalAmt;
+                        currentNetInvested -= displayAmt;
+                    } else if (tx.type === 'buy') {
+                        // Implicit Deposit: If insufficient cash, treat the deficit as a fresh deposit
+                        // This prevents "Free Money" performance spikes on unfunded buys.
+                        if (currentDocCash[cur] < totalAmt) {
+                            const deficit = totalAmt - currentDocCash[cur];
+                            currentNetInvested += convertCurrency(deficit, cur, currency, exchangeRates);
+                            currentDocCash[cur] = 0;
                         } else {
-                            // Find closest previous point
-                            // Since general market timestamps align (mostly), exact match works 99% of time.
-                            // If missing (e.g. halted), use previous.
-                            // We can use a simple loop backwards or just assume strict alignment isn't guaranteed.
-                            // Given we built `allTimestamps` from the available data, at least one stock has this timestamp.
-                            // For others, we must fill forward.
-                            // Efficient Fill-Forward:
-                            // We technically should track `lastPrices` outside the map loop if we iterate sequentially.
-                            // But `map` is independent. 
-                            // Re-scanning array is O(N*M). 
-                            // Let's rely on simple `find` for now as N (len) < 2000 usually.
-                            const prev = points.filter(p => p.timestamp < ts).pop();
-                            if (prev) price = prev.price;
+                            currentDocCash[cur] -= totalAmt;
                         }
+                        currentDocShares[tx.symbol] = (currentDocShares[tx.symbol] || 0) + tx.shares;
+                    } else if (tx.type === 'sell') {
+                        currentDocCash[cur] += totalAmt;
+                        currentDocShares[tx.symbol] = Math.max(0, (currentDocShares[tx.symbol] || 0) - tx.shares);
+                    }
+                };
 
-                        const nativeVal = h.shares * price;
-                        totalVal += convertCurrency(nativeVal, h.currency || 'USD', 'USD', exchangeRates);
+                const snapshots: PortfolioSnapshot[] = sortedTimestamps.map(ts => {
+                    while (txIndex < sortedTxs.length) {
+                        const txTime = new Date(sortedTxs[txIndex].date).getTime();
+                        if (txTime <= ts) {
+                            applyTx(sortedTxs[txIndex]);
+                            txIndex++;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    let stockValue = 0;
+                    Object.keys(currentDocShares).forEach(symbol => {
+                        const shares = currentDocShares[symbol];
+                        if (shares <= 0) return;
+
+                        const points = dataMap[symbol];
+                        let price = 0;
+                        if (points) {
+                            const exact = points.find(p => p.timestamp === ts);
+                            if (exact) {
+                                price = exact.price;
+                            } else {
+                                const prev = points.filter(p => p.timestamp < ts).pop();
+                                if (prev) price = prev.price;
+                            }
+                        }
+                        stockValue += convertCurrency(shares * price, 'USD', 'USD', exchangeRates);
                     });
 
-                    // Calculate profit based on current constant cost basis
-                    const profit = totalVal - totalCostBasis;
+                    let cashValue = 0;
+                    Object.entries(currentDocCash).forEach(([cur, amt]) => {
+                        cashValue += convertCurrency(amt, cur, currency, exchangeRates);
+                    });
+
+                    const totalValue = stockValue + cashValue;
+                    const totalProfit = totalValue - currentNetInvested;
+                    // Avoid division by zero
+                    const returnPercent = currentNetInvested > 0 ? (totalProfit / currentNetInvested) * 100 : 0;
 
                     return {
                         timestamp: new Date(ts).toISOString(),
-                        totalValue: totalVal,
-                        totalProfit: profit
+                        totalValue: totalValue,
+                        totalProfit: totalProfit,
+                        returnPercent: returnPercent
                     };
                 });
 
@@ -434,7 +466,7 @@ const PortfolioScreen: React.FC = () => {
         };
 
         fetchChartData();
-    }, [selectedRange, openPositions, cashBalance, totalCostBasis, exchangeRates]);
+    }, [selectedRange, portfolio, globalTransactions, exchangeRates]);
 
     const getFilteredHistory = (): PortfolioSnapshot[] => {
         // Always use the generated "intradayHistory" (which now covers all ranges)
@@ -470,6 +502,11 @@ const PortfolioScreen: React.FC = () => {
         const displayValue = formatCurrency(convertCurrency(value, item.currency || 'USD', currency, exchangeRates), currency);
         const displayProfit = formatCurrency(convertCurrency(Math.abs(profit), item.currency || 'USD', currency, exchangeRates), currency);
         const displayRealizedProfitItem = formatCurrency(convertCurrency(Math.abs(item.realizedProfit || 0), item.currency || 'USD', currency, exchangeRates), currency);
+
+
+        const isClosed = item.shares === 0;
+        const realizedProfit = item.realizedProfit || 0;
+        const isRealizedPositive = realizedProfit >= 0;
 
         // Calculate daily dollar gain
         const dailyGain = (item.priceChange || 0) * item.shares;
@@ -525,12 +562,23 @@ const PortfolioScreen: React.FC = () => {
 
                 <View style={[styles.cardFooter, { borderTopColor: isDark ? '#333' : '#f0f0f0' }]}>
                     <View style={styles.profitInfo}>
-                        <Text style={[styles.footerProfit, isPositive ? styles.positive : styles.negative]}>
-                            {isPositive ? '+' : '-'}{displayProfit} ({profitPercent.toFixed(2)}%)
-                        </Text>
-                        <Text style={styles.footerLabel}>Total Return</Text>
+                        {isClosed ? (
+                            <>
+                                <Text style={[styles.footerProfit, isRealizedPositive ? styles.positive : styles.negative]}>
+                                    {isRealizedPositive ? '+' : '-'}{displayRealizedProfitItem}
+                                </Text>
+                                <Text style={styles.footerLabel}>Realized {isRealizedPositive ? 'Gain' : 'Loss'}</Text>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={[styles.footerProfit, isPositive ? styles.positive : styles.negative]}>
+                                    {isPositive ? '+' : '-'}{displayProfit} ({profitPercent.toFixed(2)}%)
+                                </Text>
+                                <Text style={styles.footerLabel}>Total Return</Text>
+                            </>
+                        )}
                     </View>
-                    {item.priceChange !== undefined && (
+                    {!isClosed && item.priceChange !== undefined && (
                         <View style={{ alignItems: 'flex-end' }}>
                             <Text style={[styles.footerDayChange, item.priceChange >= 0 ? styles.positive : styles.negative]}>
                                 {item.priceChange >= 0 ? '+' : '-'}{displayDailyGain} ({item.pricePercent?.toFixed(2)}%)
@@ -713,7 +761,7 @@ const PortfolioScreen: React.FC = () => {
                     }
                     ListFooterComponent={
                         closedPositions.length > 0 ? (
-                            <View style={[styles.closedSection, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
+                            <View style={[styles.closedSection]}>
                                 <Text style={[styles.chartSectionTitle, { color: isDark ? '#fff' : '#1a1a1a', marginLeft: 16, marginTop: 24, marginBottom: 8 }]}>Closed Positions</Text>
                                 {closedPositions.map((item, index) => (
                                     <View key={item.symbol}>

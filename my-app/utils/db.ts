@@ -25,6 +25,7 @@ export interface PortfolioSnapshot {
     timestamp: string;
     totalValue: number;
     totalProfit: number;
+    returnPercent?: number;
 }
 
 export interface Transaction {
@@ -277,7 +278,32 @@ export const addTransaction = async (transaction: Transaction) => {
 // Since getCashBalance is exported, we should probably let the caller handle conversion 
 // OR pass in the tools. To keep db.ts clean of business logic like exchange rates, 
 // let's return a list of balances by currency.
+// 1. UI Display Cash: Only affected by Deposit/Withdraw
 export const getCashBalances = async (): Promise<Record<string, number>> => {
+    const database = await initDb();
+    const transactions = await database.getAllAsync<Transaction>('SELECT * FROM transactions WHERE type IN (\'deposit\', \'withdraw\');');
+
+    const balances: Record<string, number> = {};
+
+    for (const tx of transactions) {
+        const cur = tx.currency || 'USD';
+        // Amount is just price for deposit/withdraw
+        const amount = tx.price;
+
+        if (!balances[cur]) balances[cur] = 0;
+
+        if (tx.type === 'deposit') {
+            balances[cur] += amount;
+        } else if (tx.type === 'withdraw') {
+            balances[cur] -= amount;
+        }
+    }
+    return balances;
+};
+
+// 2. Chart Calculation Cash: Affected by ALL trades to track "Net Liquidity" or "Performance Value"
+// This ensures that selling a stock moves value from "Stock" to "Cash" in the chart, preserving the gain.
+export const getChartCashBalances = async (): Promise<Record<string, number>> => {
     const database = await initDb();
     // Fetch ALL transactions inclusive of buy/sell to track cash flow (Simulated Cash Wallet)
     const transactions = await database.getAllAsync<Transaction>('SELECT * FROM transactions ORDER BY date ASC, createdAt ASC;');
@@ -294,7 +320,7 @@ export const getCashBalances = async (): Promise<Record<string, number>> => {
         if (tx.type === 'deposit') {
             balances[cur] += amount;
         } else if (tx.type === 'withdraw') {
-            balances[cur] -= amount; // Explicit withdrawals can go negative or user ensures validity
+            balances[cur] -= amount;
         } else if (tx.type === 'sell') {
             balances[cur] += amount; // Proceeds from sell increase cash
         } else if (tx.type === 'buy') {
