@@ -868,21 +868,23 @@ const SearchResultsScreen: React.FC = () => {
             {stockInfo && (
               <View>
                 <View style={[styles.headerCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
-                  <View style={[styles.headerTopRow, { marginBottom: titleLines > 1 ? 4 : -6 }]}>
+                  <View style={[styles.headerTopRow, { marginBottom: 4 }]}>
                     <TouchableOpacity
                       style={[styles.backButton, { backgroundColor: isDark ? '#333' : '#fff', borderColor: isDark ? '#444' : '#eee', position: 'absolute', left: 0, zIndex: 10 }]}
                       onPress={() => navigation.goBack()}
                     >
                       <Ionicons name="chevron-back" size={24} color={isDark ? '#fff' : '#007AFF'} />
                     </TouchableOpacity>
-                    <Text
-                      onTextLayout={(e) => setTitleLines(e.nativeEvent.lines.length)}
-                      style={[styles.screenTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}
-                      numberOfLines={2}
-                      ellipsizeMode={'tail'}
-                    >
-                      {stockInfo.companyName}
-                    </Text>
+                    <View style={{ alignItems: 'center', flex: 1, paddingHorizontal: 48 }}>
+                      <Text style={[styles.screenTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>
+                        {stockSymbol}
+                      </Text>
+                      {stockInfo.companyName && stockInfo.companyName !== stockSymbol && (
+                        <Text style={{ fontSize: 13, color: isDark ? '#8e8e93' : '#666', fontWeight: '600', marginTop: 2, textAlign: 'center' }} numberOfLines={1}>
+                          {stockInfo.companyName}
+                        </Text>
+                      )}
+                    </View>
                   </View>
 
 

@@ -233,7 +233,7 @@ const HomeScreen: React.FC = () => {
   const displayDayChange = formatCurrency(Math.abs(dayChange), currency);
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
+    <ScrollView style={[styles.container, { backgroundColor: isDark ? '#000' : '#f8f9fa' }]}>
       <TouchableWithoutFeedback onPress={() => {
         setSuggestions([]);
         Keyboard.dismiss();

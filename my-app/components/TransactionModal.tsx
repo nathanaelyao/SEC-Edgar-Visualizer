@@ -357,7 +357,7 @@ const TransactionModal: React.FC<TransactionModalProps> = ({
                                     themeVariant={isDark ? "dark" : "light"}
                                 />
                                 <TouchableOpacity
-                                    style={[styles.saveButton, { marginTop: 20 }]}
+                                    style={[styles.saveButton, { backgroundColor: '#007AFF' }, { marginTop: 20 }]}
                                     onPress={() => setShowDatePicker(false)}
                                 >
                                     <Text style={styles.saveButtonText}>Done</Text>
@@ -459,6 +459,7 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
     },
+
     saveButton: {
         height: 64,
         borderRadius: 20,
