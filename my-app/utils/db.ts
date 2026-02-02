@@ -178,6 +178,12 @@ export const initDb = async () => {
             await db.execAsync("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_version', '5');");
         }
 
+        if (currentVersion < 6) {
+            console.log("Migrating DB to version 6 (Triggering Ground Truth Rebuild for Smart Cash)");
+            await db.execAsync("INSERT OR REPLACE INTO settings (key, value) VALUES ('needs_history_rebuild', '1');");
+            await db.execAsync("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_version', '6');");
+        }
+
     } catch (e) {
         console.error('Migration error:', e);
     }
@@ -209,6 +215,18 @@ export const getAllTransactions = async (): Promise<Transaction[]> => {
     return await database.getAllAsync<Transaction>(
         'SELECT * FROM transactions ORDER BY date DESC, createdAt DESC;'
     );
+};
+
+export const checkAndRunMaintenance = async () => {
+    const database = await initDb();
+    const row = await database.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'needs_history_rebuild';");
+
+    if (row && row.value === '1') {
+        console.log("Maintenance: Needs history rebuild detected. Running backfill...");
+        await backfillPortfolioHistory();
+        await database.execAsync("UPDATE settings SET value = '0' WHERE key = 'needs_history_rebuild';");
+        console.log("Maintenance: Rebuild complete, flag cleared.");
+    }
 };
 
 const calculateCurrentPortfolioUSD = async (rates: any) => {
@@ -261,18 +279,28 @@ export const addTransaction = async (transaction: Transaction) => {
 // let's return a list of balances by currency.
 export const getCashBalances = async (): Promise<Record<string, number>> => {
     const database = await initDb();
-    const transactions = await database.getAllAsync<Transaction>('SELECT * FROM transactions WHERE type IN (\'deposit\', \'withdraw\');');
+    // Fetch ALL transactions inclusive of buy/sell to track cash flow (Simulated Cash Wallet)
+    const transactions = await database.getAllAsync<Transaction>('SELECT * FROM transactions ORDER BY date ASC, createdAt ASC;');
 
     const balances: Record<string, number> = {};
 
     for (const tx of transactions) {
         const cur = tx.currency || 'USD';
+        // Calculate amount for the transaction (Total Value)
+        const amount = (tx.type === 'buy' || tx.type === 'sell') ? (tx.shares * tx.price) : tx.price;
+
         if (!balances[cur]) balances[cur] = 0;
 
         if (tx.type === 'deposit') {
-            balances[cur] += tx.price;
+            balances[cur] += amount;
         } else if (tx.type === 'withdraw') {
-            balances[cur] -= tx.price;
+            balances[cur] -= amount; // Explicit withdrawals can go negative or user ensures validity
+        } else if (tx.type === 'sell') {
+            balances[cur] += amount; // Proceeds from sell increase cash
+        } else if (tx.type === 'buy') {
+            // Implicit Deposit Logic: If user buys more than they have cash for, we assume they added cash just-in-time.
+            // We floor at 0 so cash doesn't go negative for "Holding-only" trackers.
+            balances[cur] = Math.max(0, balances[cur] - amount);
         }
     }
     return balances;
@@ -709,9 +737,14 @@ const calculateCashHistoryTrace = async (
     const trace: Record<string, { value: number, profit: number }> = {};
     const sortedDates = Array.from(allDates).sort();
 
-    // Filter cash transactions
-    const cashTxs = transactions.filter(t => t.type === 'deposit' || t.type === 'withdraw');
-    cashTxs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Use ALL transactions to simulate cash flow including Buy/Sell
+    // We clone the array to sort it, although upstream usually passes sorted or we sort manually here
+    const sortedTxs = [...transactions].sort((a, b) => {
+        const db = new Date(b.date).getTime();
+        const da = new Date(a.date).getTime();
+        if (da !== db) return da - db; // Ascending
+        return 0;
+    });
 
     let currentBalances: Record<string, number> = {}; // cumulative sum per currency
     let txIndex = 0;
@@ -720,16 +753,24 @@ const calculateCashHistoryTrace = async (
         const date = new Date(dateStr);
         date.setHours(23, 59, 59, 999);
 
-        while (txIndex < cashTxs.length) {
-            const tx = cashTxs[txIndex];
+        while (txIndex < sortedTxs.length) {
+            const tx = sortedTxs[txIndex];
             const txDate = new Date(tx.date);
             if (txDate <= date) {
                 const cur = tx.currency || 'USD';
+                const amount = (tx.type === 'buy' || tx.type === 'sell') ? (tx.shares * tx.price) : tx.price;
+
                 if (!currentBalances[cur]) currentBalances[cur] = 0;
+
                 if (tx.type === 'deposit') {
-                    currentBalances[cur] += tx.price;
+                    currentBalances[cur] += amount;
                 } else if (tx.type === 'withdraw') {
-                    currentBalances[cur] -= tx.price;
+                    currentBalances[cur] -= amount;
+                } else if (tx.type === 'sell') {
+                    currentBalances[cur] += amount;
+                } else if (tx.type === 'buy') {
+                    // Same implicit deposit logic as getCashBalances
+                    currentBalances[cur] = Math.max(0, currentBalances[cur] - amount);
                 }
                 txIndex++;
             } else {
@@ -742,6 +783,8 @@ const calculateCashHistoryTrace = async (
             totalValUsd += convertCurrency(amt, cur, 'USD', rates);
         }
 
+        // Cash trace tracks the Available Liquid Cash. 
+        // Profit is 0 for cash itself (ignoring FX for now).
         trace[dateStr] = { value: totalValUsd, profit: 0 };
     }
     return trace;
