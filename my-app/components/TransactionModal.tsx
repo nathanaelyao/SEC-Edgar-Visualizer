@@ -349,27 +349,19 @@ const TransactionModal: React.FC<TransactionModalProps> = ({
                                 <DateTimePicker
                                     value={date}
                                     mode="date"
-                                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                                    display="inline"
                                     onChange={(event, selectedDate) => {
                                         if (selectedDate) setDate(selectedDate);
-                                        // Close on selection for both platforms as requested
-                                        // (On Android it might auto-close, but this ensures consistency)
-                                        // On iOS inline, this will close it immediately upon tapping a date.
-                                        if (Platform.OS === 'android' || event.type === 'set' || (Platform.OS === 'ios' && selectedDate)) {
-                                            setShowDatePicker(false);
-                                        }
                                     }}
                                     maximumDate={new Date()}
                                     themeVariant={isDark ? "dark" : "light"}
                                 />
-                                {Platform.OS === 'ios' && (
-                                    <TouchableOpacity
-                                        style={[styles.saveButton, { marginTop: 20 }]}
-                                        onPress={() => setShowDatePicker(false)}
-                                    >
-                                        <Text style={styles.saveButtonText}>Done</Text>
-                                    </TouchableOpacity>
-                                )}
+                                <TouchableOpacity
+                                    style={[styles.saveButton, { marginTop: 20 }]}
+                                    onPress={() => setShowDatePicker(false)}
+                                >
+                                    <Text style={styles.saveButtonText}>Done</Text>
+                                </TouchableOpacity>
                             </View>
                         </TouchableWithoutFeedback>
                     </TouchableOpacity>
