@@ -2,6 +2,9 @@
 
 A financial tracking application built with React Native and Expo. Track your stock portfolio, view SEC 13F filings, and visualize historical performance.
 
+## App Store:
+[Google Play Listing](https://play.google.com/store/apps/details?id=com.nathanaelyao.myapp2)
+
 ## Features
 *   **Portfolio Management**: Track your Holdings, Cost Basis, and Realized/Unrealized Gains.
 *   **Real-Time Data**: Fetch current stock prices and historical data.
@@ -17,9 +20,6 @@ A financial tracking application built with React Native and Expo. Track your st
 - SEC EDGAR API: To get company data and 13F filings from the SEC. 
 - SQLite: Local database used to store SEC filings and reduce API calls
 - Cheerio: Library used for parsing HTML content from the SEC website.
-
-## App Store:
-[Google Play Listing](https://play.google.com/store/apps/details?id=com.nathanaelyao.myapp2)
 
 ## Screenshots
 
