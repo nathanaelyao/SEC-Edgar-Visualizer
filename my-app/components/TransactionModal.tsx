@@ -321,51 +321,69 @@ const TransactionModal: React.FC<TransactionModalProps> = ({
                 </View>
             </TouchableWithoutFeedback>
 
-            {/* Date Picker Modal */}
+            {/* Date Picker - Platform Specific Behavior */}
             {showDatePicker && (
-                <Modal
-                    transparent={true}
-                    animationType="fade"
-                    visible={showDatePicker}
-                    onRequestClose={() => setShowDatePicker(false)}
-                >
-                    <TouchableOpacity
-                        style={[styles.datePickerOverlay, { backgroundColor: 'rgba(0,0,0,0.6)' }]}
-                        activeOpacity={1}
-                        onPress={() => setShowDatePicker(false)}
+                Platform.OS === 'ios' ? (
+                    /* iOS: Custom Bottom Sheet Modal with Inline Picker */
+                    <Modal
+                        transparent={true}
+                        animationType="fade"
+                        visible={showDatePicker}
+                        onRequestClose={() => setShowDatePicker(false)}
                     >
-                        <TouchableWithoutFeedback>
-                            <View style={[styles.datePickerContent, { backgroundColor: isDark ? '#1c1c1e' : '#fff' }]}>
-                                <View style={styles.bottomSheetHandle} />
-                                <View style={styles.datePickerHeader}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                                        <MaterialIcons name="calendar-today" size={24} color="#007AFF" />
-                                        <Text style={[styles.datePickerTitleText, { color: isDark ? '#fff' : '#1a1a1a' }]}>Select Date</Text>
+                        <TouchableOpacity
+                            style={[styles.datePickerOverlay, { backgroundColor: 'rgba(0,0,0,0.6)' }]}
+                            activeOpacity={1}
+                            onPress={() => setShowDatePicker(false)}
+                        >
+                            <TouchableWithoutFeedback>
+                                <View style={[styles.datePickerContent, { backgroundColor: isDark ? '#1c1c1e' : '#fff' }]}>
+                                    <View style={styles.bottomSheetHandle} />
+                                    <View style={styles.datePickerHeader}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                                            <MaterialIcons name="calendar-today" size={24} color="#007AFF" />
+                                            <Text style={[styles.datePickerTitleText, { color: isDark ? '#fff' : '#1a1a1a' }]}>Select Date</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                                            <Ionicons name="close-circle-outline" size={28} color={isDark ? '#555' : '#ccc'} />
+                                        </TouchableOpacity>
                                     </View>
-                                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                                        <Ionicons name="close-circle-outline" size={28} color={isDark ? '#555' : '#ccc'} />
+                                    <DateTimePicker
+                                        value={date}
+                                        mode="date"
+                                        display="inline"
+                                        onChange={(event, selectedDate) => {
+                                            if (selectedDate) setDate(selectedDate);
+                                        }}
+                                        maximumDate={new Date()}
+                                        themeVariant={isDark ? "dark" : "light"}
+                                    />
+                                    <TouchableOpacity
+                                        style={[styles.saveButton, { backgroundColor: '#007AFF' }, { marginTop: 20 }]}
+                                        onPress={() => setShowDatePicker(false)}
+                                    >
+                                        <Text style={styles.saveButtonText}>Done</Text>
                                     </TouchableOpacity>
                                 </View>
-                                <DateTimePicker
-                                    value={date}
-                                    mode="date"
-                                    display="inline"
-                                    onChange={(event, selectedDate) => {
-                                        if (selectedDate) setDate(selectedDate);
-                                    }}
-                                    maximumDate={new Date()}
-                                    themeVariant={isDark ? "dark" : "light"}
-                                />
-                                <TouchableOpacity
-                                    style={[styles.saveButton, { backgroundColor: '#007AFF' }, { marginTop: 20 }]}
-                                    onPress={() => setShowDatePicker(false)}
-                                >
-                                    <Text style={styles.saveButtonText}>Done</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </TouchableWithoutFeedback>
-                    </TouchableOpacity>
-                </Modal>
+                            </TouchableWithoutFeedback>
+                        </TouchableOpacity>
+                    </Modal>
+                ) : (
+                    /* Android: Native Picker Dialog (No Custom Modal Wrapper) */
+                    <DateTimePicker
+                        value={date}
+                        mode="date"
+                        display="default"
+                        onChange={(event, selectedDate) => {
+                            setShowDatePicker(false); // Close immediately on Android
+                            if (event.type === 'set' && selectedDate) {
+                                setDate(selectedDate);
+                            }
+                        }}
+                        maximumDate={new Date()}
+                        themeVariant={isDark ? "dark" : "light"}
+                    />
+                )
             )}
         </Modal>
     );
