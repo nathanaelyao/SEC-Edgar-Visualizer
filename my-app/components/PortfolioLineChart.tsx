@@ -2,11 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Polyline, G, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
-import { PortfolioSnapshot } from '@/utils/db';
+import { ChartDataPoint } from '@/utils/chartCalculations';
 
 interface PortfolioLineChartProps {
-    data: PortfolioSnapshot[];
-    benchmarkData?: { timestamp: number; price: number }[];
+    data: ChartDataPoint[];
     showBenchmark?: boolean;
     height?: number;
     range?: '1D' | '1W' | '1M' | 'YTD' | '1Y' | '5Y' | 'ALL';
@@ -16,7 +15,6 @@ interface PortfolioLineChartProps {
 
 const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
     data,
-    benchmarkData,
     showBenchmark = false,
     height = 200,
     range = 'ALL',
@@ -65,44 +63,38 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
     };
 
     const portfolioSeries = useMemo(() => {
-        return data.map(d => ({ timestamp: d.timestamp, value: d.totalValue })); // Use Total Value for performance calc
+        return data.map(d => ({ timestamp: d.timestamp, value: d.totalValue }));
     }, [data]);
 
     const normalizedPortfolio = useMemo(() => processSeries(portfolioSeries), [portfolioSeries]);
 
-    // Align Benchmark to Portfolio Start
+    // Extract benchmark returns from data
     const normalizedBenchmark = useMemo(() => {
-        if (!showBenchmark || !benchmarkData || benchmarkData.length === 0) return [];
+        if (!showBenchmark || !data || data.length === 0) return [];
 
-        // Filter benchmark to match portfolio range loosely (start date >= portfolio start)
-        const startTime = normalizedPortfolio[0].timestamp;
-        const endTime = normalizedPortfolio[normalizedPortfolio.length - 1].timestamp;
+        // Check if benchmark data is available
+        const hasBenchmark = data.some(d => d.benchmarkReturn !== undefined);
+        if (!hasBenchmark) return [];
 
-        // Filter valid benchmark points within the view range
-        const filteredBench = benchmarkData.filter(d => d.timestamp >= startTime && d.timestamp <= endTime);
-
-        if (filteredBench.length === 0) {
-            // Fallback: if no exact overlap, try to get some data or just return empty
-            return [];
-        }
-
-        // Process series using the filtered set, so 0% aligns with the start of the view
-        return processSeries(filteredBench.map(d => ({ timestamp: d.timestamp, value: d.price })));
-    }, [benchmarkData, showBenchmark, normalizedPortfolio]);
+        // Create benchmark series from benchmarkReturn values
+        // benchmarkReturn is already a percentage, so we use it directly
+        return data.map((d, i) => ({
+            timestamp: typeof d.timestamp === 'string' ? new Date(d.timestamp).getTime() : d.timestamp,
+            value: d.benchmarkReturn || 0,
+            percent: d.benchmarkReturn || 0
+        }));
+    }, [data, showBenchmark]);
 
     // Combine for Min/Max calculation
     const displayPoints = useMemo(() => {
         if (!data.length) return [];
-        // Use returnPercent if available (new logic), normalized to start of period
-        if (typeof data[0].returnPercent === 'number') {
-            const startPct = data[0].returnPercent;
-            return data.map(d => (d.returnPercent || 0) - startPct);
-        }
-        // Fallback
-        return showBenchmark ? normalizedPortfolio.map(d => d.percent) : data.map(d => d.totalProfit);
-    }, [data, showBenchmark, normalizedPortfolio]);
+        // Use returnPercent (already normalized to start of period)
+        return data.map(d => d.returnPercent || 0);
+    }, [data]);
 
-    const benchmarkPoints = showBenchmark ? normalizedBenchmark.map(d => d.percent) : [];
+    const benchmarkPoints = showBenchmark && normalizedBenchmark.length > 0
+        ? normalizedBenchmark.map(d => d.percent)
+        : [];
 
     const allPoints = showBenchmark ? [...displayPoints, ...benchmarkPoints] : displayPoints;
 
@@ -132,29 +124,12 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
     // Hack for now: Map benchmark points to existing X axis if lengths are close, or just simple independent line.
     // Hack for now: Map benchmark points to existing X axis if lengths are close, or just simple independent line.
     // Simple independent line:
-    const benchmarkPath = showBenchmark ? benchmarkData?.map((d, i) => {
-        // Find relative X position based on time
-        const startTime = normalizedPortfolio[0].timestamp;
-        const endTime = normalizedPortfolio[normalizedPortfolio.length - 1].timestamp;
-        const totalTime = endTime - startTime;
-
-        if (d.timestamp < startTime || d.timestamp > endTime) return null; // Clip
-
-        const timeProgress = (d.timestamp - startTime) / totalTime;
-        const x = padding + timeProgress * chartWidth;
-
-        // Find normalized val
-        // The `normalizedBenchmark` array assumes it starts at index 0 of ITSELF.
-        // We need to re-normalize benchmark relative to the PORTFOLIO START DATE.
-        // Redo global calculation needed? 
-        // Let's simplify: normalizedBenchmark is already % change from ITS own start.
-        // We need % change from Portfolio Start Date.
-        const startBenchPrice = benchmarkData?.find(b => Math.abs(b.timestamp - startTime) < 86400000)?.price || benchmarkData?.[0].price || 1;
-        const val = ((d.price - startBenchPrice) / startBenchPrice) * 100;
-
-        const y = getY(val);
+    // Generate benchmark path from normalized benchmark data
+    const benchmarkPath = showBenchmark && normalizedBenchmark.length > 0 ? normalizedBenchmark.map((d, i) => {
+        const x = getX(i, normalizedBenchmark.length);
+        const y = getY(d.percent);
         return `${x},${y} `;
-    }).filter(p => p !== null).join(' ') : '';
+    }).join(' ') : '';
 
 
     // Gradient Calculation (Baseline is Start of Period)
@@ -190,20 +165,10 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
 
     // Find corresponding benchmark value at active time
     const activeBenchmarkVal = useMemo(() => {
-        if (!showBenchmark || activeIndex === null) return null;
-        const activeTime = data[activeIndex].timestamp;
-        const startBenchPrice = benchmarkData?.find(b => Math.abs(b.timestamp - normalizedPortfolio[0].timestamp) < 86400000 * 2)?.price || 1;
-
-        // Find closest point in benchmark
-        const closestParams = benchmarkData?.reduce((prev, curr) =>
-            Math.abs(curr.timestamp - new Date(activeTime).getTime()) < Math.abs(prev.timestamp - new Date(activeTime).getTime()) ? curr : prev
-        );
-
-        if (closestParams) {
-            return ((closestParams.price - startBenchPrice) / startBenchPrice) * 100;
-        }
-        return 0;
-    }, [activeIndex, showBenchmark, benchmarkData, data, normalizedPortfolio]);
+        if (!showBenchmark || activeIndex === null || !data[activeIndex]) return null;
+        // benchmarkReturn is already a percentage
+        return data[activeIndex].benchmarkReturn || 0;
+    }, [activeIndex, showBenchmark, data]);
 
     // --- SAFE EARLY RETURN AFTER ALL HOOKS ---
     if (data.length < 2) {

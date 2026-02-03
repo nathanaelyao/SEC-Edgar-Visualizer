@@ -12,6 +12,7 @@ import { fetchStockPrice, fetchPriceForDate, fetchStockHistory } from '@/utils/s
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/context/ThemeContext';
 import { formatCurrency, convertCurrency } from '@/utils/currency';
+import { calculatePortfolioChart, ChartDataPoint } from '@/utils/chartCalculations';
 
 const PortfolioScreen: React.FC = () => {
     const { isDark, currency, exchangeRates } = useTheme();
@@ -24,7 +25,7 @@ const PortfolioScreen: React.FC = () => {
 
     const [loading, setLoading] = useState(true);
     const [selectedRange, setSelectedRange] = useState<'1D' | '1W' | '1M' | 'YTD' | '1Y' | '5Y' | 'ALL'>('ALL');
-    const [intradayHistory, setIntradayHistory] = useState<PortfolioSnapshot[]>([]);
+    const [performanceData, setPerformanceData] = useState<ChartDataPoint[]>([]);
     const [isChartLoading, setIsChartLoading] = useState(false);
 
     // Management Modal State
@@ -236,247 +237,36 @@ const PortfolioScreen: React.FC = () => {
     const displayRealized = formatCurrency(Math.abs(totalRealizedProfit), currency);
     const displayDayChange = formatCurrency(Math.abs(totalDayChange), currency);
 
-    // Fetch chart data (intraday or historical) dynamically based on current holdings
+    // Fetch chart data using new time-weighted return calculation
     useEffect(() => {
         const fetchChartData = async () => {
-            // Need to consider ALL holdings (open + closed) AND any symbol ever traded for historical accuracy
-            const allPortfolioSymbols = portfolio.map(h => h.symbol);
-            const allTxSymbols = globalTransactions.map(t => t.symbol);
-            const uniqueSymbols = Array.from(new Set([...allPortfolioSymbols, ...allTxSymbols])).filter(s => s !== 'USD');
-
-            if (uniqueSymbols.length === 0 && globalTransactions.length === 0) {
-                setIntradayHistory([]);
+            if (globalTransactions.length === 0) {
+                setPerformanceData([]);
                 return;
             }
 
             setIsChartLoading(true);
             try {
-                // Determine range and interval
-                let range = '1d';
-                let interval = '2m';
-
-                if (selectedRange === '1W') {
-                    range = '5d';
-                    interval = '15m';
-                } else if (selectedRange === '1M') {
-                    range = '1mo';
-                    interval = '1d';
-                } else if (selectedRange === 'YTD') {
-                    range = 'ytd';
-                    interval = '1d';
-                } else if (selectedRange === '1Y') {
-                    range = '1y';
-                    interval = '1d';
-                } else if (selectedRange === '5Y') {
-                    range = '5y';
-                    interval = '1mo';
-                } else if (selectedRange === 'ALL') {
-                    range = 'max';
-                    interval = '1d';
-                }
-
-                // Fetch data for all unique symbols in parallel
-                const historyPromises = uniqueSymbols.map(s =>
-                    fetchStockHistory(s, range, interval).then(data => ({ symbol: s, data }))
+                const data = await calculatePortfolioChart(
+                    globalTransactions,
+                    selectedRange,
+                    currency,
+                    exchangeRates,
+                    showBenchmark
                 );
-
-                const results = await Promise.all(historyPromises);
-                const dataMap: Record<string, { timestamp: number, price: number }[]> = {};
-                let hasData = false;
-
-                results.forEach(res => {
-                    if (res.data && res.data.length > 0) {
-                        dataMap[res.symbol] = res.data;
-                        hasData = true;
-                    }
-                });
-
-                // Get all unique timestamps from market data
-                const marketTimestamps = new Set<number>();
-                Object.values(dataMap).forEach(points => {
-                    points.forEach(p => marketTimestamps.add(p.timestamp));
-                });
-
-                let sortedTimestamps = Array.from(marketTimestamps).sort((a, b) => a - b);
-
-                if (!hasData && globalTransactions.length > 0) {
-                    // Only transactions, use tx dates
-                    const txDates = globalTransactions.map(t => new Date(t.date).getTime());
-                    sortedTimestamps = Array.from(new Set(txDates)).sort((a, b) => a - b);
-                    sortedTimestamps.push(Date.now());
-                }
-
-                if (sortedTimestamps.length < 2 && hasData) {
-                    // Ensure minimal points
-                }
-
-                // Clip to Inception
-                let inceptionTimestamp = 0;
-                if (globalTransactions.length > 0) {
-                    const earliest = Math.min(...globalTransactions.map(t => new Date(t.date).getTime()));
-                    const d = new Date(earliest);
-                    d.setHours(0, 0, 0, 0);
-                    inceptionTimestamp = d.getTime();
-                }
-
-                if (inceptionTimestamp > 0) {
-                    sortedTimestamps = sortedTimestamps.filter(ts => ts >= inceptionTimestamp);
-                    if (sortedTimestamps.length === 0) {
-                        const now = Date.now();
-                        sortedTimestamps = [inceptionTimestamp, now].sort((a, b) => a - b);
-                    }
-                }
-
-                // Downsampling
-                if (selectedRange === '1Y') {
-                    const filtered: number[] = [];
-                    let lastTs = 0;
-                    const tenDaysMs = 10 * 24 * 60 * 60 * 1000;
-                    filtered.push(sortedTimestamps[0]);
-                    lastTs = sortedTimestamps[0];
-                    for (let i = 1; i < sortedTimestamps.length; i++) {
-                        if (sortedTimestamps[i] - lastTs >= tenDaysMs) {
-                            filtered.push(sortedTimestamps[i]);
-                            lastTs = sortedTimestamps[i];
-                        }
-                    }
-                    if (filtered[filtered.length - 1] !== sortedTimestamps[sortedTimestamps.length - 1]) {
-                        filtered.push(sortedTimestamps[sortedTimestamps.length - 1]);
-                    }
-                    sortedTimestamps = filtered;
-                } else if (selectedRange === 'ALL') {
-                    const firstTs = sortedTimestamps[0];
-                    const nowTs = Date.now();
-                    const durationYears = (nowTs - firstTs) / (365 * 24 * 60 * 60 * 1000);
-                    let minGapMs = durationYears > 5 ? 30 * 24 * 60 * 60 * 1000 :
-                        durationYears >= 1 ? 10 * 24 * 60 * 60 * 1000 :
-                            3 * 24 * 60 * 60 * 1000;
-
-                    const filtered: number[] = [];
-                    let lastTs = 0;
-                    filtered.push(sortedTimestamps[0]);
-                    lastTs = sortedTimestamps[0];
-                    for (let i = 1; i < sortedTimestamps.length; i++) {
-                        if (sortedTimestamps[i] - lastTs >= minGapMs) {
-                            filtered.push(sortedTimestamps[i]);
-                            lastTs = sortedTimestamps[i];
-                        }
-                    }
-                    if (filtered[filtered.length - 1] !== sortedTimestamps[sortedTimestamps.length - 1]) {
-                        filtered.push(sortedTimestamps[sortedTimestamps.length - 1]);
-                    }
-                    sortedTimestamps = filtered;
-                }
-
-                // EVENT SOURCING REPLAY
-                const sortedTxs = [...globalTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-                let currentDocCash: Record<string, number> = {};
-                const currentDocShares: Record<string, number> = {};
-                // Track Net Capital Invested (Deposits - Withdrawals) to calculate true return
-                let currentNetInvested = 0;
-                let txIndex = 0;
-
-                const applyTx = (tx: Transaction) => {
-                    const cur = tx.currency || 'USD';
-                    if (!currentDocCash[cur]) currentDocCash[cur] = 0;
-                    const totalAmt = (tx.type === 'buy' || tx.type === 'sell') ? (tx.shares * tx.price) : tx.price;
-
-                    // Convert transaction amount to display currency for Invested Capital tracking
-                    const displayAmt = convertCurrency(totalAmt, cur, currency, exchangeRates);
-
-                    if (tx.type === 'deposit') {
-                        currentDocCash[cur] += totalAmt;
-                        currentNetInvested += displayAmt;
-                    } else if (tx.type === 'withdraw') {
-                        currentDocCash[cur] -= totalAmt;
-                        currentNetInvested -= displayAmt;
-                    } else if (tx.type === 'buy') {
-                        // Implicit Deposit: If insufficient cash, treat the deficit as a fresh deposit
-                        // This prevents "Free Money" performance spikes on unfunded buys.
-                        if (currentDocCash[cur] < totalAmt) {
-                            const deficit = totalAmt - currentDocCash[cur];
-                            currentNetInvested += convertCurrency(deficit, cur, currency, exchangeRates);
-                            currentDocCash[cur] = 0;
-                        } else {
-                            currentDocCash[cur] -= totalAmt;
-                        }
-                        currentDocShares[tx.symbol] = (currentDocShares[tx.symbol] || 0) + tx.shares;
-                    } else if (tx.type === 'sell') {
-                        currentDocCash[cur] += totalAmt;
-                        currentDocShares[tx.symbol] = Math.max(0, (currentDocShares[tx.symbol] || 0) - tx.shares);
-                    }
-                };
-
-                const snapshots: PortfolioSnapshot[] = sortedTimestamps.map(ts => {
-                    while (txIndex < sortedTxs.length) {
-                        const txTime = new Date(sortedTxs[txIndex].date).getTime();
-                        if (txTime <= ts) {
-                            applyTx(sortedTxs[txIndex]);
-                            txIndex++;
-                        } else {
-                            break;
-                        }
-                    }
-
-                    let stockValue = 0;
-                    Object.keys(currentDocShares).forEach(symbol => {
-                        const shares = currentDocShares[symbol];
-                        if (shares <= 0) return;
-
-                        const points = dataMap[symbol];
-                        let price = 0;
-                        if (points) {
-                            const exact = points.find(p => p.timestamp === ts);
-                            if (exact) {
-                                price = exact.price;
-                            } else {
-                                const prev = points.filter(p => p.timestamp < ts).pop();
-                                if (prev) price = prev.price;
-                            }
-                        }
-                        stockValue += convertCurrency(shares * price, 'USD', 'USD', exchangeRates);
-                    });
-
-                    let cashValue = 0;
-                    Object.entries(currentDocCash).forEach(([cur, amt]) => {
-                        cashValue += convertCurrency(amt, cur, currency, exchangeRates);
-                    });
-
-                    const totalValue = stockValue + cashValue;
-                    const totalProfit = totalValue - currentNetInvested;
-                    // Avoid division by zero
-                    const returnPercent = currentNetInvested > 0 ? (totalProfit / currentNetInvested) * 100 : 0;
-
-                    return {
-                        timestamp: new Date(ts).toISOString(),
-                        totalValue: totalValue,
-                        totalProfit: totalProfit,
-                        returnPercent: returnPercent
-                    };
-                });
-
-                setIntradayHistory(snapshots);
-
+                setPerformanceData(data);
             } catch (error) {
                 console.error("Error fetching chart data:", error);
+                setPerformanceData([]);
             } finally {
                 setIsChartLoading(false);
             }
         };
 
         fetchChartData();
-    }, [selectedRange, portfolio, globalTransactions, exchangeRates]);
-
-    const getFilteredHistory = (): PortfolioSnapshot[] => {
-        // Always use the generated "intradayHistory" (which now covers all ranges)
-        // If it's loading or empty, we return empty or fallback
-        return intradayHistory;
-    };
+    }, [selectedRange, globalTransactions, exchangeRates, showBenchmark, currency]);
 
 
-
-    const filteredHistory = getFilteredHistory();
 
 
 
@@ -683,17 +473,16 @@ const PortfolioScreen: React.FC = () => {
                                 </View>
 
                                 <PortfolioLineChart
-                                    data={filteredHistory}
-                                    benchmarkData={benchmarkData}
+                                    data={performanceData}
                                     showBenchmark={showBenchmark}
                                     range={selectedRange}
                                     isDark={isDark}
                                     formatValue={(val) => formatCurrency(convertCurrency(val, 'USD', currency, exchangeRates), currency)}
                                 />
-                                {filteredHistory.length > 1 && (() => {
-                                    const effectiveStart = filteredHistory.find(h => h.totalValue > 0) || filteredHistory[0];
+                                {performanceData.length > 1 && (() => {
+                                    const effectiveStart = performanceData.find((h: ChartDataPoint) => h.totalValue > 0) || performanceData[0];
                                     const startProfit = effectiveStart.totalProfit;
-                                    const endProfit = filteredHistory[filteredHistory.length - 1].totalProfit;
+                                    const endProfit = performanceData[performanceData.length - 1].totalProfit;
                                     const startValue = effectiveStart.totalValue;
 
                                     const changeAmount = endProfit - startProfit;
