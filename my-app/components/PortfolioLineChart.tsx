@@ -171,10 +171,10 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
     }, [activeIndex, showBenchmark, data]);
 
     // --- SAFE EARLY RETURN AFTER ALL HOOKS ---
-    if (data.length < 2) {
+    if (data.length < 4) {
         return (
             <View style={[styles.container, { height }]}>
-                <Text style={styles.noData}>Collecting historical data...</Text>
+                <Text style={styles.noData}>No historical data...</Text>
             </View>
         );
     }
