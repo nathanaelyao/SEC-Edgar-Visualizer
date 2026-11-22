@@ -13,7 +13,7 @@ import { Dropdown } from 'react-native-element-dropdown';
 import { investorsData } from '@/constants/investors';
 import { FlatList } from 'react-native';
 import InvestorItem from '@/components/InvestorItem';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from 'expo-router';
 import { secFetch, fetchStockPrice, StockQuote, fetchStockHistory, HistoryPoint, fetchPriceForDate, fetchDividendHistory, DividendEvent } from '@/utils/secApi';
 import StockLineChart from '@/components/StockLineChart';
 import { debug, info, warn, error as logError } from '@/utils/logger';

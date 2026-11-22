@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator, 
 import { XMLParser } from 'fast-xml-parser';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import cheerio from 'react-native-cheerio';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from 'expo-router';
 import { secFetch } from '@/utils/secApi';
 import { debug, error as logError } from '@/utils/logger';
 import { useTheme } from '@/context/ThemeContext';

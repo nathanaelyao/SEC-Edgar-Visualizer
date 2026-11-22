@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, TouchableWithoutFeedback, Keyboard, Platform, Switch, KeyboardAvoidingView } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from 'expo-router';
 import { getPortfolio, removeHolding, PortfolioHolding, refreshPortfolioPrices, Transaction, getAllTransactions, deleteTransaction, addTransaction, getCashBalances, triggerPortfolioSnapshot, checkAndRunMaintenance, getChartCashBalances } from '@/utils/db';
 import PieChart from '@/components/PieChart';
 import PortfolioLineChart from '@/components/PortfolioLineChart';
