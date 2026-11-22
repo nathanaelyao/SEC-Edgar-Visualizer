@@ -5,7 +5,7 @@ import {
   Keyboard,
   Platform,
 } from 'react-native';
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { useLocalSearchParams } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { Animated, Easing } from 'react-native';
 import BarChart from '@/components/BarChart';

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator, Dimensions, Platform } from 'react-native';
 import { XMLParser } from 'fast-xml-parser';
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { useLocalSearchParams } from 'expo-router';
 import cheerio from 'react-native-cheerio';
 import { useNavigation } from 'expo-router';
 import { secFetch } from '@/utils/secApi';
@@ -19,8 +19,8 @@ const HoldingsScreen: React.FC = () => {
   const { isDark } = useTheme();
 
   const [totalPortfolioValue, setTotalPortfolioValue] = useState(0);
-  const route = useRoute<RouteProp<RootStackParamList, 'HoldingsScreen'>>();
-  const { investorName, cik, institution } = route.params;
+  const { investorName, cik, institution } = useLocalSearchParams();
+  
   const [filings, setFilings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
