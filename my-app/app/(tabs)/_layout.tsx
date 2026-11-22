@@ -20,10 +20,7 @@ export default function TabLayout() {
     return (
       <View
         style={[
-          styles.iconContainer,
           focused && {
-            backgroundColor: isDark ? 'rgba(141, 203, 226, 0.18)' : '#E8F5FA',
-            borderColor: isDark ? 'rgba(141, 203, 226, 0.3)' : 'rgba(141, 203, 226, 0.4)',
             borderWidth: 1,
           },
         ]}
@@ -56,7 +53,7 @@ export default function TabLayout() {
             left: 18,
             right: 18,
             bottom: 24,
-            height: 64,
+            height: 70,
             borderRadius: 32,
             backgroundColor: isDark ? 'rgba(19, 32, 46, 0.98)' : '#FFFFFF',
             borderWidth: 1.5,
@@ -130,11 +127,11 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   iconContainer: {
-    width: 48,
+    width: 60,
     height: 30,
     borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 2,
+    marginBottom: 0,
   },
 });
