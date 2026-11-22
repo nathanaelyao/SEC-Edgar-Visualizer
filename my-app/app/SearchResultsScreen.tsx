@@ -809,7 +809,7 @@ const SearchResultsScreen: React.FC = () => {
   // ...
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#0B1220' : '#F0F5FA' }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#0B1220' : '#F4F7FB' }]}>
       <FlatList
         data={investorInfo || []}
         keyExtractor={(item, index) => index.toString()}

@@ -271,7 +271,7 @@ const HoldingsScreen: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#2C3E5A' : '#CDE4FF' }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#0B1220' : '#F4F7FB' }]}>
       <View style={styles.fixedHeader}>
         <View style={styles.topBar}>
           <TouchableOpacity
