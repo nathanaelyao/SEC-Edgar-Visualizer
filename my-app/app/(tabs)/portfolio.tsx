@@ -1,14 +1,13 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, ScrollView, TouchableWithoutFeedback, Keyboard, Platform, Switch, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, TouchableWithoutFeedback, Keyboard, Platform, Switch, KeyboardAvoidingView } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { getPortfolio, removeHolding, updatePrice, addHolding, PortfolioHolding, addPortfolioSnapshot, getPortfolioHistory, PortfolioSnapshot, refreshPortfolioPrices, Transaction, getTransactions, getAllTransactions, updateTransaction, deleteTransaction, addTransaction, getCashBalances, triggerPortfolioSnapshot, checkAndRunMaintenance, getChartCashBalances } from '@/utils/db';
-import { CURRENCY_SYMBOLS } from '@/utils/currency';
+import { getPortfolio, removeHolding, PortfolioHolding, refreshPortfolioPrices, Transaction, getAllTransactions, deleteTransaction, addTransaction, getCashBalances, triggerPortfolioSnapshot, checkAndRunMaintenance, getChartCashBalances } from '@/utils/db';
 import PieChart from '@/components/PieChart';
 import PortfolioLineChart from '@/components/PortfolioLineChart';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import TransactionList from '@/components/TransactionList';
 import TransactionModal from '@/components/TransactionModal';
-import { fetchStockPrice, fetchPriceForDate, fetchStockHistory } from '@/utils/secApi';
+import { fetchStockPrice } from '@/utils/secApi';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/context/ThemeContext';
 import { formatCurrency, convertCurrency } from '@/utils/currency';
@@ -48,8 +47,6 @@ const PortfolioScreen: React.FC = () => {
 
     // Benchmark State
     const [showBenchmark, setShowBenchmark] = useState(false);
-    const [benchmarkData, setBenchmarkData] = useState<{ timestamp: number; price: number }[]>([]);
-    const [isBenchmarkLoading, setIsBenchmarkLoading] = useState(false);
 
     const loadPortfolio = async () => {
         setLoading(true);
@@ -92,32 +89,6 @@ const PortfolioScreen: React.FC = () => {
             setLoading(false);
         }
     };
-
-    const fetchBenchmarkData = async () => {
-        if (benchmarkData.length > 0) return; // Already loaded
-
-        setIsBenchmarkLoading(true);
-        try {
-            // Fetch SPY history for max range to cover all possibilities
-            console.log("Fetching SPY benchmark data...");
-            const history = await fetchStockHistory('SPY', '5y', '1d'); // 5y should cover most
-            // If user has >5y history, might need 'max'
-            if (history && history.length > 0) {
-                setBenchmarkData(history);
-            }
-        } catch (e) {
-            console.error("Failed to load benchmark:", e);
-        } finally {
-            setIsBenchmarkLoading(false);
-        }
-    };
-
-    // Trigger fetch when toggle is turned on
-    React.useEffect(() => {
-        if (showBenchmark) {
-            fetchBenchmarkData();
-        }
-    }, [showBenchmark]);
 
     const handleSaveCash = async () => {
         const amount = parseFloat(cashAmount);
@@ -469,7 +440,6 @@ const PortfolioScreen: React.FC = () => {
                                         ios_backgroundColor={isDark ? '#333' : '#e0e0e0'}
                                         style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
                                     />
-                                    {isBenchmarkLoading && <ActivityIndicator size="small" style={{ marginLeft: 8 }} />}
                                 </View>
 
                                 <PortfolioLineChart

@@ -102,39 +102,32 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
     const maxVal = Math.max(...(showBenchmark ? allPoints : displayPoints));
     const vRange = Math.max(Math.abs(maxVal - minVal), 0.0001);
 
-    // Coordinate Helpers
-    const getX = (index: number, length: number) => padding + (index / (length - 1)) * chartWidth;
+    // --- Time-scale X axis ---
+    // Compute global time range across portfolio + benchmark so both lines share the same X axis
+    const portfolioTimes = normalizedPortfolio.map(d => d.timestamp);
+    const benchmarkTimes = showBenchmark ? normalizedBenchmark.map(d => d.timestamp) : [];
+    const allTimes = [...portfolioTimes, ...benchmarkTimes];
+    const globalMinTime = allTimes.length > 0 ? Math.min(...allTimes) : 0;
+    const globalMaxTime = allTimes.length > 0 ? Math.max(...allTimes) : 1;
+    const timeRange = Math.max(globalMaxTime - globalMinTime, 1);
+
+    const getXByTime = (ts: number) => padding + ((ts - globalMinTime) / timeRange) * chartWidth;
     const getY = (val: number) => padding + chartHeight - ((val - minVal) / vRange) * chartHeight;
 
-    // Generate Path Strings
-    const makePath = (points: number[]) => {
-        return points.map((val, i) => `${getX(i, points.length)},${getY(val)} `).join(' ');
-    };
+    // Portfolio path — use time-scale X
+    const mainPath = normalizedPortfolio.length > 1
+        ? normalizedPortfolio.map(d => `${getXByTime(d.timestamp)},${getY(d.percent)} `).join(' ')
+        : '';
 
-    const mainPath = makePath(displayPoints);
-    // Benchmark might have different length/timestamps. 
-    // Ideally we interpolate benchmark to match portfolio timestamps for overlapping graph?
-    // Or just plot them on the same time x-axis?
-    // For simplicity: Plot benchmark using its own X scale if lengths differ, 
-    // assuming Start/End times align roughly?
-    // BETTER: Timerscale X.
-    // Let's assume for now we just map array index to X. 
-    // This requires arrays to be aligned by date. 
-    // Real implementation should use time-scale.
-    // Hack for now: Map benchmark points to existing X axis if lengths are close, or just simple independent line.
-    // Hack for now: Map benchmark points to existing X axis if lengths are close, or just simple independent line.
-    // Simple independent line:
-    // Generate benchmark path from normalized benchmark data
-    const benchmarkPath = showBenchmark && normalizedBenchmark.length > 0 ? normalizedBenchmark.map((d, i) => {
-        const x = getX(i, normalizedBenchmark.length);
-        const y = getY(d.percent);
-        return `${x},${y} `;
-    }).join(' ') : '';
+    // Benchmark path — same time-scale X, so it aligns accurately with the portfolio line
+    const benchmarkPath = showBenchmark && normalizedBenchmark.length > 0
+        ? normalizedBenchmark.map(d => `${getXByTime(d.timestamp)},${getY(d.percent)} `).join(' ')
+        : '';
 
 
     // Gradient Calculation (Baseline is Start of Period)
     // "underneath where we were in the start of the selected period"
-    const baselineValue = displayPoints.length > 0 ? displayPoints[0] : 0;
+    const baselineValue = normalizedPortfolio.length > 0 ? normalizedPortfolio[0].percent : 0;
     const baselineY = getY(baselineValue);
 
     // Relative to Chart Height (Polyline BB), with +1px epsilon to favor Green at baseline
@@ -142,8 +135,7 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
 
 
     // Active Data and HUD Calculations
-    const activeItem = activeIndex !== null ? data[activeIndex] : null;
-    const activeDisplayVal = activeIndex !== null ? displayPoints[activeIndex] : displayPoints[displayPoints.length - 1]; // This is what is PLOTTED (value or %)
+    const activeDisplayPercent = activeIndex !== null ? normalizedPortfolio[activeIndex]?.percent ?? 0 : (normalizedPortfolio[normalizedPortfolio.length - 1]?.percent ?? 0);
 
     // Detailed Metrics for HUD (Always calculated relative to chart Start)
     const metrics = useMemo(() => {
@@ -179,17 +171,22 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
         );
     }
 
-    // Interaction
+    // Interaction — find nearest portfolio point by time proximity
     const handleTouch = (event: any) => {
         const x = event.nativeEvent.locationX;
         const boundedX = Math.max(padding, Math.min(padding + chartWidth, x));
         const relativeX = boundedX - padding;
-        const index = Math.round((relativeX / chartWidth) * (displayPoints.length - 1));
-
-        if (index >= 0 && index < displayPoints.length) {
-            setActiveIndex(index);
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
+        // Convert X pixel position back to a timestamp
+        const touchTime = globalMinTime + (relativeX / chartWidth) * timeRange;
+        // Find closest portfolio point by timestamp
+        let closestIndex = 0;
+        let closestDelta = Infinity;
+        normalizedPortfolio.forEach((d, i) => {
+            const delta = Math.abs(d.timestamp - touchTime);
+            if (delta < closestDelta) { closestDelta = delta; closestIndex = i; }
+        });
+        setActiveIndex(closestIndex);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     };
 
     const isPositive = metrics ? metrics.change >= 0 : true;
@@ -306,11 +303,11 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
                 />
 
                 {/* Scrubber */}
-                {activeIndex !== null && (
+                {activeIndex !== null && normalizedPortfolio[activeIndex] && (
                     <Line
-                        x1={getX(activeIndex, displayPoints.length)}
+                        x1={getXByTime(normalizedPortfolio[activeIndex].timestamp)}
                         y1={padding}
-                        x2={getX(activeIndex, displayPoints.length)}
+                        x2={getXByTime(normalizedPortfolio[activeIndex].timestamp)}
                         y2={padding + chartHeight}
                         stroke={isDark ? '#8e8e93' : '#666'}
                         strokeWidth="1.5"
@@ -319,10 +316,10 @@ const PortfolioLineChart: React.FC<PortfolioLineChartProps> = ({
                 )}
 
                 {/* Main Dot */}
-                {activeIndex !== null && (
+                {activeIndex !== null && normalizedPortfolio[activeIndex] && (
                     <Circle
-                        cx={getX(activeIndex, displayPoints.length)}
-                        cy={getY(activeDisplayVal)}
+                        cx={getXByTime(normalizedPortfolio[activeIndex].timestamp)}
+                        cy={getY(activeDisplayPercent)}
                         r="6"
                         fill={isPositive ? '#34C759' : '#FF3B30'}
                         stroke="#fff"

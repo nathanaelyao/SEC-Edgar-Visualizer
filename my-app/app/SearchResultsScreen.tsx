@@ -485,9 +485,11 @@ const SearchResultsScreen: React.FC = () => {
     if (selectedValue && !options.find(o => o.value === selectedValue)) {
       setSelectedValue(options[0].value);
       setFilterType(options[0].value);
+      setChartPage(0);
     } else if (!selectedValue && options.length > 0) {
       setSelectedValue(options[0].value);
       setFilterType(options[0].value);
+      setChartPage(0);
     }
 
   }, [stockInfo]);
@@ -1137,22 +1139,24 @@ const SearchResultsScreen: React.FC = () => {
                             globalMax={globalMax}
                           />
                           <View style={styles.paginationContainer}>
-                            <TouchableOpacity
-                              style={[styles.pageButton, start <= 0 && styles.pageButtonDisabled]}
-                              onPress={() => setChartPage(p => p + 1)}
-                              disabled={start <= 0}
-                            >
-                              <Ionicons name="chevron-back" size={20} color={start <= 0 ? (isDark ? '#444' : '#ccc') : '#007AFF'} />
-                            </TouchableOpacity>
-
-                            <Text style={styles.pageIndicator}>Page {chartPage + 1}</Text>
-
+                            {/* chevron-back = go back in time = higher page number (older data) */}
                             <TouchableOpacity
                               style={[styles.pageButton, chartPage === 0 && styles.pageButtonDisabled]}
                               onPress={() => setChartPage(p => Math.max(0, p - 1))}
                               disabled={chartPage === 0}
                             >
-                              <Ionicons name="chevron-forward" size={20} color={chartPage === 0 ? (isDark ? '#444' : '#ccc') : '#007AFF'} />
+                              <Ionicons name="chevron-back" size={20} color={chartPage === 0 ? (isDark ? '#444' : '#ccc') : '#007AFF'} />
+                            </TouchableOpacity>
+
+                            <Text style={styles.pageIndicator}>Page {chartPage + 1}</Text>
+
+                            {/* chevron-forward = go forward in time = lower page number (newer data) */}
+                            <TouchableOpacity
+                              style={[styles.pageButton, start <= 0 && styles.pageButtonDisabled]}
+                              onPress={() => setChartPage(p => p + 1)}
+                              disabled={start <= 0}
+                            >
+                              <Ionicons name="chevron-forward" size={20} color={start <= 0 ? (isDark ? '#444' : '#ccc') : '#007AFF'} />
                             </TouchableOpacity>
                           </View>
                         </>
