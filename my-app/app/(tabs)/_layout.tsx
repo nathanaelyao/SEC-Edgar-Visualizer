@@ -1,31 +1,88 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Platform, View, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { HapticTab } from '@/components/HapticTab';
-import { IconSymbol } from '@/components/ui/IconSymbol';
-import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const theme = Colors[colorScheme ?? 'light'];
+
+  const renderTabIcon = (
+    nameOutline: keyof typeof Ionicons.glyphMap,
+    nameFilled: keyof typeof Ionicons.glyphMap,
+    focused: boolean,
+  ) => {
+    return (
+      <View
+        style={[
+          styles.iconContainer,
+          focused && {
+            backgroundColor: isDark ? 'rgba(141, 203, 226, 0.18)' : '#E8F5FA',
+            borderColor: isDark ? 'rgba(141, 203, 226, 0.3)' : 'rgba(141, 203, 226, 0.4)',
+            borderWidth: 1,
+          },
+        ]}
+      >
+        <Ionicons
+          name={focused ? nameFilled : nameOutline}
+          size={20}
+          color={focused ? theme.primary : theme.tabIconDefault}
+        />
+      </View>
+    );
+  };
 
   return (
     <Tabs
-      initialRouteName="search"
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.tabIconDefault,
         headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarBackground: TabBarBackground,
+        tabBarButton: HapticTab as any,
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '700',
+          letterSpacing: 0.2,
+          marginTop: -2,
+        },
         tabBarStyle: Platform.select({
           ios: {
-            // Use a transparent background on iOS to show the blur effect
             position: 'absolute',
+            left: 18,
+            right: 18,
+            bottom: 24,
+            height: 64,
+            borderRadius: 32,
+            backgroundColor: isDark ? 'rgba(19, 32, 46, 0.98)' : '#FFFFFF',
+            borderWidth: 1.5,
+            borderColor: isDark ? '#1E3245' : 'rgba(141, 203, 226, 0.45)',
+            shadowColor: '#8DCBE2',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.25,
+            shadowRadius: 18,
+            elevation: 8,
+            paddingBottom: 8,
+            paddingTop: 8,
           },
-          default: {},
+          default: {
+            position: 'absolute',
+            left: 16,
+            right: 16,
+            bottom: 14,
+            height: 64,
+            borderRadius: 32,
+            backgroundColor: isDark ? '#13202E' : '#FFFFFF',
+            borderWidth: 1.5,
+            borderColor: isDark ? '#1E3245' : 'rgba(141, 203, 226, 0.45)',
+            elevation: 8,
+            paddingBottom: 8,
+            paddingTop: 8,
+          },
         }),
       }}>
       <Tabs.Screen
@@ -33,19 +90,18 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           headerShown: false,
-          tabBarIcon: ({ color }) => <MaterialIcons name="home" size={28} color={color} />,
+          tabBarIcon: ({ focused }) =>
+            renderTabIcon('home-outline', 'home', focused),
         }}
       />
-
-
-
 
       <Tabs.Screen
         name="portfolio"
         options={{
-          title: 'My Portfolio',
+          title: 'Portfolio',
           headerShown: false,
-          tabBarIcon: ({ color }) => <MaterialIcons name="pie-chart" size={28} color={color} />,
+          tabBarIcon: ({ focused }) =>
+            renderTabIcon('pie-chart-outline', 'pie-chart', focused),
         }}
       />
 
@@ -54,7 +110,8 @@ export default function TabLayout() {
         options={{
           title: '13F Filings',
           headerShown: false,
-          tabBarIcon: ({ color }) => <MaterialIcons name="article" size={28} color={color} />,
+          tabBarIcon: ({ focused }) =>
+            renderTabIcon('documents-outline', 'documents', focused),
         }}
       />
 
@@ -63,9 +120,21 @@ export default function TabLayout() {
         options={{
           title: 'Settings',
           headerShown: false,
-          tabBarIcon: ({ color }) => <MaterialIcons name="settings" size={28} color={color} />,
+          tabBarIcon: ({ focused }) =>
+            renderTabIcon('settings-outline', 'settings', focused),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    width: 48,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+});

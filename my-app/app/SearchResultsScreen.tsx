@@ -76,9 +76,8 @@ interface InvestorHolding {
 const SearchResultsScreen: React.FC = () => {
   const { isDark, currency, exchangeRates } = useTheme();
   const navigation = useNavigation<any>();
-  const route = useRoute<RouteProp<RootStackParamList, 'SearchResultsScreen'>>();
   const router = useRouter();
-  const { stockSymbol } = route.params;
+  const { stockSymbol } = useLocalSearchParams<{ stockSymbol: string }>();
   const [stockInfo, setStockInfo] = useState<StockInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -810,15 +809,15 @@ const SearchResultsScreen: React.FC = () => {
   // ...
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#f8f9fa' }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#0B1220' : '#F0F5FA' }]}>
       <FlatList
-        data={investorInfo}
+        data={investorInfo || []}
         keyExtractor={(item, index) => index.toString()}
         renderItem={({ item }) => {
           const initials = item.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '?';
           return (
             <TouchableOpacity
-              style={[styles.investorInfoCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}
+              style={[styles.investorInfoCard, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E8EEF5' }]}
               onPress={() => {
                 if (item.cik) {
                   router.push({
@@ -869,13 +868,13 @@ const SearchResultsScreen: React.FC = () => {
             )}
             {stockInfo && (
               <View>
-                <View style={[styles.headerCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
+                <View style={[styles.headerCard, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E8EEF5' }]}>
                   <View style={[styles.headerTopRow, { marginBottom: 4 }]}>
                     <TouchableOpacity
-                      style={[styles.backButton, { backgroundColor: isDark ? '#333' : '#fff', borderColor: isDark ? '#444' : '#eee', position: 'absolute', left: 0, zIndex: 10 }]}
+                      style={[styles.backButton, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E2E8F0', position: 'absolute', left: 0, zIndex: 10 }]}
                       onPress={() => navigation.goBack()}
                     >
-                      <Ionicons name="chevron-back" size={24} color={isDark ? '#fff' : '#007AFF'} />
+                      <Ionicons name="chevron-back" size={24} color={isDark ? '#9ED7ED' : '#8DCBE2'} />
                     </TouchableOpacity>
                     <View style={{ alignItems: 'center', flex: 1, paddingHorizontal: 48 }}>
                       <Text style={[styles.screenTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>

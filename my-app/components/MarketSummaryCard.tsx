@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Svg, { Polyline, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -22,10 +22,10 @@ const MarketSummaryCard: React.FC<MarketSummaryCardProps> = ({
 }) => {
     const { isDark } = useTheme();
     const isPositive = changePercent >= 0;
-    const color = isPositive ? '#34C759' : '#FF3B30';
+    const color = isPositive ? '#10B981' : '#EF4444';
 
     const width = 130;
-    const height = 50;
+    const height = 48;
 
     const chartPath = useMemo(() => {
         if (!data || data.length < 2) return '';
@@ -45,9 +45,8 @@ const MarketSummaryCard: React.FC<MarketSummaryCardProps> = ({
 
     const displayPrice = useMemo(() => {
         if (symbol.includes('=X')) {
-            // Check if it's a very small number (e.g. JPY/USD is ~0.0067)
             if (price < 0.1) return price.toFixed(4);
-            return price.toFixed(4); // 4 decimals for currencies is standard
+            return price.toFixed(4);
         }
         if (price > 1000) {
             return price.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -66,18 +65,22 @@ const MarketSummaryCard: React.FC<MarketSummaryCardProps> = ({
     return (
         <TouchableOpacity
             style={[styles.card, {
-                backgroundColor: isDark ? '#1e1e1e' : '#fff',
-                borderColor: isDark ? '#333' : '#f0f0f0'
+                backgroundColor: isDark ? '#131E32' : '#FFFFFF',
+                borderColor: isDark ? '#1E2E4A' : '#E8EEF5'
             }]}
             onPress={onPress}
             activeOpacity={0.8}
         >
             <View style={styles.topInfo}>
                 <View style={styles.symbolContainer}>
-                    <Text style={[styles.symbol, { color: isDark ? '#fff' : '#000' }]} numberOfLines={1}>{displaySymbol}</Text>
-                    <Text style={[styles.name, { color: '#8e8e93' }]} numberOfLines={1}>{name}</Text>
+                    <Text style={[styles.symbol, { color: isDark ? '#F8FAFC' : '#0F172A' }]} numberOfLines={1}>{displaySymbol}</Text>
+                    <Text style={[styles.name, { color: isDark ? '#94A3B8' : '#64748B' }]} numberOfLines={1}>{name}</Text>
                 </View>
-                <View style={[styles.badge, { backgroundColor: isPositive ? 'rgba(52, 199, 89, 0.1)' : 'rgba(255, 59, 48, 0.1)' }]}>
+                <View style={[styles.badge, {
+                    backgroundColor: isPositive
+                        ? (isDark ? 'rgba(52, 211, 153, 0.15)' : '#DCFCE7')
+                        : (isDark ? 'rgba(248, 113, 113, 0.15)' : '#FEE2E2')
+                }]}>
                     <Text style={[styles.change, { color: color }]}>
                         {isPositive ? '+' : ''}{changePercent.toFixed(2)}%
                     </Text>
@@ -104,7 +107,7 @@ const MarketSummaryCard: React.FC<MarketSummaryCardProps> = ({
             </View>
 
             <View style={styles.footer}>
-                <Text style={[styles.price, { color: isDark ? '#fff' : '#000' }]}>
+                <Text style={[styles.price, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>
                     {displayPrice}
                 </Text>
             </View>
@@ -114,17 +117,18 @@ const MarketSummaryCard: React.FC<MarketSummaryCardProps> = ({
 
 const styles = StyleSheet.create({
     card: {
-        width: 160,
-        height: 160,
-        borderRadius: 24,
+        width: 156,
+        height: 156,
+        borderRadius: 22,
         padding: 16,
         marginRight: 12,
         borderWidth: 1,
         justifyContent: 'space-between',
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOpacity: 0.08,
-        shadowRadius: 1,
+        elevation: 3,
+        shadowColor: '#2E7BE8',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
     },
     topInfo: {
         flexDirection: 'row',
@@ -136,30 +140,30 @@ const styles = StyleSheet.create({
         marginRight: 4,
     },
     symbol: {
-        fontSize: 16,
-        fontWeight: '900',
-        letterSpacing: -0.5,
+        fontSize: 15,
+        fontWeight: '800',
+        letterSpacing: -0.3,
     },
     name: {
         fontSize: 11,
-        fontWeight: '600',
+        fontWeight: '500',
         marginTop: 2,
     },
     badge: {
         borderRadius: 8,
         paddingHorizontal: 6,
-        paddingVertical: 4,
+        paddingVertical: 3,
     },
     change: {
         fontSize: 10,
         fontWeight: '800',
     },
     chartContainer: {
-        height: 50,
+        height: 48,
         width: 130,
         overflow: 'hidden',
         alignSelf: 'center',
-        marginVertical: 8,
+        marginVertical: 4,
     },
     footer: {
         flexDirection: 'row',
@@ -167,9 +171,9 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
     },
     price: {
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: '900',
-        letterSpacing: -0.5,
+        letterSpacing: -0.4,
     },
 });
 

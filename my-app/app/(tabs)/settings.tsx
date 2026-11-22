@@ -22,29 +22,29 @@ const SettingsScreen: React.FC = () => {
     };
 
     return (
-        <ScrollView style={[styles.container, { backgroundColor: isDark ? '#000' : '#f8f9fa' }]} contentContainerStyle={styles.content}>
+        <ScrollView style={[styles.container, { backgroundColor: isDark ? '#0B1220' : '#F4F7FB' }]} contentContainerStyle={styles.content}>
             <View style={styles.header}>
-                <Text style={[styles.title, { color: isDark ? '#fff' : '#1a1a1a' }]}>Settings</Text>
-                <Text style={styles.subtitle}>Manage your preferences and data</Text>
+                <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Settings</Text>
+                <Text style={[styles.subtitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>Manage your preferences and data</Text>
             </View>
 
             <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                    <Ionicons name="color-palette-outline" size={20} color={isDark ? '#8e8e93' : '#8e8e93'} />
-                    <Text style={styles.sectionTitle}>Appearance</Text>
+                    <Ionicons name="color-palette-outline" size={18} color={isDark ? '#9ED7ED' : '#8DCBE2'} />
+                    <Text style={[styles.sectionTitle, { color: isDark ? '#9ED7ED' : '#8DCBE2' }]}>Appearance</Text>
                 </View>
-                <View style={[styles.card, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
+                <View style={[styles.card, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E8EEF5' }]}>
                     <View style={styles.row}>
                         <View style={styles.rowLeft}>
-                            <View style={[styles.iconBox, { backgroundColor: isDark ? '#333' : '#f0f2f5' }]}>
-                                <Ionicons name={isDark ? "moon" : "sunny"} size={18} color="#007AFF" />
+                            <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(92, 157, 255, 0.15)' : '#EEF5FD' }]}>
+                                <Ionicons name={isDark ? "moon" : "sunny"} size={18} color={isDark ? '#9ED7ED' : '#8DCBE2'} />
                             </View>
-                            <Text style={[styles.label, { color: isDark ? '#fff' : '#1a1a1a' }]}>Dark Mode</Text>
+                            <Text style={[styles.label, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Dark Mode</Text>
                         </View>
                         <Switch
                             value={isDark}
                             onValueChange={toggleTheme}
-                            trackColor={{ false: '#d1d1d6', true: '#34C759' }}
+                            trackColor={{ false: isDark ? '#1E2C44' : '#E2E8F0', true: '#8DCBE2' }}
                             thumbColor={Platform.OS === 'ios' ? '#fff' : isDark ? '#fff' : '#fff'}
                         />
                     </View>
@@ -53,28 +53,28 @@ const SettingsScreen: React.FC = () => {
 
             <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                    <Ionicons name="cash-outline" size={20} color={isDark ? '#8e8e93' : '#8e8e93'} />
-                    <Text style={styles.sectionTitle}>Portfolio Currency</Text>
+                    <Ionicons name="cash-outline" size={18} color={isDark ? '#9ED7ED' : '#8DCBE2'} />
+                    <Text style={[styles.sectionTitle, { color: isDark ? '#9ED7ED' : '#8DCBE2' }]}>Portfolio Currency</Text>
                 </View>
-                <View style={[styles.card, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
+                <View style={[styles.card, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E8EEF5' }]}>
                     {currencies.map((curr, index) => (
                         <TouchableOpacity
                             key={curr.code}
-                            style={[styles.row, index !== currencies.length - 1 && [styles.rowBorder, { borderBottomColor: isDark ? '#333' : '#f0f0f0' }]]}
+                            style={[styles.row, index !== currencies.length - 1 && [styles.rowBorder, { borderBottomColor: isDark ? '#1E2C44' : '#F1F5F9' }]]}
                             onPress={() => setCurrency(curr.code)}
                         >
                             <View style={styles.rowLeft}>
-                                <View style={[styles.avatar, { backgroundColor: isDark ? '#333' : '#f0f2f5' }]}>
+                                <View style={[styles.avatar, { backgroundColor: isDark ? 'rgba(92, 157, 255, 0.15)' : '#EEF5FD' }]}>
                                     <Text style={{ fontSize: 16 }}>{curr.flag}</Text>
                                 </View>
                                 <View>
-                                    <Text style={[styles.label, { color: isDark ? '#fff' : '#1a1a1a' }]}>{curr.name}</Text>
-                                    <Text style={styles.subLabel}>{curr.code}</Text>
+                                    <Text style={[styles.label, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>{curr.name}</Text>
+                                    <Text style={[styles.subLabel, { color: isDark ? '#94A3B8' : '#64748B' }]}>{curr.code}</Text>
                                 </View>
                             </View>
                             {currency === curr.code && (
-                                <View style={styles.checkmarkBox}>
-                                    <MaterialIcons name="check" size={18} color="#007AFF" />
+                                <View style={[styles.checkmarkBox, { backgroundColor: isDark ? 'rgba(92, 157, 255, 0.15)' : '#EEF5FD' }]}>
+                                    <MaterialIcons name="check" size={18} color={isDark ? '#9ED7ED' : '#8DCBE2'} />
                                 </View>
                             )}
                         </TouchableOpacity>
@@ -84,10 +84,10 @@ const SettingsScreen: React.FC = () => {
 
             <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                    <Ionicons name="shield-checkmark-outline" size={20} color={isDark ? '#8e8e93' : '#8e8e93'} />
-                    <Text style={styles.sectionTitle}>Data Management</Text>
+                    <Ionicons name="shield-checkmark-outline" size={18} color={isDark ? '#9ED7ED' : '#8DCBE2'} />
+                    <Text style={[styles.sectionTitle, { color: isDark ? '#9ED7ED' : '#8DCBE2' }]}>Data Management</Text>
                 </View>
-                <View style={[styles.card, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
+                <View style={[styles.card, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E8EEF5' }]}>
                     <TouchableOpacity
                         style={styles.row}
                         onPress={() => {
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     },
     content: {
         paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        paddingBottom: 40,
+        paddingBottom: 110,
     },
     header: {
         paddingHorizontal: 20,

@@ -275,7 +275,7 @@ const PortfolioScreen: React.FC = () => {
 
         return (
             <TouchableOpacity
-                style={[styles.premiumCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}
+                style={[styles.premiumCard, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E8EEF5' }]}
                 onPress={() => navigation.navigate('SearchResultsScreen', { stockSymbol: item.symbol })}
                 activeOpacity={0.8}
             >
@@ -353,10 +353,10 @@ const PortfolioScreen: React.FC = () => {
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#f8f9fa' }]}>
+        <View style={[styles.container, { backgroundColor: isDark ? '#0B1220' : '#F4F7FB' }]}>
             {loading && portfolio.length === 0 ? (
                 <View style={styles.loaderContainer}>
-                    <ActivityIndicator size="large" color="#007AFF" />
+                    <ActivityIndicator size="large" color="#8DCBE2" />
                 </View>
             ) : openPositions.length > 0 || closedPositions.length > 0 ? (
                 <FlatList
@@ -368,24 +368,28 @@ const PortfolioScreen: React.FC = () => {
                             <View style={styles.headerContainer}>
                                 <View style={styles.headerRow}>
                                     <TouchableOpacity
-                                        style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
+                                        style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(92,157,255,0.15)' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E2E8F0', borderWidth: 1 }]}
                                         onPress={() => {
                                             loadGlobalHistory();
                                             setIsHistoryModalVisible(true);
                                         }}
                                     >
-                                        <MaterialIcons name="history" size={24} color={isDark ? '#fff' : '#1a1a1a'} />
+                                        <MaterialIcons name="history" size={24} color={isDark ? '#9ED7ED' : '#8DCBE2'} />
                                     </TouchableOpacity>
-                                    <Text style={[styles.title, { color: isDark ? '#fff' : '#1a1a1a' }]}>Portfolio</Text>
+                                    <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Portfolio</Text>
                                     <View style={{ width: 44 }} />
                                 </View>
 
-                                <View style={[styles.mainDashboard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
+                                <View style={[styles.mainDashboard, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E8EEF5' }]}>
                                     <View style={styles.totalValueSection}>
                                         <Text style={styles.dashboardLabel}>Total Balance</Text>
-                                        <Text style={[styles.totalValueDisplay, { color: isDark ? '#fff' : '#000' }]}>{displayTotalValue}</Text>
+                                        <Text style={[styles.totalValueDisplay, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>{displayTotalValue}</Text>
                                         <View style={styles.todayChangeRow}>
-                                            <View style={[styles.tinyBadge, { backgroundColor: totalDayChange >= 0 ? 'rgba(52, 199, 89, 0.1)' : 'rgba(255, 59, 48, 0.1)' }]}>
+                                            <View style={[styles.tinyBadge, {
+                                                backgroundColor: totalDayChange >= 0
+                                                    ? (isDark ? 'rgba(52, 211, 153, 0.15)' : '#DCFCE7')
+                                                    : (isDark ? 'rgba(248, 113, 113, 0.15)' : '#FEE2E2')
+                                            }]}>
                                                 <Text style={[styles.todayChangeText, totalDayChange >= 0 ? styles.positive : styles.negative]}>
                                                     {totalDayChange >= 0 ? '+' : ''}{displayDayChange} ({totalDayChangePercent.toFixed(2)}%)
                                                 </Text>
@@ -394,7 +398,7 @@ const PortfolioScreen: React.FC = () => {
                                         </View>
                                     </View>
 
-                                    <View style={[styles.dashDivider, { backgroundColor: isDark ? '#333' : '#f0f0f0' }]} />
+                                    <View style={[styles.dashDivider, { backgroundColor: isDark ? '#1E2C44' : '#F1F5F9' }]} />
 
                                     <View style={styles.statsGrid}>
                                         <View style={styles.statBox}>
@@ -412,10 +416,10 @@ const PortfolioScreen: React.FC = () => {
                                     </View>
                                 </View>
                             </View>
-                            <View style={[styles.chartContainer, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
+                            <View style={[styles.chartContainer, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E8EEF5', borderWidth: 1 }]}>
                                 <View style={styles.chartHeader}>
-                                    <Text style={[styles.chartSectionTitle, { color: isDark ? '#fff' : '#333' }]}>Historical Performance</Text>
-                                    <View style={[styles.rangeContainer, { backgroundColor: isDark ? '#000' : '#f0f0f0' }]}>
+                                    <Text style={[styles.chartSectionTitle, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Historical Performance</Text>
+                                    <View style={[styles.rangeContainer, { backgroundColor: isDark ? '#0B1220' : '#EBF3FE' }]}>
                                         {(['1D', '1W', '1M', 'YTD', '1Y', '5Y', 'ALL'] as const).map((range) => (
                                             <TouchableOpacity
                                                 key={range}
@@ -528,7 +532,7 @@ const PortfolioScreen: React.FC = () => {
                                     </View>
                                 ))}
                             </View>
-                        ) : null
+                        ) : undefined
                     }
                     contentContainerStyle={styles.listContent}
                 />
@@ -768,7 +772,7 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     listContent: {
-        paddingBottom: 100,
+        paddingBottom: 110,
     },
     premiumCard: {
         marginHorizontal: 20,
@@ -776,11 +780,11 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         padding: 20,
         borderWidth: 1,
-        shadowColor: '#000',
+        shadowColor: '#8DCBE2',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 8,
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+        elevation: 4,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -920,23 +924,23 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     rangeChipActive: {
-        backgroundColor: '#fff',
-        shadowColor: '#000',
+        backgroundColor: '#8DCBE2',
+        shadowColor: '#8DCBE2',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.2,
         shadowRadius: 8,
-        elevation: 8,
+        elevation: 4,
     },
     rangeChipActiveDark: {
-        backgroundColor: '#333',
+        backgroundColor: '#9ED7ED',
     },
     rangeText: {
         fontSize: 12,
         fontWeight: '800',
-        color: '#8e8e93',
+        color: '#94A3B8',
     },
     rangeTextActive: {
-        color: '#007AFF',
+        color: '#FFFFFF',
     },
     benchmarkToggleRow: {
         flexDirection: 'row',
@@ -1147,16 +1151,16 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     positive: {
-        color: '#34C759',
+        color: '#10B981',
     },
     negative: {
-        color: '#FF3B30',
+        color: '#EF4444',
     },
     positiveText: {
-        color: '#34C759',
+        color: '#10B981',
     },
     negativeText: {
-        color: '#FF3B30',
+        color: '#EF4444',
     },
     closedSection: {
         paddingVertical: 20,

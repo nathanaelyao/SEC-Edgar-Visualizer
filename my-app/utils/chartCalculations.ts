@@ -67,6 +67,7 @@ function getPortfolioStateAtTime(
 /**
  * Get price for a symbol at a specific timestamp from historical data
  */
+// Get price for a symbol at a specific timestamp from historical data
 function getPriceAtTime(
     symbol: string,
     timestamp: number,
@@ -83,12 +84,11 @@ function getPriceAtTime(
     const prev = points.filter(p => p.timestamp < timestamp).pop();
     if (prev) return prev.price;
 
-    // If timestamp is before all data, use first available price
-    // If timestamp is after all data, use last available price (most recent)
-    const next = points.filter(p => p.timestamp > timestamp)[0];
-    if (next) return points[0].price; // Timestamp is before all data
+    // Find next price after this timestamp (covers timestamps before first point)
+    const next = points.find(p => p.timestamp > timestamp);
+    if (next) return next.price;
 
-    // Timestamp is after all data - use most recent price
+    // If timestamp is after all data, use most recent price (last point)
     return points[points.length - 1].price;
 }
 

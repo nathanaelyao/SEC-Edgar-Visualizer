@@ -229,24 +229,26 @@ const HoldingsScreen: React.FC = () => {
 
     return (
       <TouchableOpacity
-        style={[styles.holdingCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}
+        style={[styles.holdingCard, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E8EEF5' }]}
         onPress={() => {
           navigation.navigate('SearchResultsScreen', {
             stockSymbol: item.nameOfIssuer,
           });
-        }}>
+        }}
+        activeOpacity={0.8}
+      >
         <View style={styles.cardHeader}>
-          <View style={[styles.avatar, { backgroundColor: isDark ? '#333' : '#f0f2f5' }]}>
-            <Text style={[styles.avatarText, { color: isDark ? '#fff' : '#007AFF' }]}>{getInitials(item.nameOfIssuer)}</Text>
+          <View style={[styles.avatar, { backgroundColor: isDark ? 'rgba(92, 157, 255, 0.15)' : '#EEF5FD' }]}>
+            <Text style={[styles.avatarText, { color: isDark ? '#8DCBE2' : '#8DCBE2' }]}>{getInitials(item.nameOfIssuer)}</Text>
           </View>
           <View style={styles.nameSection}>
-            <Text style={[styles.issuerName, { color: isDark ? '#fff' : '#1a1a1a' }]} numberOfLines={1}>{item.nameOfIssuer}</Text>
+            <Text style={[styles.issuerName, { color: isDark ? '#F8FAFC' : '#0F172A' }]} numberOfLines={1}>{item.nameOfIssuer}</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.allocationBadge, { backgroundColor: isDark ? 'rgba(0,122,255,0.1)' : 'rgba(0,122,255,0.05)' }]}>
-                <Text style={styles.allocationText}>{allocation} Portfolio</Text>
+              <View style={[styles.allocationBadge, { backgroundColor: isDark ? 'rgba(92, 157, 255, 0.15)' : '#EEF5FD' }]}>
+                <Text style={[styles.allocationText, { color: isDark ? '#8DCBE2' : '#8DCBE2' }]}>{allocation} Portfolio</Text>
               </View>
               {changeData.type !== 'none' && (
-                <View style={[styles.changeBadge, { backgroundColor: isDark ? `${changeData.color}20` : `${changeData.color}10` }]}>
+                <View style={[styles.changeBadge, { backgroundColor: isDark ? `${changeData.color}20` : `${changeData.color}15` }]}>
                   <Text style={[styles.changeText, { color: changeData.color }]}>{changeData.change}</Text>
                 </View>
               )}
@@ -257,11 +259,11 @@ const HoldingsScreen: React.FC = () => {
         <View style={styles.cardDetails}>
           <View style={styles.detailItem}>
             <Text style={styles.detailLabel}>VALUE</Text>
-            <Text style={[styles.detailValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>{displayValue}</Text>
+            <Text style={[styles.detailValue, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>{displayValue}</Text>
           </View>
           <View style={[styles.detailItem, { alignItems: 'flex-end' }]}>
             <Text style={styles.detailLabel}>SHARES</Text>
-            <Text style={[styles.detailValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>{formatNumberWithCommas(item.shrsOrPrnAmt?.sshPrnamt)}</Text>
+            <Text style={[styles.detailValue, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>{formatNumberWithCommas(item.shrsOrPrnAmt?.sshPrnamt)}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -269,28 +271,35 @@ const HoldingsScreen: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#f8f9fa' }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#2C3E5A' : '#CDE4FF' }]}>
       <View style={styles.fixedHeader}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}>
-            <Ionicons name="chevron-back" size={24} color={isDark ? '#fff' : '#007AFF'} />
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={[styles.backButton, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E2E8F0' }]}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={22} color={isDark ? '#8DCBE2' : '#8DCBE2'} />
           </TouchableOpacity>
           <View style={styles.titleSection}>
-            <Text style={[styles.headerTitle, { color: isDark ? '#fff' : '#1a1a1a' }]} numberOfLines={1}>{investorName}</Text>
-            <Text style={styles.headerSubtitle} numberOfLines={1}>{institution}</Text>
+            <Text style={[styles.headerTitle, { color: isDark ? '#F8FAFC' : '#0F172A' }]} numberOfLines={1}>{investorName}</Text>
+            <Text style={[styles.headerSubtitle, { color: isDark ? '#94A3B8' : '#64748B' }]} numberOfLines={1}>{institution}</Text>
           </View>
           <View style={{ width: 44 }} />
         </View>
 
-        <View style={[styles.summaryCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}>
+        <View style={[styles.summaryCard, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E8EEF5' }]}>
           <View style={styles.summaryRow}>
             <View>
-              <Text style={styles.summaryLabel}>TOTAL VALUE</Text>
-              <Text style={[styles.summaryValue, { color: isDark ? '#fff' : '#1a1a1a' }]}>{formatCurrency(totalPortfolioValue, 'USD')}</Text>
+              <View style={[styles.summaryPill, { backgroundColor: isDark ? 'rgba(92, 157, 255, 0.15)' : '#EEF5FD' }]}>
+                <Ionicons name="wallet-outline" size={13} color={isDark ? '#8DCBE2' : '#8DCBE2'} style={{ marginRight: 4 }} />
+                <Text style={[styles.summaryPillText, { color: isDark ? '#8DCBE2' : '#8DCBE2' }]}>PORTFOLIO VALUE</Text>
+              </View>
+              <Text style={[styles.summaryValue, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>{formatCurrency(totalPortfolioValue, 'USD')}</Text>
             </View>
             {quarter && (
-              <View style={[styles.quarterBadge, { backgroundColor: isDark ? '#333' : '#f0f2f5' }]}>
-                <Text style={[styles.quarterText, { color: isDark ? '#8e8e93' : '#666' }]}>{quarter}</Text>
+              <View style={[styles.quarterBadge, { backgroundColor: isDark ? 'rgba(52, 211, 153, 0.15)' : '#DCFCE7' }]}>
+                <Text style={[styles.quarterText, { color: isDark ? '#34D399' : '#10B981' }]}>{quarter}</Text>
               </View>
             )}
           </View>
@@ -299,7 +308,7 @@ const HoldingsScreen: React.FC = () => {
 
       {loading ? (
         <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color="#8DCBE2" />
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>
@@ -368,36 +377,50 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   summaryCard: {
-    padding: 24,
-    borderRadius: 28,
+    padding: 22,
+    borderRadius: 24,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowColor: '#8DCBE2',
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
-    shadowRadius: 20,
+    shadowRadius: 16,
     elevation: 4,
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+  },
+  summaryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 6,
+  },
+  summaryPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
   summaryLabel: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#8e8e93',
+    color: '#94A3B8',
     letterSpacing: 1,
     marginBottom: 8,
   },
   summaryValue: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: '900',
-    letterSpacing: -1,
+    letterSpacing: -0.8,
   },
   quarterBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 10,
+    borderRadius: 12,
   },
   quarterText: {
     fontSize: 11,
@@ -407,15 +430,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   holdingCard: {
-    padding: 20,
-    borderRadius: 24,
-    marginBottom: 16,
+    padding: 18,
+    borderRadius: 22,
+    marginBottom: 14,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowColor: '#8DCBE2',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowRadius: 10,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',

@@ -136,7 +136,7 @@ const HomeScreen: React.FC = () => {
 
     return (
       <TouchableOpacity
-        style={[styles.investorCard, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#f0f0f0' }]}
+        style={[styles.investorCard, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E8EEF5' }]}
         onPress={() => {
           navigation.navigate('HoldingsScreen', {
             investorName: item.name,
@@ -144,26 +144,27 @@ const HomeScreen: React.FC = () => {
             cik: item.cik,
           });
         }}
+        activeOpacity={0.8}
       >
         <View style={styles.cardHeader}>
-          <View style={[styles.avatar, { backgroundColor: isDark ? '#333' : '#f0f2f5' }]}>
-            <Text style={[styles.avatarText, { color: isDark ? '#fff' : '#007AFF' }]}>{getInitials(item.name)}</Text>
+          <View style={[styles.avatar, { backgroundColor: isDark ? 'rgba(92, 157, 255, 0.15)' : '#EEF5FD' }]}>
+            <Text style={[styles.avatarText, { color: isDark ? '#9ED7ED' : '#8DCBE2' }]}>{getInitials(item.name)}</Text>
           </View>
           <View style={styles.nameSection}>
-            <Text style={[styles.investorName, { color: isDark ? '#fff' : '#1a1a1a' }]} numberOfLines={1}>{item.name}</Text>
-            <Text style={styles.institutionName} numberOfLines={1}>{item.institution}</Text>
+            <Text style={[styles.investorName, { color: isDark ? '#F8FAFC' : '#0F172A' }]} numberOfLines={1}>{item.name}</Text>
+            <Text style={[styles.institutionName, { color: isDark ? '#94A3B8' : '#64748B' }]} numberOfLines={1}>{item.institution}</Text>
           </View>
-          <MaterialIcons name="chevron-right" size={24} color={isDark ? '#444' : '#ccc'} />
+          <MaterialIcons name="chevron-right" size={24} color={isDark ? '#64748B' : '#94A3B8'} />
         </View>
 
         {hasFiling && (
           <View style={styles.cardFooter}>
-            <View style={[styles.filingBadge, { backgroundColor: isDark ? 'rgba(0,122,255,0.1)' : 'rgba(0,122,255,0.05)' }]}>
-              <MaterialIcons name="history" size={14} color="#007AFF" style={{ marginRight: 4 }} />
-              <Text style={styles.filingDateText}>{filing.date}</Text>
+            <View style={[styles.filingBadge, { backgroundColor: isDark ? 'rgba(92, 157, 255, 0.15)' : '#EEF5FD' }]}>
+              <MaterialIcons name="history" size={14} color={isDark ? '#9ED7ED' : '#8DCBE2'} style={{ marginRight: 4 }} />
+              <Text style={[styles.filingDateText, { color: isDark ? '#9ED7ED' : '#8DCBE2' }]}>{filing.date}</Text>
             </View>
-            <View style={[styles.quarterBadge, { backgroundColor: isDark ? 'rgba(52,199,89,0.1)' : 'rgba(52,199,89,0.05)' }]}>
-              <Text style={styles.quarterText}>{filing.quarter}</Text>
+            <View style={[styles.quarterBadge, { backgroundColor: isDark ? 'rgba(52, 211, 153, 0.15)' : '#DCFCE7' }]}>
+              <Text style={[styles.quarterText, { color: isDark ? '#34D399' : '#10B981' }]}>{filing.quarter}</Text>
             </View>
           </View>
         )}
@@ -172,44 +173,48 @@ const HomeScreen: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#f8f9fa' }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#0B1220' : '#F4F7FB' }]}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <View>
-            <Text style={[styles.title, { color: isDark ? '#fff' : '#1a1a1a' }]}>13F Filings</Text>
-            <Text style={styles.subtitle}>Track top institutional investors</Text>
+            <View style={[styles.headerPill, { backgroundColor: isDark ? 'rgba(92, 157, 255, 0.15)' : '#EEF5FD' }]}>
+              <Ionicons name="documents-outline" size={13} color={isDark ? '#9ED7ED' : '#8DCBE2'} style={{ marginRight: 5 }} />
+              <Text style={[styles.headerPillText, { color: isDark ? '#9ED7ED' : '#8DCBE2' }]}>INSTITUTIONAL FILINGS</Text>
+            </View>
+            <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>13F Filings</Text>
+            <Text style={[styles.subtitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>Track top institutional investors</Text>
           </View>
           <TouchableOpacity
-            style={[styles.iconButton, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}
+            style={[styles.iconButton, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E2E8F0' }]}
             onPress={() => navigation.navigate('portfolio')}
           >
-            <Ionicons name="pie-chart-outline" size={24} color="#007AFF" />
+            <Ionicons name="pie-chart" size={22} color={isDark ? '#9ED7ED' : '#8DCBE2'} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.controlsRow}>
-          <View style={[styles.searchContainer, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}>
-            <Ionicons name="search" size={18} color={isDark ? '#666' : '#999'} style={{ marginRight: 10 }} />
+          <View style={[styles.searchContainer, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E2E8F0' }]}>
+            <Ionicons name="search" size={18} color={isDark ? '#9ED7ED' : '#8DCBE2'} style={{ marginRight: 10 }} />
             <TextInput
-              style={[styles.searchInput, { color: isDark ? '#fff' : '#000' }]}
-              placeholder="Search investors..."
-              placeholderTextColor={isDark ? '#666' : '#999'}
+              style={[styles.searchInput, { color: isDark ? '#F8FAFC' : '#0F172A' }]}
+              placeholder="Search investors or institutions..."
+              placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
               onChangeText={setSearchQuery}
               value={searchQuery}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={18} color={isDark ? '#444' : '#ccc'} />
+                <Ionicons name="close-circle" size={18} color={isDark ? '#64748B' : '#94A3B8'} />
               </TouchableOpacity>
             )}
           </View>
 
           <Dropdown
             data={sortOptions}
-            style={[styles.dropdown, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}
-            placeholderStyle={[styles.dropdownPlaceholder, { color: isDark ? '#666' : '#999' }]}
-            selectedTextStyle={[styles.dropdownSelectedText, { color: isDark ? '#fff' : '#1a1a1a' }]}
-            containerStyle={[styles.dropdownContainer, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderColor: isDark ? '#333' : '#eee' }]}
+            style={[styles.dropdown, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E2E8F0' }]}
+            placeholderStyle={[styles.dropdownPlaceholder, { color: isDark ? '#64748B' : '#94A3B8' }]}
+            selectedTextStyle={[styles.dropdownSelectedText, { color: isDark ? '#F8FAFC' : '#0F172A' }]}
+            containerStyle={[styles.dropdownContainer, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderColor: isDark ? '#1E2E4A' : '#E2E8F0' }]}
             labelField="label"
             valueField="value"
             value={value}
@@ -217,9 +222,9 @@ const HomeScreen: React.FC = () => {
             onBlur={() => setIsFocus(false)}
             onChange={handleSortChange}
             renderItem={item => (
-              <View style={[styles.dropdownItem, { backgroundColor: isDark ? '#1a1a1a' : '#fff', borderBottomColor: isDark ? '#333' : '#f0f0f0' }]}>
-                <Text style={[styles.dropdownItemText, { color: isDark ? '#fff' : '#1a1a1a' }]}>{item.label}</Text>
-                {item.value === value && <MaterialIcons name="check" size={18} color="#007AFF" />}
+              <View style={[styles.dropdownItem, { backgroundColor: isDark ? '#131E32' : '#FFFFFF', borderBottomColor: isDark ? '#1E2C44' : '#F1F5F9' }]}>
+                <Text style={[styles.dropdownItemText, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>{item.label}</Text>
+                {item.value === value && <MaterialIcons name="check" size={18} color={isDark ? '#9ED7ED' : '#8DCBE2'} />}
               </View>
             )}
           />
@@ -261,10 +266,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
+  headerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+  },
+  headerPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
   title: {
-    fontSize: 34,
+    fontSize: 28,
     fontWeight: '900',
-    letterSpacing: -1,
+    letterSpacing: -0.8,
   },
   subtitle: {
     fontSize: 14,
@@ -292,29 +311,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 52,
-    borderRadius: 16,
+    borderRadius: 20,
     paddingHorizontal: 16,
     borderWidth: 1,
-    shadowColor: '#000',
+    shadowColor: '#8DCBE2',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 10,
     elevation: 2,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   dropdown: {
     height: 52,
-    borderRadius: 16,
+    borderRadius: 20,
     paddingHorizontal: 16,
     borderWidth: 1,
-    shadowColor: '#000',
+    shadowColor: '#8DCBE2',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 10,
     elevation: 2,
   },
   dropdownPlaceholder: {
@@ -326,7 +345,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   dropdownContainer: {
-    borderRadius: 16,
+    borderRadius: 20,
     marginTop: 8,
     overflow: 'hidden',
     borderWidth: 1,
@@ -344,37 +363,37 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
   investorCard: {
-    padding: 20,
-    borderRadius: 24,
-    marginBottom: 16,
+    padding: 18,
+    borderRadius: 22,
+    marginBottom: 14,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowColor: '#8DCBE2',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowRadius: 10,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 46,
+    height: 46,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
   },
   nameSection: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: 14,
   },
   investorName: {
     fontSize: 18,
