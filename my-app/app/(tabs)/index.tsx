@@ -175,6 +175,7 @@ const HomeScreen: React.FC = () => {
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#0B1220' : '#F4F7FB' }]}>
       <View style={styles.header}>
+
         <View style={styles.titleRow}>
           <View>
             <View style={[styles.headerPill, { backgroundColor: isDark ? 'rgba(92, 157, 255, 0.15)' : '#EEF5FD' }]}>

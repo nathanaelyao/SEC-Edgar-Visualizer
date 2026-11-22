@@ -17,11 +17,18 @@ export default function HapticTab(props: BottomTabBarButtonProps) {
         {
           backgroundColor: focused
             ? isDark
-              ? 'rgba(141,203,226,0.18)'
-              : '#E8F5FA'
+              ? 'rgba(141, 203, 226, 0.16)'
+              : '#E5F4FA'
             : 'transparent',
-          borderRadius: 36,
-          margin: 4,
+          borderRadius: 24,
+          marginVertical: 4,
+          marginHorizontal: 3,
+          borderWidth: focused ? 1 : 0,
+          borderColor: focused
+            ? isDark
+              ? 'rgba(141, 203, 226, 0.25)'
+              : 'rgba(141, 203, 226, 0.45)'
+            : 'transparent',
         },
       ]}
     >

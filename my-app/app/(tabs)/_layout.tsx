@@ -3,14 +3,13 @@ import React from 'react';
 import { Platform, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { HapticTab } from '@/components/HapticTab';
+import HapticTab from '@/components/HapticTab';
 import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/context/ThemeContext';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const theme = Colors[colorScheme ?? 'light'];
+  const { isDark } = useTheme();
+  const theme = Colors[isDark ? 'dark' : 'light'];
 
   const renderTabIcon = (
     nameOutline: keyof typeof Ionicons.glyphMap,
@@ -18,17 +17,11 @@ export default function TabLayout() {
     focused: boolean,
   ) => {
     return (
-      <View
-        style={[
-          focused && {
-            borderWidth: 1,
-          },
-        ]}
-      >
+      <View style={styles.iconContainer}>
         <Ionicons
           name={focused ? nameFilled : nameOutline}
           size={20}
-          color={focused ? theme.primary : theme.tabIconDefault}
+          color={focused ? theme.tabIconSelected : theme.tabIconDefault}
         />
       </View>
     );
@@ -37,7 +30,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: theme.primary,
+        tabBarActiveTintColor: theme.tabIconSelected,
         tabBarInactiveTintColor: theme.tabIconDefault,
         headerShown: false,
         tabBarButton: HapticTab as any,
@@ -55,13 +48,13 @@ export default function TabLayout() {
             bottom: 24,
             height: 70,
             borderRadius: 32,
-            backgroundColor: isDark ? 'rgba(19, 32, 46, 0.98)' : '#FFFFFF',
+            backgroundColor: isDark ? 'rgba(19, 32, 46, 0.98)' : 'rgba(255, 255, 255, 0.97)',
             borderWidth: 1.5,
             borderColor: isDark ? '#1E3245' : 'rgba(141, 203, 226, 0.45)',
-            shadowColor: '#8DCBE2',
+            shadowColor: isDark ? '#000000' : '#142C3D',
             shadowOffset: { width: 0, height: 6 },
-            shadowOpacity: 0.25,
-            shadowRadius: 18,
+            shadowOpacity: isDark ? 0.35 : 0.1,
+            shadowRadius: 16,
             elevation: 8,
             paddingBottom: 8,
             paddingTop: 8,
@@ -127,11 +120,7 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   iconContainer: {
-    width: 60,
-    height: 30,
-    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 0,
   },
 });
